@@ -29,10 +29,14 @@ sourceSets {
     main {
         java.setSrcDirs(listOf(layout.buildDirectory.dir("generated/sources/pvp")))
         resources {
-            srcDirs("src/main/java", "src/main/resources")
+            setSrcDirs(listOf("src/main/java", "src/main/resources"))
             exclude("**/*.java", "**/*.kt", "**/.git")
         }
     }
+}
+// Kotlin and Java both register the default resources; package each path once.
+tasks.named<ProcessResources>("processResources") {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
 dependencies {
