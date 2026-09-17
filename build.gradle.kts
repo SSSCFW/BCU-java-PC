@@ -10,14 +10,11 @@ plugins {
 
 repositories {
     mavenLocal()
+    mavenCentral()
     maven {
         url = uri("https://jogamp.org/deployment/maven/")
+        content { includeGroupByRegex("org\\.jogamp(\\..*)?") }
     }
-
-    maven {
-        url = uri("https://repo.maven.apache.org/maven2/")
-    }
-    mavenCentral()
 }
 
 // Preserve the upstream gitlink: compile a generated tree with our common overlays.
@@ -97,5 +94,11 @@ val pvpTests by tasks.registering(JavaExec::class) {
     classpath = sourceSets.test.get().runtimeClasspath
     mainClass.set("online.tests.AllTests")
     jvmArgs("-ea", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8")
+}
+// The suite deliberately uses a main-based runner (also invoked by Maven),
+// not JUnit annotations. Both `test` and `check` must execute it.
+tasks.named<Test>("test") {
+    dependsOn(pvpTests)
+    failOnNoDiscoveredTests.set(false)
 }
 tasks.named("check") { dependsOn(pvpTests) }
