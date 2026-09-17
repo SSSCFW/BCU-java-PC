@@ -1,0 +1,124 @@
+name: Verify editable room lobby
+on:
+  push:
+    branches: [work/room-lobby-publish]
+    paths: [.github/workflows/publish-room-lobby.yml]
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 772738bced700fa93febacc816a7ce9b84d664f9
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Restore exactly verified source changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, lzma, os, pathlib, subprocess, urllib.request
+          base = '772738bced700fa93febacc816a7ce9b84d664f9'
+          parts = [
+            ('e1d08a781240e7d6a982a997144ef2c5f06217cb',6000),
+            ('638ff33e4b9d8065bfca4b4a5d9e910beca337d3',6000),
+            ('f07b4b71e3be6ac80162456757cb48dabc7ef0dd',6000),
+            ('6fed02ef8e3a48b1bdb618eebf3d9e8b90929c27',6000),
+            ('c98782e75464adc3cc854efe5a617553e93abac9',2784)]
+          expected = {
+            'docs/HYBRID_VALIDATION.md': 'dbbe6c60d5e5da0a58b465489903b8d770b4889c',
+            'docs/ONLINE_PVP_JA.md': 'e8daf87066408ce7844d69e5b30e33c65e3f1d70',
+            'docs/superpowers/plans/2026-09-17-room-lobby-audio.md': 'a0df0209d9dbd933df80eff487d1dba2f6384c12',
+            'docs/superpowers/specs/2026-09-17-room-lobby-audio.md': '5251cd62103f43ab5dbfa6b90b71fa03d6ad532f',
+            'src/main/java/io/BCMusic.java': 'd45635fc1ec8fae08180bba70bd423587bef0e1c',
+            'src/main/java/io/BCPlayer.java': '8a88a2b09cf7c01956e4793a2a75df5357a46aa7',
+            'src/main/java/online/net/Protocol.java': 'ca058f29925433cb87ee3771be492c851ea8f689',
+            'src/main/java/online/net/RoomClient.java': '15f46dcc855b5492489668cf3d6680ea1261e653',
+            'src/main/java/online/net/core/Participant.java': 'adada0824a741682f14d6600eca5d34d934fc4e0',
+            'src/main/java/online/net/core/RoomServerCore.java': '318ab98b4ee48216e9f7d3530704cd4583adce5c',
+            'src/main/java/online/net/core/RoomSession.java': '50ced0b3a5878f634ae9b99c6f5fe6071bb070d1',
+            'src/main/java/online/net/lobby/RoomRules.java': '29d0daec6a7c77a8df1b9cf96c2c15043617bfdb',
+            'src/main/java/online/ui/AudioSettingsPanel.java': 'efe97feb657ca03b49d2269b6b0974640267ea0d',
+            'src/main/java/online/ui/OnlineBattleField.java': '75b240bfe82752b69c996232293a8781f0ee0c93',
+            'src/main/java/online/ui/OnlineLobbyPage.java': '7ad746b14c248c79ee2750f1ad39dc7a7e38cd51',
+            'src/main/java/online/ui/RoomLobbyPage.java': '07d345c11ad3c87f7b492d1b1ee97d6a49b45c9d',
+            'src/main/java/page/battle/BattleInfoPage.java': '488672ca94f2ba6986ac9a07f134edae45c2c501',
+            'src/pvp/java/common/battle/ELineUp.java': 'd665303eaf59a951d15d81dab8db36164b01d7d4',
+            'src/pvp/java/common/battle/PvpAudio.java': 'c8a5b668a9c14ea99849a985a922dc931c75ab7f',
+            'src/pvp/java/common/battle/PvpStageBasis.java': '972e97947185dc8db9abe0de4d603fe3332dc4bd',
+            'src/pvp/java/common/battle/StageBasis.java': '7121358263d3356fb3f96233a9a84101d6c2ca13',
+            'src/test/java/io/AudioVolumeTests.java': 'f20a20cbbe7d33310263fe91d0f6573c325a4199',
+            'src/test/java/online/tests/AllTests.java': 'd325440c2fbfc90b5f59d5402789218864b7cf3e',
+            'src/test/java/online/tests/Fixture.java': '671e7bb5162dbfe86a256048f43ec2b503904745',
+            'src/test/java/online/tests/FixtureNativeUi.java': '151ce01cbce9fc2cb9974b66eb9f4cb8c3e09e88',
+            'src/test/java/online/tests/HeadlessPeer.java': 'fc2d4a971804635da0da4320cfe9da2f2831ebc7',
+            'src/test/java/online/tests/HybridNetworkTests.java': 'c0457911f264f1bd0cf8c1964291618fa3693b5b',
+            'src/test/java/online/tests/LobbyTestSupport.java': '737a3950e39d4dc23f87e757f10876c7fb149b8a',
+            'src/test/java/online/tests/NetworkTests.java': 'f02781fe5a7aa650e112652ade8f5edb4ebc4cb9',
+            'src/test/java/online/tests/PasswordRoomTests.java': 'c759c278e496547b5802a820bd2f5cff134dc9e3',
+            'src/test/java/online/tests/RoomAudioTests.java': 'b73c2d5d3d0e3416b56458b60d0dba9ef5ad88d96',
+            'src/test/java/online/tests/RoomLobbyTests.java': '51d44029dedc63f6afd9c88ab7ca521296bd62c6',
+            'src/test/java/online/tests/RoomRuleTests.java': '528a65c34fdb327d19bd48cc2f143cc88bd46a0e',
+            'src/test/java/online/ui/LobbyUiTests.java': '32a6002e380fa46ffe56a97b0dbbe9813355c14e',
+            'tools/test-pvp-local.sh': '104b96160b42e8a99e5682020caa452846a0ab23',
+            'tools/verify-pvp-package.py': '8fa7a629714eed5cb4ba6bddf228df6aeb133e82'
+          }
+          def blob_sha(raw):
+              return hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+          assert subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip() == base
+          data = bytearray()
+          for sha, length in parts:
+              req = urllib.request.Request('https://api.github.com/repos/SSSCFW/BCU-java-PC/git/blobs/'+sha, headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(req,timeout=30) as response: payload = json.load(response)
+              raw = base64.b64decode(payload['content'])
+              assert len(raw) == length and blob_sha(raw) == sha, sha
+              data.extend(raw)
+          assert hashlib.sha256(data).hexdigest() == '54881bc76afa27e7c03b4c4a5146034ab7d896aedbce17e97499e885f48c0967'
+          patch = lzma.decompress(data)
+          assert hashlib.sha256(patch).hexdigest() == 'bba7714cf5e39927e71a110bef9f821de00ae474e355e26eb8dcfba724c955c8'
+          path = pathlib.Path(os.environ['RUNNER_TEMP'])/'room-source.patch'
+          path.write_bytes(patch)
+          subprocess.run(['git','apply','--check',str(path)],check=True)
+          subprocess.run(['git','apply',str(path)],check=True)
+          for name, sha in expected.items():
+              actual = blob_sha(pathlib.Path(name).read_bytes())
+              assert actual == sha, (name, actual)
+          subprocess.run(['git','add','--',*expected],check=True)
+          changed = set(subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines())
+          assert changed == set(expected), changed
+          subprocess.run(['git','diff','--cached','--check'],check=True)
+          subprocess.run(['git','diff','--cached','--exit-code','--','.github','src/main/java/common'],check=True)
+          assert subprocess.check_output(['git','ls-files','-s','src/main/java/common'],text=True).split()[1] == '8920447e73bea56289a2da5a2a9294e24ff08c67'
+          print('Verified all 36 changed source paths; original submodule unchanged.')
+          PY
+      - name: Clean Maven, audio and actual Swing tests
+        run: |
+          set -o pipefail
+          mkdir -p diagnostics
+          mvn -B -ntp clean verify dependency:copy-dependencies -DoutputDirectory=target/lib 2>&1 | tee diagnostics/room-maven.log
+          xvfb-run -a java -ea -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.ui.LobbyUiTests 2>&1 | tee diagnostics/room-gui.log
+          python3 tools/test-package-pvp.py
+          bash tools/package-pvp.sh
+      - name: Commit verified source only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git diff --cached --quiet -- .github src/main/java/common
+          git commit -m 'feat: editable room lobby, host rules and local battle audio'
+          git push origin HEAD:refs/heads/work/room-lobby-verified
+          git rev-parse HEAD | tee diagnostics/verified-commit.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: room-lobby-verification
+          path: |
+            diagnostics/
+            target/lobby-ui-logs/
+            target/native-ui-*.png
+          retention-days: 7
