@@ -1,4 +1,4 @@
-name: PvP defeat reward TDD
+name: PvP defeat reward protocol verification
 on:
   push:
     branches: [work/kill-reward]
@@ -11,134 +11,52 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 4b8bd007c59ac800f42e47e7629793a5a59014bf
+          ref: 66b23f91c1b651fcabed4f7cc6d42f792b0ce5b3
           submodules: recursive
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-      - name: Apply defeat-reward rule and regression tests
+      - name: Bump incompatible battle protocol to v4
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          test = Path('src/test/java/online/tests/CombatTests.java')
-          s = test.read_text()
-          marker = '        Check.equal(duel.le.get(0).health,duel.le.get(1).health,"same-unit combat is symmetric");\n'
-          assert marker in s
-          s = s.replace(marker, marker + '        defeatRewardTests();\n', 1)
-          helper = '''    private static void defeatRewardTests() throws Exception {
-              PvpStageBasis leftWins=duel(false,false);
-              EUnit left=unit(leftWins,1),right=unit(leftWins,-1);
-              StageBasis leftPlayer=leftWins.left(),rightPlayer=leftWins.right();
-              leftPlayer.money=0;rightPlayer.money=0;
-              int rightCost=rightPlayer.elu.price[right.index[0]][right.index[1]];
-              right.lastKilledBy.add((AttackSimple)model(left).getAttack(0));
-              right.kill(Entity.KillMode.NORMAL);
-              Check.equal(rightCost/2,leftPlayer.money,"left player receives half of defeated unit cost");
-              Check.equal(0,rightPlayer.money,"victim side receives no defeat reward");
-              int once=leftPlayer.money;
-              right.kill(Entity.KillMode.NORMAL);
-              Check.equal(once,leftPlayer.money,"one deployed unit pays defeat reward only once");
+          p=Path('src/main/java/online/net/Protocol.java'); s=p.read_text()
+          assert 'VERSION=3' in s and 'bcu-pvp-3-core-8920447' in s
+          s=s.replace('VERSION=3','VERSION=4',1).replace('bcu-pvp-3-core-8920447','bcu-pvp-4-core-8920447',1)
+          p.write_text(s)
 
-              PvpStageBasis rightWins=duel(false,false);
-              EUnit reverseLeft=unit(rightWins,1),reverseRight=unit(rightWins,-1);
-              rightWins.right().money=0;
-              int leftCost=rightWins.left().elu.price[reverseLeft.index[0]][reverseLeft.index[1]];
-              reverseLeft.lastKilledBy.add((AttackSimple)model(reverseRight).getAttack(0));
-              reverseLeft.kill(Entity.KillMode.NORMAL);
-              Check.equal(leftCost/2,rightWins.right().money,"right player receives the same half-cost reward");
+          p=Path('docs/ONLINE_PVP_JA.md'); s=p.read_text()
+          assert 'protocol v3' in s and '今回の通信はv3です' in s
+          s=s.replace('protocol v3','protocol v4',1)
+          s=s.replace('今回の通信はv3です。旧テスト版とは互換性がないため','今回の通信はv4です。旧v3テスト版とは互換性がないため',1)
+          p.write_text(s)
 
-              PvpStageBasis capped=duel(false,false);
-              EUnit cappedLeft=unit(capped,1),cappedRight=unit(capped,-1);
-              int cappedCost=capped.left().elu.price[cappedLeft.index[0]][cappedLeft.index[1]];
-              capped.right().money=Math.max(0,capped.right().maxMoney-Math.max(1,cappedCost/4));
-              cappedLeft.lastKilledBy.add((AttackSimple)model(cappedRight).getAttack(0));
-              cappedLeft.kill(Entity.KillMode.NORMAL);
-              Check.equal(capped.right().maxMoney,capped.right().money,"defeat reward never exceeds max money");
+          p=Path('.github/workflows/pvp-ci.yml'); s=p.read_text()
+          assert 'プロトコルv3' in s and '同じv3版' in s
+          s=s.replace('プロトコルv3','プロトコルv4',1).replace('同じv3版','同じv4版',1)
+          p.write_text(s)
 
-              PvpStageBasis cleanup=duel(false,false);
-              EUnit cleanupRight=unit(cleanup,-1);
-              cleanup.left().money=0;
-              cleanupRight.kill(Entity.KillMode.NORMAL);
-              Check.equal(0,cleanup.left().money,"normal cleanup without an opposing attack pays no reward");
-
-              PvpStageBasis selfDestruct=duel(false,false);
-              EUnit selfLeft=unit(selfDestruct,1),selfRight=unit(selfDestruct,-1);
-              selfDestruct.left().money=0;
-              selfRight.lastKilledBy.add((AttackSimple)model(selfLeft).getAttack(0));
-              selfRight.kill(Entity.KillMode.SELF_DESTRUCT);
-              Check.equal(0,selfDestruct.left().money,"self-destruction pays no defeat reward");
-          }
-
-          private static EUnit unit(PvpStageBasis b,int direction){return (EUnit)b.le.stream().filter(e->e.dire==direction).findFirst().get();}
-
-          '''
-          marker2 = '    public static PvpStageBasis duel(boolean wave,boolean mini)throws Exception {\n'
-          assert marker2 in s
-          s = s.replace(marker2, helper + marker2, 1)
-          test.write_text(s)
-
-          unit = Path('src/pvp/java/common/battle/entity/EUnit.java')
-          s = unit.read_text()
-          field = '\tpublic int legendGrade = -1, coloGrade = -1, counterGrade = -1, bountyGrade = -1;\n'
-          assert field in s
-          s = s.replace(field, field + '\tprivate boolean pvpDefeatRewarded;\n', 1)
-          kill = '\tpublic void kill(KillMode atk) {\n\t\tsuper.kill(atk);\n'
-          assert kill in s
-          s = s.replace(kill, kill + '\t\trewardPvpDefeat(atk);\n', 1)
-          before_atk = '\n\t@Override\n\tpublic int getAtk() { // visual only\n'
-          reward = ''.join([
-              '\n    private void rewardPvpDefeat(KillMode mode) {\n',
-              '        if (pvpDefeatRewarded || mode != KillMode.NORMAL || !basis.isPvp() || index == null || isSpirit)\n',
-              '            return;\n\n',
-              '        boolean opponentKill = false;\n',
-              '        for (AttackAb attack : lastKilledBy) {\n',
-              '            if (attack != null && attack.dire == -dire) {\n',
-              '                opponentKill = true;\n',
-              '                break;\n',
-              '            }\n',
-              '        }\n',
-              '        if (!opponentKill)\n',
-              '            return;\n\n',
-              '        int cost = basis.elu.price[index[0]][index[1]];\n',
-              '        if (cost <= 0)\n',
-              '            return;\n\n',
-              '        pvpDefeatRewarded = true;\n',
-              '        int reward = cost / 2;\n',
-              '        if (reward <= 0)\n',
-              '            return;\n\n',
-              '        StageBasis winner = basis.playerFor(-dire);\n',
-              '        winner.money = (int) Math.min((long) winner.maxMoney, (long) winner.money + reward);\n',
-              '    }\n'
-          ])
-          assert before_atk in s
-          s = s.replace(before_atk, reward + before_atk, 1)
-          unit.write_text(s)
-
-          doc = Path('docs/ONLINE_PVP_JA.md')
-          s = doc.read_text()
-          rule = '両者が独立したお金・働きネコ・再生産待ち・にゃんこ砲・編成を持ち、同じ戦場で戦います。\n城HPが0になった側が敗北し、同一tickに両方0なら引き分けです。\n'
-          assert rule in s
-          s = s.replace(rule, rule + '\n相手が編成から出撃したユニットを通常撃破すると、倒されたユニットの出撃コストの50%を撃破側のお金へ加算します。\n端数は切り捨て、所持金上限を超えません。自爆・魂の自然消滅・相手の攻撃に起因しない消滅・編成コストを持たないユニットは対象外です。\n', 1)
-          s = s.replace('6. 専用ロビーでそれぞれ編成を選び、ホストがルールを設定します。共有に同意して両方の「準備完了」を押すと、自動共有後に戦闘が始まります。', '6. 専用ロビーでそれぞれ編成を選び、ホストがルールを設定します。両方の「準備完了」を押すと、自動共有後に戦闘が始まります。')
-          doc.write_text(s)
+          p=Path('tools/verify-pvp-package.py'); s=p.read_text()
+          s=s.replace('essential v3 classes','essential v4 classes',1)
+          p.write_text(s)
           PY
           git diff --check
       - name: Full Maven verification
         shell: bash
         run: |
           set -o pipefail
-          mvn -B -ntp clean verify 2>&1 | tee /tmp/kill-reward.log
-          grep -F 'PvP tests passed:' /tmp/kill-reward.log
-      - name: Commit verified source
+          mvn -B -ntp clean verify 2>&1 | tee /tmp/kill-reward-v4.log
+          grep -F 'PvP tests passed:' /tmp/kill-reward-v4.log
+      - name: Commit verified v4 source
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/pvp/java/common/battle/entity/EUnit.java src/test/java/online/tests/CombatTests.java docs/ONLINE_PVP_JA.md
+          git add src/main/java/online/net/Protocol.java docs/ONLINE_PVP_JA.md .github/workflows/pvp-ci.yml tools/verify-pvp-package.py
           git diff --cached --check
-          git commit -m 'feat: award half unit cost on PvP defeat'
-          git push origin HEAD:refs/heads/work/kill-reward-verified --force
+          git commit -m 'chore: bump PvP protocol for defeat reward rule'
+          git push origin HEAD:refs/heads/work/kill-reward-v4 --force
           git rev-parse HEAD
