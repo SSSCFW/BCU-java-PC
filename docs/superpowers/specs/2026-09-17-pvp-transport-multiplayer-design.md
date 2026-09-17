@@ -80,7 +80,7 @@ Participant
   connection/liveness timestamps
 ```
 
-A `PlayerId` is an opaque server-issued integer/UUID-like identifier and is not inferred from array position.
+A `PlayerId` is an opaque server-issued identifier and is not inferred from array position.
 
 ### Current game mode
 
@@ -136,22 +136,31 @@ Realtime battle traffic uses UDP when available.
 
 The client first establishes WSS control connectivity and joins a room. The server then issues:
 
-- `udpSessionId`
-- random per-session AEAD key material
+- a random 64-bit `udpSessionId`
+- 32 bytes of random UDP master key material
 - UDP server endpoint/port
 - protocol version and input-delay bounds
 
-The client sends a UDP hello authenticated with the issued key. The server binds the observed source address/port to that participant after successful authentication.
+The client sends authenticated UDP hello datagrams. It sends up to 4 hellos at 250 ms intervals. If no authenticated server acknowledgement is received within 1500 ms, that participant selects WebSocket realtime fallback before the battle starts.
 
-No client accepts unauthenticated realtime datagrams.
+The server binds the observed source address/port to that participant only after successful authentication. No client accepts unauthenticated realtime datagrams.
 
 ### Packet size
 
-Keep UDP datagrams at or below 1200 bytes by design to avoid relying on IP fragmentation across typical Internet paths.
+Keep every UDP datagram at or below 1200 bytes by design to avoid relying on IP fragmentation across typical Internet paths.
 
 ### Encryption/authentication
 
-Use AES-GCM with a per-session key and unique nonce derived from session+sequence. Associated data includes protocol version and session ID. Packets with invalid tags, stale windows, invalid participant IDs, or replayed sequence numbers are dropped before entering the room core.
+Use AES-256-GCM. The 32-byte master key received over WSS is expanded with HMAC-SHA256 domain separation into two independent keys:
+
+- client-to-server key: HMAC(master, `BCU-PVP-C2S-v2`)
+- server-to-client key: HMAC(master, `BCU-PVP-S2C-v2`)
+
+Each direction has an independent unsigned 64-bit packet sequence beginning at a fresh random non-zero initial value. The 96-bit GCM nonce is derived from a direction-specific nonce prefix plus that direction's sequence number. A key is scoped to one joined participant/match session and is never reused after reconnect/rejoin.
+
+Associated authenticated data includes protocol version, `udpSessionId`, direction, packet type, and sequence. Packets with invalid tags, invalid session IDs, stale/replayed sequence numbers, or impossible participant state are dropped before entering the room core.
+
+The receiver maintains a 64-packet anti-replay window per direction. Sequence wrap is treated as fatal and requires a new session; it is not allowed to reuse a nonce/key pair.
 
 The WSS control connection is the trust bootstrap for UDP key exchange.
 
@@ -164,39 +173,43 @@ Each realtime packet has at least:
 ```text
 version
 udpSessionId
-sequence
-ack
-ackBits
+sequence64
+ack64
+ackBits32
 latestTick
 payloadType
 payload
 AEAD tag
 ```
 
-`ack` acknowledges the highest received packet sequence. `ackBits` is a selective-ack bitmap covering the preceding packet window.
+`ack` acknowledges the highest received packet sequence. `ackBits` is a 32-bit selective-ack bitmap covering the 32 sequence numbers preceding `ack`.
 
 ### Input redundancy
 
-Client input packets include the newest scheduled input plus a short history of recent/unconfirmed input ticks, for example:
+Client input packets include the newest scheduled input plus exactly the previous 3 scheduled input ticks when available, so the normal window is 4 ticks total:
 
 ```text
 latestTick=104
-inputs: 102, 103, 104
+inputs: 101, 102, 103, 104
 ```
+
+Already server-acknowledged old input entries may be omitted when the packet-size encoder needs room, but the newest scheduled input is never omitted. This provides roughly 100 ms of redundant history at 30 TPS while keeping packets far below 1200 bytes for the current and anticipated small-player-count modes.
 
 Therefore a lost packet normally recovers from the next datagram without waiting for a timeout/retransmission request.
 
-The exact redundancy window is bounded and configurable; initial target is 3-6 input ticks, subject to 1200-byte packet size.
-
 ### Explicit retransmit
 
-If a required tick remains missing as its execution deadline approaches, the server sends a small missing-tick/retransmit request. The client immediately includes that tick in its next datagram.
+If a required tick remains missing when the server is one simulation tick away from consuming it, the server emits a `MISSING_INPUT` request over UDP. That request is repeated on subsequent realtime sends until the input arrives or the match timeout is reached.
+
+The client immediately places every requested tick into its next UDP datagram in addition to the normal 4-tick history.
+
+If the server has made no realtime progress for 250 ms while a required tick is missing, it also sends the same missing-tick request over the reliable WebSocket control connection as an emergency recovery path. TCP head-of-line delay is acceptable here because the match is already stalled; this path is not used during healthy realtime flow.
 
 The match never fabricates an input for a missing participant and never advances a deterministic tick until all required inputs for that tick are available.
 
 ### Server frame redundancy
 
-Resolved server frames are also sent with recent frame history. Clients deduplicate by tick and sequence. A single lost server datagram is therefore normally repaired by the next datagram.
+Each normal server realtime datagram carries the newest resolved frame plus the previous 3 resolved frames when available. Clients deduplicate by tick and sequence. A single lost server datagram is therefore normally repaired by the next datagram.
 
 ### RTT / jitter / loss metrics
 
@@ -204,8 +217,8 @@ Track per-participant:
 
 - smoothed RTT
 - RTT variance / jitter estimate
-- recent packet-loss estimate
-- last UDP receive time
+- recent packet-loss estimate from ACK gaps
+- last authenticated UDP receive time
 
 These metrics are diagnostic in this iteration and provide the basis for future adaptive input delay.
 
@@ -223,7 +236,7 @@ maxInputDelayTicks = 8
 
 The wire protocol therefore does not assume exactly 3 forever.
 
-Automatic delay adaptation is not required to change during an active match in this iteration; the architecture only makes it possible later. The negotiated delay is fixed once the battle starts to avoid adding a second source of determinism complexity now.
+Automatic delay adaptation is not required to change during an active match in this iteration. The negotiated delay is fixed once the battle starts to avoid adding a second source of determinism complexity now.
 
 ## 10. WebSocket realtime fallback
 
@@ -238,7 +251,7 @@ CONTROL_CONNECTED
       -> WS_REALTIME_FALLBACK
 ```
 
-If UDP hello/ack does not complete within a short bounded probe window, the participant automatically uses WebSocket realtime messages.
+If UDP hello/ack does not complete within the 1500 ms probe window, the participant automatically uses WebSocket realtime messages.
 
 A room may contain mixed transports in future server tests:
 
@@ -250,9 +263,9 @@ P2 UDP
 
 The room core sees only normalized `RealtimeInput` and `ResolvedFrame` messages; it does not care which transport delivered them.
 
-For the current `DUEL_1V1`, both combinations must be tested: UDP/UDP, UDP/WS, WS/WS.
+For the current `DUEL_1V1`, all combinations are tested: UDP/UDP, UDP/WS, WS/UDP, WS/WS.
 
-If an already active UDP path dies during a battle, this iteration fails the match safely rather than silently switching transports mid-tick. Mid-match migration can be added later with an explicit synchronization barrier.
+If an already active UDP path receives no authenticated packet for 3 seconds during a battle, the match is ended safely with a realtime-timeout error. This iteration does not silently switch an active match between transports mid-tick. Mid-match migration can be added later with an explicit synchronization barrier.
 
 ## 11. Lockstep state generalized for N participants
 
@@ -270,7 +283,7 @@ Map<Tick, Map<PlayerId, InputMask>> pendingInputs
 Map<Tick, Map<PlayerId, Hash>> checkpoints
 ```
 
-For performance, the implementation may use indexed arrays internally after assigning compact participant indices, but no API may encode `otherPlayer = 1 - slot` or assume exactly two players outside `DUEL_1V1` conversion code.
+For performance, the implementation may use indexed arrays internally after assigning compact participant indices, but no generic API may encode `otherPlayer = 1 - slot` or assume exactly two players outside `DUEL_1V1` conversion code.
 
 A tick is resolved when every active participant required by the current game mode has supplied input.
 
@@ -333,7 +346,7 @@ For public Internet use, WSS/TLS termination may remain in Nginx for the control
 
 The existing GitHub Actions artifact contains `bcu-pvp-portable.zip` inside GitHub's artifact ZIP wrapper. GitHub Actions artifacts remain useful for test reports and diagnostics, but they are not the primary user download.
 
-CI adds a rolling development release, e.g. tag `pvp-dev`, whose assets are uploaded directly:
+CI adds a rolling development release with tag `pvp-dev`, whose assets are uploaded directly:
 
 - `bcu-pvp-portable.zip`
 - `bcu-pvp-portable.zip.sha256`
@@ -341,6 +354,8 @@ CI adds a rolling development release, e.g. tag `pvp-dev`, whose assets are uplo
 The release asset is therefore directly downloadable as the actual portable ZIP, without an outer Actions-artifact ZIP.
 
 Release publication runs only after the Maven and Gradle verification jobs pass on the feature branch. Release permissions are scoped to `contents: write` only for the release job; ordinary test jobs keep read-only contents permission.
+
+Each successful feature-branch release replaces the two `pvp-dev` assets and moves the `pvp-dev` tag to that verified commit. The release is explicitly marked prerelease/development.
 
 ## 15. Error handling
 
@@ -365,6 +380,7 @@ Before a match starts, recoverable transport failures may return the participant
 - no `1-slot` assumptions remain in generic room/transport code
 - selective ACK bitmap handling
 - duplicate/out-of-order/replayed UDP datagrams
+- C2S/S2C key separation and nonce uniqueness
 - AES-GCM tag failure/replay-window rejection
 - redundant-input recovery after dropped datagrams
 - explicit missing-tick retransmission
@@ -375,16 +391,17 @@ Before a match starts, recoverable transport failures may return the participant
 
 Use actual loopback sockets/processes:
 
-1. WSS/WS control + UDP/UDP 1v1.
+1. WS control + UDP/UDP 1v1 on loopback.
 2. Drop selected client->server UDP packets and prove input is recovered from redundant history without desync.
 3. Drop selected server->client frame packets and prove frame history recovers them.
 4. Force enough loss to require an explicit missing-tick retransmit.
-5. Block UDP and verify pre-match automatic WebSocket realtime fallback.
-6. Mixed UDP/WS participants with identical deterministic hashes.
+5. Block UDP and verify pre-match automatic WebSocket realtime fallback after the 1500 ms probe window.
+6. Test mixed UDP/WS and WS/UDP participants with identical deterministic hashes.
 7. Existing 30FPS/60FPS mixed-render test remains deterministic.
-8. Multiple rooms do not leak bundles, participant IDs, keys, or UDP endpoints into one another.
+8. Multiple rooms do not leak bundles, participant IDs, keys, UDP endpoints, ACK state, or sequence state into one another.
 9. Technical room structures can hold >2 participants under a test-only mode/stub without changing transport/core APIs; production still exposes only `DUEL_1V1`.
-10. Server shutdown removes temporary bundle files and terminates both control/UDP worker threads.
+10. Server shutdown removes temporary bundle files, destroys in-memory session key references, and terminates both control/UDP worker threads.
+11. A UDP-active participant that goes silent for 3 seconds ends the match rather than migrating silently.
 
 ### CI/release tests
 
@@ -392,12 +409,13 @@ Use actual loopback sockets/processes:
 - Gradle `check`
 - portable ZIP creation
 - ZIP content validation
-- SHA-256 generation
+- SHA-256 generation and verification
 - release job gated on successful build/tests
+- `pvp-dev` release contains the two direct-download assets and points to the tested commit
 
 ## 17. Compatibility / migration
 
-This feature branch is still pre-release, so protocol compatibility with the earlier test build is not required. Increment protocol/engine identifiers when the new transport is merged into the branch. Old clients must fail with a clear version mismatch rather than partially connecting.
+This feature branch is still pre-release, so protocol compatibility with the earlier test build is not required. Increment protocol/engine identifiers when the new transport is implemented. Old clients must fail with a clear version mismatch rather than partially connecting.
 
 Existing offline/PvE behaviour and the original common git submodule remain unaffected by transport changes.
 
@@ -414,6 +432,7 @@ online/net/core/Duel1v1Mode
 online/net/control/WebSocketControlServer
 online/net/realtime/RealtimeTransport
 online/net/realtime/UdpRealtimeServer
+online/net/realtime/UdpRealtimeClient
 online/net/realtime/UdpPacketCodec
 online/net/realtime/ReliabilityWindow
 online/net/realtime/WebSocketRealtimeTransport
@@ -422,20 +441,21 @@ online/net/config/ServerConfig
 online/net/PvpServerMain
 ```
 
-The exact package layout may be adjusted to match existing naming, but the boundaries above are required: room rules, control WebSocket, UDP reliability, bundle storage, and configuration must not collapse back into one monolithic server class.
+The exact package layout may be adjusted to match existing naming, but the boundaries above are required: room rules, control WebSocket, UDP reliability/crypto, bundle storage, and configuration must not collapse back into one monolithic server class.
 
 ## 19. Acceptance criteria
 
 The change is complete when:
 
 - current 1v1 behaviour works with fixed 30 TPS and independent 30/60 FPS rendering;
-- battle traffic uses authenticated UDP by default after successful WSS bootstrap;
-- ordinary single-packet loss is recovered without waiting for TCP or desynchronizing;
-- prolonged missing required inputs stall safely and use explicit retransmit requests;
+- battle traffic uses authenticated UDP by default after successful WSS/WS bootstrap;
+- C2S and S2C UDP encryption never reuse a GCM key/nonce pair;
+- ordinary single-packet loss is recovered from the 4-tick redundancy window without waiting for TCP or desynchronizing;
+- prolonged missing required inputs stall safely and use explicit retransmit requests, with reliable-control recovery only after the match is already stalled;
 - UDP-unavailable clients automatically select WebSocket realtime before battle start;
 - generic room/server code has no fixed-two-player peer arrays or `1-slot` logic;
 - production still limits `DUEL_1V1` to exactly two players;
 - custom Pack transfer remains reliable and supports bundle deduplication;
 - embedded and dedicated friend-server launch paths share one server core;
-- CI publishes `bcu-pvp-portable.zip` directly as a GitHub Release asset after tests pass;
+- CI publishes `bcu-pvp-portable.zip` directly as a `pvp-dev` GitHub Release asset after tests pass;
 - Maven/Gradle/integration tests pass in a clean CI environment.
