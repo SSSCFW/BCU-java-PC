@@ -3,8 +3,13 @@ package online.tests;
 public final class AllTests {
     public static void main(String[] args) throws Exception {
         ClockTests.run();
+        TransportCoreTests.run();
+        UdpTransportTests.run();
+        DuelAdapterTests.run();
+        HybridNetworkTests.run();
         NetworkTests.run();
         LifecycleTests.run();
+        ServerHostTests.run();
         online.net.CheckpointTests.run();
         BundleTests.run();
         PackTests.run();

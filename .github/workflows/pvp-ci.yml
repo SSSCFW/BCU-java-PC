@@ -2,7 +2,7 @@ name: PvP build
 on:
   push:
     branches: [feature/online-pvp-30tps]
-    paths: ['src/**', 'pom.xml', 'build.gradle.kts', 'tools/**', 'distribution/**']
+    paths: ['src/**', 'pom.xml', 'build.gradle.kts', 'tools/**', 'distribution/**', 'docs/**', '.github/workflows/**']
   pull_request:
     branches: [slow_kotlin]
   workflow_dispatch:
@@ -12,6 +12,8 @@ jobs:
   maven:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      zip_sha256: ${{ steps.package.outputs.zip_sha256 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -22,19 +24,30 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Clean build and real-engine integration tests
-        run: mvn -B -ntp clean verify dependency:copy-dependencies -DoutputDirectory=target/lib
-      - name: Portable distribution
-        run: bash tools/package-pvp.sh
+        run: |
+          set -o pipefail
+          mkdir -p diagnostics
+          mvn -B -ntp clean verify dependency:copy-dependencies -DoutputDirectory=target/lib 2>&1 | tee diagnostics/maven.log
+      - name: Portable distribution and regression checks
+        id: package
+        run: |
+          python3 tools/test-package-pvp.py
+          bash tools/package-pvp.sh
+          java -cp 'target/bcu-pvp-portable/bcu-pvp.jar:target/bcu-pvp-portable/lib/*' online.net.PvpServerMain --check-config distribution/pvp-server.properties
+          echo "zip_sha256=$(cut -d' ' -f1 target/bcu-pvp-portable.zip.sha256)" >> "$GITHUB_OUTPUT"
+      # Upload FILES, not the already-created ZIP. Actions adds its own single ZIP wrapper.
       - uses: actions/upload-artifact@v4
         with:
           name: bcu-pvp-portable
-          path: target/bcu-pvp-portable.zip
+          path: target/bcu-pvp-portable/
           retention-days: 14
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: pvp-test-reports
           path: |
+            diagnostics/
             target/surefire-reports/
             target/pvp-canvas-test.png
           if-no-files-found: ignore
@@ -51,4 +64,75 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Gradle build and integration tests
-        run: ./gradlew --no-daemon check
+        run: |
+          set -o pipefail
+          mkdir -p diagnostics
+          ./gradlew --no-daemon check 2>&1 | tee diagnostics/gradle.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pvp-gradle-reports
+          path: diagnostics/
+  release:
+    needs: [maven, gradle]
+    if: >-
+      github.repository == 'SSSCFW/BCU-java-PC' &&
+      github.ref == 'refs/heads/feature/online-pvp-30tps' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: pvp-development-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: bcu-pvp-portable
+          path: target/bcu-pvp-portable
+      - name: Reconstruct and verify the exact tested ZIP
+        env:
+          EXPECTED_SHA256: ${{ needs.maven.outputs.zip_sha256 }}
+        run: |
+          chmod +x target/bcu-pvp-portable/*.sh
+          python3 tools/zip-pvp-directory.py target/bcu-pvp-portable target/bcu-pvp-portable.zip
+          python3 tools/verify-pvp-package.py target/bcu-pvp-portable.zip
+          test "$(cut -d' ' -f1 target/bcu-pvp-portable.zip.sha256)" = "$EXPECTED_SHA256"
+          grep -Fx "Desktop: $GITHUB_SHA" target/bcu-pvp-portable/REVISION.txt
+      - name: Publish rolling development release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # A slower, older build must not overwrite a newer feature-branch release.
+          current=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/feature/online-pvp-30tps" --jq .object.sha)
+          if [ "$current" != "$GITHUB_SHA" ]; then
+            echo "Skipping publication: feature branch advanced to $current"
+            exit 0
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/pvp-dev" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/pvp-dev" -f sha="$GITHUB_SHA" -F force=true >/dev/null
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref=refs/tags/pvp-dev -f sha="$GITHUB_SHA" >/dev/null
+          fi
+          cat > release-notes.md <<NOTES
+          BCU PvP 開発テスト版（プロトコルv2）。戦闘はUDP優先、制御とキャラ共有はWebSocket/WSS。現在のゲームモードは1対1のみです。
+
+          ビルドとテスト: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          Commit: $GITHUB_SHA
+
+          bcu-pvp-portable.zip を直接ダウンロードし、既存BCUフォルダーのコピーへ配置してください。Java 21が必要です。標準ゲームデータは含みません。
+          友人用サーバーはゲーム内ボタン、または start-pvp-server.bat / start-pvp-server.sh で起動します。TCP 8766とUDP 8767を使用します。
+          公開回線の制御通信はWSS、LAN/VPNのWSは明示許可が必要です。3人以上の戦闘・観戦・再接続は未実装です。
+          NOTES
+          if gh release view pvp-dev >/dev/null 2>&1; then
+            gh release edit pvp-dev --prerelease --latest=false --title 'BCU PvP development' --notes-file release-notes.md --target "$GITHUB_SHA"
+          else
+            gh release create pvp-dev --verify-tag --prerelease --latest=false --title 'BCU PvP development' --notes-file release-notes.md
+          fi
+          gh release upload pvp-dev target/bcu-pvp-portable.zip target/bcu-pvp-portable.zip.sha256 --clobber
+          printf '### 直接ダウンロード\n[BCU PvP ZIP](%s/%s/releases/download/pvp-dev/bcu-pvp-portable.zip)\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" >> "$GITHUB_STEP_SUMMARY"

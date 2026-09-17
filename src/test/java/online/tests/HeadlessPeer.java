@@ -8,6 +8,7 @@ import common.pack.UserProfile;
 import common.util.unit.Unit;
 import online.bundle.*;
 import online.net.*;
+import online.net.duel.DuelRoster;
 import online.sync.*;
 import java.net.URI;
 import java.nio.file.*;
@@ -27,7 +28,7 @@ public final class HeadlessPeer implements RoomClient.Listener {
     private final MatchBundle own;
     private final Path archive;
     private volatile Throwable failure;
-    private int seat=-1,leftSeat=-1;
+    private int seat=-1,leftSeat=-1,id;private DuelRoster roster;
     private String match;
     private boolean uploaded,ready;
     private PvpStageBasis battle;
@@ -53,8 +54,8 @@ public final class HeadlessPeer implements RoomClient.Listener {
         while(failure==null && (battle==null||battle.time<targetTicks)) {
             if(System.nanoTime()>deadline)throw new AssertionError("Peer timeout");
             Runnable task=events.poll(2,TimeUnit.MILLISECONDS);if(task!=null)task.run();
-            if(battle!=null){InputFrame frame;int count=0;while(count++<5&&(frame=client.pollFrame())!=null){
-                battle.step(frame);
+            if(battle!=null){ResolvedFrame frame;int count=0;while(count++<5&&(frame=client.pollResolvedFrame())!=null){
+                battle.step(roster.toDuel(frame));
                 if(battle.time%60==0){String hash=BattleDigest.of(battle);client.checkpoint(battle.time,hash);Files.write(directory.resolve((host?"host":"guest")+"-"+battle.time),hash.getBytes(StandardCharsets.UTF_8));}
                 if(!host){PvpStageBasis copy=battle.displayCopy();copy.advanceDisplay();}
                 if(battle.time%40==0)client.queueCommand(1);
@@ -68,16 +69,16 @@ public final class HeadlessPeer implements RoomClient.Listener {
     }
     @Override public void event(JsonObject o){events.offer(()->{try {
         switch(o.get("type").getAsString()) {
-            case "joined":seat=o.get("slot").getAsInt();match=o.get("match").getAsString();packs[seat]=own.mount(match,seat);hashes[seat]=Hashes.sha256(archive);
+            case "joined":id=o.get("playerId").getAsInt();match=o.get("match").getAsString();
                 if(host)Files.write(directory.resolve("room"),o.get("room").getAsString().getBytes(StandardCharsets.UTF_8));break;
-            case "prepare":leftSeat=o.get("leftSlot").getAsInt();client.sendBundle(archive);break;
+            case "prepare":roster=DuelRoster.read(o);seat=roster.indexOf(id);leftSeat=roster.leftIndex();packs[seat]=own.mount(match,id);hashes[seat]=Hashes.sha256(archive);client.sendBundle(archive);break;
             case "bundle_ok":uploaded=true;ready();break;
             case "start":battle=PvpStageBasis.create(match,packs[leftSeat].lineup,packs[1-leftSeat].lineup,o.get("seed").getAsLong(),leftSeat);client.queueCommand(1);break;
             default:break;
         }
     }catch(Exception e){failure=e;}});}
-    @Override public void bundle(Path file,String hash){events.offer(()->{try{temps.add(file);packs[1-seat]=MatchBundle.read(file).mount(match,1-seat);hashes[1-seat]=hash;ready();}catch(Exception e){failure=e;}});}
-    private void ready(){if(!ready&&uploaded&&packs[0]!=null&&packs[1]!=null){ready=true;client.ready(hashes[0],hashes[1]);}}
+    @Override public void bundle(int remote,Path file,String hash){events.offer(()->{try{temps.add(file);int index=roster.indexOf(remote);packs[index]=MatchBundle.read(file).mount(match,remote);hashes[index]=hash;ready();}catch(Exception e){failure=e;}});}
+    private void ready(){if(!ready&&uploaded&&packs[0]!=null&&packs[1]!=null){ready=true;client.ready();}}
     @Override public void failed(String message){failure=new IllegalStateException(message);}
     private void close()throws Exception{client.close();for(MatchBundle.Mounted p:packs)if(p!=null)p.close();for(Path f:temps)Files.deleteIfExists(f);}
 }

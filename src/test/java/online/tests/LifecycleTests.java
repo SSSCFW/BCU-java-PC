@@ -13,7 +13,7 @@ public final class LifecycleTests {
         CountDownLatch closed=new CountDownLatch(1);AtomicBoolean heldRoomLock=new AtomicBoolean();
         WebSocket socket=(WebSocket)Proxy.newProxyInstance(WebSocket.class.getClassLoader(),new Class[]{WebSocket.class},(proxy,method,args)->{
             switch(method.getName()) {
-                case "close":heldRoomLock.set(Thread.holdsLock(server));closed.countDown();return null;
+                case "close":heldRoomLock.set(Thread.holdsLock(server)||Thread.holdsLock(server.core()));closed.countDown();return null;
                 case "isOpen":return true;
                 case "hashCode":return System.identityHashCode(proxy);
                 case "equals":return proxy==args[0];

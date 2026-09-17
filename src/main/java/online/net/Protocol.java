@@ -6,22 +6,22 @@ import java.io.IOException;
 import java.util.Collections;
 
 public final class Protocol {
-    public static final int VERSION=1, TPS=30, INPUT_DELAY=3, HASH_INTERVAL=60, MAX_AHEAD=8;
+    public static final int VERSION=2, TPS=30, INPUT_DELAY=3, HASH_INTERVAL=60, MAX_AHEAD=32;
     public static final int MAX_TEXT=4096, CHUNK=65536, MAX_FRAME=CHUNK+1024;
     public static final long MAX_BUNDLE=32L*1024*1024;
-    public static final String ENGINE="bcu-pvp-1-core-8920447";
+    public static final String ENGINE="bcu-pvp-2-core-8920447";
     private Protocol() {}
     public static Draft_6455 draft() { return new Draft_6455(Collections.emptyList(),MAX_FRAME); }
     public static JsonObject message(String type) { JsonObject o=new JsonObject(); o.addProperty("type",type); return o; }
     public static JsonObject parse(String text) throws IOException {
         if(text==null || text.length()>MAX_TEXT) throw new IOException("Control message too large");
         try {
-            // The protocol is flat; reject deep JSON before Gson parses it.
+            // Bound nesting before Gson parses participant rosters and hash maps.
             int depth=0; boolean quoted=false,escape=false;
             for(char c:text.toCharArray()) {
                 if(quoted) { if(escape) escape=false; else if(c=='\\') escape=true; else if(c=='"') quoted=false; }
                 else if(c=='"') quoted=true;
-                else if(c=='{' || c=='[') { if(++depth>4) throw new IOException("JSON nesting"); }
+                else if(c=='{' || c=='[') { if(++depth>8) throw new IOException("JSON nesting"); }
                 else if(c=='}' || c==']') depth--;
             }
             JsonObject o=JsonParser.parseString(text).getAsJsonObject(); string(o,"type",32); return o;

@@ -11,4 +11,6 @@ cp target/lib/*.jar target/bcu-pvp-portable/lib/
 cp distribution/* target/bcu-pvp-portable/
 cp docs/ONLINE_PVP_JA.md target/bcu-pvp-portable/README_JA.md
 printf 'Desktop: %s\nCommon: %s\n' "$(git rev-parse HEAD)" "8920447e73bea56289a2da5a2a9294e24ff08c67" > target/bcu-pvp-portable/REVISION.txt
-(cd target && zip -qr bcu-pvp-portable.zip bcu-pvp-portable)
+python3 tools/zip-pvp-directory.py target/bcu-pvp-portable target/bcu-pvp-portable.zip
+python3 tools/verify-pvp-package.py target/bcu-pvp-portable.zip
+(cd target && sha256sum -c bcu-pvp-portable.zip.sha256)

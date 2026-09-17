@@ -213,7 +213,7 @@ public final class MatchBundle {
         return common.battle.PvpTiming.inMatch(match, () -> mountScoped(match,slot));
     }
     private Mounted mountScoped(String match,int slot) throws Exception {
-        if(!match.matches("[0-9a-f]{32}") || slot<0 || slot>1)throw new IOException("Invalid match namespace");
+        if(!match.matches("[0-9a-f]{32}") || slot<0)throw new IOException("Invalid match namespace");
         return new Mounted(match,slot);
     }
     public final class Mounted implements AutoCloseable {
