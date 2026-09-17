@@ -1,0 +1,48 @@
+name: PvP build
+
+on:
+  push:
+    branches: [feature/online-pvp-30tps]
+  pull_request:
+    branches: [slow_kotlin]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Source diagnostics
+        run: |
+          git rev-parse HEAD > SOURCE_REVISION.txt
+          git submodule status >> SOURCE_REVISION.txt
+          tar --exclude=.git --exclude=target -czf "$RUNNER_TEMP/bcu-source.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pvp-source
+          path: ${{ runner.temp }}/bcu-source.tar.gz
+          retention-days: 3
+      - name: Build and tests
+        run: mvn -B -ntp test package dependency:copy-dependencies -DoutputDirectory=target/lib
+      - name: Offline build diagnostics
+        if: always()
+        run: |
+          mkdir -p target/lib
+          tar -czf "$RUNNER_TEMP/bcu-build.tar.gz" target
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pvp-build
+          path: ${{ runner.temp }}/bcu-build.tar.gz
+          retention-days: 3
