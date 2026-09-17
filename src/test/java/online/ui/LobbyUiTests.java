@@ -1,12 +1,18 @@
 package online.ui;
 
 import common.battle.*;
+import common.CommonStatic;
 import common.battle.data.CustomUnit;
 import common.util.unit.Unit;
 import main.MainBCU;
 import online.net.*;
 import online.tests.*;
 import page.MainFrame;
+import page.KeyHandler;
+import page.battle.BattleInfoPage;
+import page.awt.BBBuilder;
+import page.awt.AWTBBB;
+import java.awt.event.KeyEvent;
 import javax.swing.*;
 import java.awt.GraphicsEnvironment;
 import java.lang.reflect.*;
@@ -20,6 +26,7 @@ import java.util.concurrent.*;
 public final class LobbyUiTests {
     private static OnlineLobbyPage page;
     private static Path shared;
+    private static volatile Throwable uiFailure;
     private static <T> T edt(Callable<T> work) throws Exception {
         FutureTask<T> task = new FutureTask<>(work); SwingUtilities.invokeAndWait(task); return task.get();
     }
@@ -31,18 +38,18 @@ public final class LobbyUiTests {
     private static String status() throws Exception { return edt(() -> ((JTextArea)field(page,"status")).getText()); }
     private static void await(Callable<Boolean> condition, String reason) throws Exception {
         long end = System.nanoTime() + TimeUnit.SECONDS.toNanos(20);
-        while (System.nanoTime() < end) { if (edt(condition)) return; Thread.sleep(20); }
+        while (System.nanoTime() < end) { if(uiFailure!=null)throw new AssertionError("EDT failed",uiFailure); if (edt(condition)) return; Thread.sleep(20); }
         throw new AssertionError(reason + "\n" + status());
     }
     private static void disposePage() throws Exception {
         edt(() -> { Method m = OnlineLobbyPage.class.getDeclaredMethod("cleanup"); m.setAccessible(true); m.invoke(page); return null; });
     }
     private static void newPage() throws Exception {
-        edt(() -> { page = new OnlineLobbyPage(null); MainFrame.F.setContentPane(page); MainFrame.F.validate(); return null; });
+        edt(() -> { page = new OnlineLobbyPage(null); MainFrame.changePanel(page); page.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight()); MainFrame.F.validate(); return null; });
     }
     private static void init(Path root) throws Exception {
-        Fixture.init(); Fixture.root = root; Files.createDirectories(root); FixtureAssets.init();
-        Unit u = Fixture.unit("same_local_pack", 1000000);
+        Fixture.init(); Fixture.root = root; Files.createDirectories(root); FixtureNativeUi.init(); BBBuilder.def=AWTBBB.INS;
+        Unit u = FixtureNativeUi.unit("same_local_pack", 0xffccaa55);
         CustomUnit d = (CustomUnit)u.forms[0].du; d.price=1;d.speed=500;d.range=250;
         BasisLU b = Fixture.lineup(u);BasisSet.current().lb.add(b);BasisSet.current().sele=b;
         edt(() -> { MainBCU.author=""; MainFrame.F=new MainFrame("lobby regression");MainFrame.F.setSize(1200,900); return null; });
@@ -133,12 +140,43 @@ public final class LobbyUiTests {
                 await(()->button("ready").isEnabled(),"GUI asset synchronization/ready barrier");
                 edt(()->{button("ready").doClick();return null;});
                 await(()->field(page,"battle")!=null,"GUI battle starts");
-                edt(()->{((JComboBox<?>)field(page,"render")).setSelectedItem(host?30:60);((JButton[])field(page,"units"))[0].doClick();return null;});
+                edt(()->{
+                    CommonStatic.getConfig().performanceModeBattle=!host;
+                    CommonStatic.getConfig().performanceModeAnimation=!host;
+                    BattleInfoPage nativePage=(BattleInfoPage)field(page,"battlePage");
+                    Check.that(MainFrame.getPanel()==nativePage,"real native BattleInfoPage must be the current page");
+                    Check.that(!((JButton)field(nativePage,"paus")).isEnabled(),"native solo pause is disabled online");
+                    Check.that(!((JButton)field(nativePage,"next")).isEnabled(),"native solo step is disabled online");
+                    Check.that(!((JButton)field(nativePage,"rply")).isEnabled(),"native single-player replay is disabled online");
+                    int before=((PvpStageBasis)field(page,"battle")).time;
+                    nativePage.onTimer(1);
+                    Check.equal(before,((PvpStageBasis)field(page,"battle")).time,"old page timer cannot advance online simulation");
+                    ((AbstractButton)field(nativePage,"jtb")).doClick();
+                    nativePage.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());
+                    ((AbstractButton)field(nativePage,"row")).doClick();
+                    Method press=KeyHandler.class.getDeclaredMethod("keyPressed",KeyEvent.class);press.setAccessible(true);
+                    press.invoke(nativePage,new KeyEvent(nativePage,KeyEvent.KEY_PRESSED,System.currentTimeMillis(),0,KeyEvent.VK_Q,'q'));
+                    nativePage.renderOnlineFrame();
+                    Method release=KeyHandler.class.getDeclaredMethod("keyReleased",KeyEvent.class);release.setAccessible(true);
+                    release.invoke(nativePage,new KeyEvent(nativePage,KeyEvent.KEY_RELEASED,System.currentTimeMillis(),0,KeyEvent.VK_Q,'q'));
+                    nativePage.renderOnlineFrame();
+                    return null;
+                });
                 await(()->((PvpStageBasis)field(page,"battle")).time>=150,"GUI battle must run 150 ticks without desync");
+                Check.that(edt(()->((PvpStageBasis)field(page,"battle")).le.stream().anyMatch(e->e.dire==1)),"native host input spawned a left unit");
+                Check.that(edt(()->((PvpStageBasis)field(page,"battle")).le.stream().anyMatch(e->e.dire==-1)),"native guest input spawned a right unit");
                 Files.write(shared.resolve(host?"host-done":"guest-done"),new byte[]{1});
                 long end=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);
                 while(!Files.exists(shared.resolve(host?"guest-done":"host-done"))){if(System.nanoTime()>end)throw new AssertionError("other peer stalled");Thread.sleep(20);}
-                System.out.println("GUI_DUEL_OK "+mode+" 150 ticks / 30-60 FPS / empty password");break;
+                edt(()->{
+                    BattleInfoPage nativePage=(BattleInfoPage)field(page,"battlePage");
+                    if(nativePage!=null)((JButton)field(nativePage,"back")).doClick();
+                    Check.that(MainFrame.getPanel()==page,"native Back or peer disconnect returns to the reusable lobby");
+                    Check.that(button("create").isEnabled(),"native page exit resets room state");
+                    if(host)Check.that(field(field(page,"friendServer"),"host")!=null,"native Back must not stop embedded friend server");
+                    return null;
+                });
+                System.out.println("GUI_DUEL_OK "+mode+" native BattleInfoPage / 150 ticks / 30-60 FPS / empty password");break;
             }
             default:throw new AssertionError("Unknown test "+mode);
         }
@@ -146,6 +184,7 @@ public final class LobbyUiTests {
     public static void main(String[] args) throws Exception {
         if(GraphicsEnvironment.isHeadless())throw new AssertionError("Run LobbyUiTests under xvfb-run (actual Swing required)");
         if(args.length>0){
+            Thread.setDefaultUncaughtExceptionHandler((thread,error)->{uiFailure=error;error.printStackTrace();});
             int result=0;
             try{shared=Paths.get(args[2]);init(Paths.get(args[1]));test(args[0]);System.out.println("GUI_OK "+args[0]);}
             catch(Throwable e){result=1;e.printStackTrace();if(page!=null)try{System.err.println(status());}catch(Exception ignored){}}

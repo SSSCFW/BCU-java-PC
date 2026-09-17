@@ -45,6 +45,11 @@ import java.util.stream.Collectors;
 
 public interface BattleBox {
 
+	/** Optional local HUD context; the world remains in BattleField.sb. */
+	interface PlayerView {
+		StageBasis playerState();
+	}
+
 	class BBPainter implements BattleConst {
 
 		private static final float exp = 0.9f, sprite = 0.8f;
@@ -129,7 +134,26 @@ public interface BattleBox {
 		public void click(Point p, int button) {
 		}
 
+		protected final StageBasis controlState() {
+			return bf instanceof PlayerView ? ((PlayerView) bf).playerState() : bf.sb;
+		}
+
 		public void draw(FakeGraphics g) {
+			boolean ref = CommonStatic.getConfig().ref;
+			boolean battle = CommonStatic.getConfig().battle;
+			try {
+				// PvP uses normal game sprites, not editor hitboxes. Do not persist a global setting.
+				if (bf instanceof PlayerView) CommonStatic.getConfig().ref = false;
+				drawScene(g);
+			} finally {
+				CommonStatic.getConfig().ref = ref;
+				CommonStatic.getConfig().battle = battle;
+				efList.clear();
+				sb = bf.sb;
+			}
+		}
+
+		private void drawScene(FakeGraphics g) {
 			sb = bf.sb;
 
 			int w = box.getWidth();
@@ -163,8 +187,9 @@ public interface BattleBox {
 			}
 
 			drawCastle(g);
-			if(sb.cannon == sb.maxCannon && sb.canon.id == 0) {
-				drawCannonRange(g);
+			StageBasis player = controlState();
+			if(player.cannon == player.maxCannon && player.canon.id == 0) {
+				drawCannonRange(g, player);
 			}
 
 			drawEntity(g);
@@ -179,12 +204,16 @@ public interface BattleBox {
 				drawBGOverlay(g, midY);
 			}
 
-			drawBtm(g);
-			drawTop(g);
+			// Native icons/prices/cooldowns/worker/cannon/money, for THIS participant on either side.
+			sb = player;
+			try {
+				drawBtm(g);
+				drawTop(g);
+			} finally { sb = bf.sb; }
 		}
 
 		public float getX(float x) {
-			return (x * ratio + off) * bf.sb.siz + sb.pos;
+			return (x * ratio + off) * bf.sb.siz + bf.sb.pos;
 		}
 
 		public void calculateSiz(int w, int h) {
@@ -238,6 +267,7 @@ public interface BattleBox {
 		}
 
 		private void adjust(int w, int s) {
+			sb = bf.sb; // Online rendering replaces the disposable snapshot between paints.
 			int h = box.getHeight();
 
 			sb.pos += w;
@@ -674,16 +704,19 @@ public interface BattleBox {
 			}
 		}
 
-		private void drawCannonRange(FakeGraphics g) {
+		private void drawCannonRange(FakeGraphics g, StageBasis player) {
 			FakeImage range = aux.battle[1][20].getImg();
 			FakeImage cann = aux.battle[1][21].getImg();
 
-			float rang = sb.ubase.pos + 100 + 56 * 4;
-			for(int i = 0; i < sb.b.t().tech[Data.LV_CRG]+2; i++)
+			boolean mirrored = player.isPvp() && player.ownDirection() == 1;
+			float ownPos = mirrored ? sb.st.len - player.ownBase().pos : sb.ubase.pos;
+			float otherPos = mirrored ? sb.st.len - sb.ubase.pos : sb.ebase.pos;
+			float rang = ownPos + 100 + 56 * 4;
+			for(int i = 0; i < player.b.t().tech[Data.LV_CRG]+2; i++)
 				rang -= 405;
 
-			rang = Math.max(rang, sb.ebase.pos * ratio - off / 2f);
-			rang = getX(rang);
+			rang = Math.max(rang, otherPos * ratio - off / 2f);
+			rang = getX(mirrored ? sb.st.len - rang : rang);
 
 			float rw = range.getWidth() * 0.75f * bf.sb.siz;
 			float rh = range.getHeight()  * 0.85f * bf.sb.siz;
@@ -700,6 +733,11 @@ public interface BattleBox {
 		}
 
 		private void drawCastle(FakeGraphics gra) {
+			if (sb.isPvp()) {
+				drawPlayerCastle(gra, sb.playerFor(1));
+				drawPlayerCastle(gra, sb.playerFor(-1));
+				return;
+			}
 			FakeTransform at = gra.getTransform();
 			boolean drawCast = sb.ebase instanceof Entity;
 			int posy = (int) (midh - road_h * bf.sb.siz);
@@ -741,7 +779,51 @@ public interface BattleBox {
 			drawNyCast(gra, (int) (midh - road_h * bf.sb.siz), (int) (posx + shake), bf.sb.siz, sb.nyc);
 		}
 
+		private void drawPlayerCastle(FakeGraphics gra, StageBasis player) {
+			FakeTransform at = gra.getTransform();
+			try {
+				ECastle castle = (ECastle) player.ownBase();
+				float x = getX(castle.pos);
+				if (castle.health <= 0 || castle.hit > 0) x += (2 + (sb.time % 2 * -4)) * bf.sb.siz;
+				if (player.ownDirection() == 1) { gra.translate(2 * x, 0); gra.scale(-1, 1); }
+				drawNyCast(gra, (int) (midh - road_h * bf.sb.siz), (int) x, bf.sb.siz, player.nyc);
+			} finally { gra.setTransform(at); gra.delete(at); }
+		}
+
+		private void drawPlayerCannon(FakeGraphics gra, StageBasis player, float size) {
+			FakeTransform at = gra.getTransform();
+			try {
+				int dir = player.ownDirection(), id = player.canon.id;
+				float x = getX(player.ownBase().pos) - dir * canx[id] * bf.sb.siz;
+				if (dir == 1) { gra.translate(2 * x, 0); gra.scale(-1, 1); }
+				player.canon.drawBase(gra, setP(x, midh + (cany[id] - road_h) * bf.sb.siz), size);
+				gra.setTransform(at);
+				x = getX(player.canon.pos);
+				if (dir == 1) { gra.translate(2 * x, 0); gra.scale(-1, 1); }
+				player.canon.drawAtk(gra, setP(x, midh - road_h * bf.sb.siz), size);
+			} finally { gra.setTransform(at); gra.delete(at); }
+		}
+
+		private void drawUnitSprite(FakeGraphics gra, Entity entity, float x, float y, float size) {
+			FakeTransform at = gra.getTransform();
+			try {
+				if (sb.isPvp() && (entity instanceof EUnit ? entity.dire == 1 : entity.dire == -1)) {
+					gra.translate(2 * x, 0); gra.scale(-1, 1);
+				}
+				entity.anim.draw(gra, setP(x, y), size);
+			} finally { gra.setTransform(at); gra.delete(at); }
+		}
+
 		private void drawCastleHealthIndicator(FakeGraphics gra) {
+			if (sb.isPvp()) {
+				for (int dir : new int[] {1, -1}) {
+					AbEntity castle = sb.playerFor(dir).ownBase();
+					float x = getX(castle.pos);
+					float y = midh - (road_h + casth) * bf.sb.siz - aux.num[5][0].getImg().getHeight() * bf.sb.siz;
+					Res.getBase(castle, setSym(gra, bf.sb.siz * 0.8f, x, y, dir == 1 ? 1 : 0), false);
+				}
+				return;
+			}
 			int posy = (int) (midh - road_h * bf.sb.siz);
 			int posx = (int) ((sb.ebase.pos * ratio + off) * bf.sb.siz + sb.pos);
 
@@ -805,7 +887,7 @@ public interface BattleBox {
 				float p = getX(e.pos);
 				float y = midh - (road_h - dep) * bf.sb.siz;
 
-				e.anim.draw(gra, setP(p, y), psiz);
+				drawUnitSprite(gra, e, p, y, psiz);
 
 				gra.setTransform(at);
 
@@ -918,14 +1000,20 @@ public interface BattleBox {
 			}
 
 			gra.setTransform(at);
-			int can = cany[sb.canon.id];
-			int disp = canx[sb.canon.id];
-			setP(getX(sb.ubase.pos) + disp * bf.sb.siz, midh + (can - road_h) * bf.sb.siz);
-			sb.canon.drawBase(gra, p, psiz);
-			gra.setTransform(at);
-			setP(getX(sb.canon.pos), midh - road_h * bf.sb.siz);
-			sb.canon.drawAtk(gra, p, psiz);
-			gra.setTransform(at);
+			if (sb.isPvp()) {
+				drawPlayerCannon(gra, sb.playerFor(1), psiz);
+				drawPlayerCannon(gra, sb.playerFor(-1), psiz);
+			} else {
+				int can = cany[sb.canon.id];
+				int disp = canx[sb.canon.id];
+				setP(getX(sb.ubase.pos) + disp * bf.sb.siz, midh + (can - road_h) * bf.sb.siz);
+				sb.canon.drawBase(gra, p, psiz);
+				gra.setTransform(at);
+				setP(getX(sb.canon.pos), midh - road_h * bf.sb.siz);
+				sb.canon.drawAtk(gra, p, psiz);
+				gra.setTransform(at);
+			}
+
 			if (sb.sniper != null && sb.sniper.enabled) {
 				setP(getX(sb.sniper.getPos()), midh - road_h * bf.sb.siz);
 				sb.sniper.drawBase(gra, p, psiz);
@@ -972,7 +1060,7 @@ public interface BattleBox {
 						float p = getX(e.pos);
 						float y = midh - (road_h - dep) * bf.sb.siz;
 
-						e.anim.draw(gra, setP(p, y), psiz);
+						drawUnitSprite(gra, e, p, y, psiz);
 
 						if(e.anim.smoke != null && e.anim.smokeLayer != -1 && !e.anim.smoke.done()) {
 							gra.setTransform(at);
@@ -1182,6 +1270,7 @@ public interface BattleBox {
 		}
 
 		private synchronized void wheeled(Point p, int ind) {
+			sb = bf.sb;
 			int w = box.getWidth();
 			int h = box.getHeight();
 			float psiz = bf.sb.siz * (float) Math.pow(exp, ind);

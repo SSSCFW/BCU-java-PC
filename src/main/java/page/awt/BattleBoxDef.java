@@ -50,8 +50,10 @@ class BattleBoxDef extends Canvas implements BattleBox {
 			if (prev == null)
 				return;
 			g.drawImage(prev, 0, 0, null);
-			g.setColor(Color.ORANGE);
-			g.drawString("Time cost: " + Timer.inter + "%, " + bbp.pt, 20, 20);
+			if (!(bbp.bf instanceof BattleBox.PlayerView)) {
+				g.setColor(Color.ORANGE);
+				g.drawString("Time cost: " + Timer.inter + "%, " + bbp.pt, 20, 20);
+			}
 			g.dispose();
 		}
 	}

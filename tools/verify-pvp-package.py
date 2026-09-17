@@ -15,6 +15,8 @@ REQUIRED_CLASSES = {
     "online/net/realtime/UdpRealtimeClient.class", "online/net/realtime/UdpRealtimeServer.class",
     "online/net/realtime/UdpPacketCodec.class", "online/net/duel/DuelRoster.class",
     "online/ui/FriendServerPanel.class", "common/battle/PvpStageBasis.class",
+    "online/ui/OnlineBattleField.class", "page/battle/BattleInfoPage.class",
+    "page/battle/BattleBox$PlayerView.class", "page/battle/BBCtrl.class",
 }
 
 
@@ -40,7 +42,9 @@ def verify(path: Path) -> None:
             raise ValueError("ZIP CRC verification failed")
         with zipfile.ZipFile(io.BytesIO(archive.read(prefix+"bcu-pvp.jar"))) as jar:
             if not REQUIRED_CLASSES <= set(jar.namelist()):
-                raise ValueError("Portable JAR does not contain the hybrid transport implementation")
+                raise ValueError("Portable JAR is missing the hybrid transport or native battle UI")
+            if "online/ui/PvpCanvas.class" in jar.namelist():
+                raise ValueError("Obsolete custom PvP battlefield must not be distributed")
 
 
 if __name__ == "__main__":

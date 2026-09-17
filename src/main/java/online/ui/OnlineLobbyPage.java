@@ -3,13 +3,14 @@ package online.ui;
 import com.google.gson.JsonObject;
 import common.CommonStatic;
 import common.battle.*;
-import common.util.unit.Form;
 import online.GameFingerprint;
 import online.bundle.*;
 import online.net.*;
 import online.net.duel.DuelRoster;
 import online.sync.*;
 import page.Page;
+import page.MainFrame;
+import page.battle.BattleInfoPage;
 import main.MainBCU;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -36,12 +37,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private final JCheckBox share=new JCheckBox("参照Pack全体の自動共有に同意する（未編成キャラも含む）");
     private final JCheckBox development=new JCheckBox("信頼するLAN／暗号化VPNでWSを許可（公開回線はWSS）");
     private final JTextArea status=new JTextArea(5,50);
-    private final JPanel controls=new JPanel(new GridLayout(2,5,5,5));
-    private final JButton[] units=new JButton[10];
-    private final JButton worker=new JButton("働きネコ"),cannon=new JButton("にゃんこ砲");
-    private final JComboBox<Integer> render=new JComboBox<>(new Integer[]{30,60});
-    private final JLabel economy=new JLabel(" ");
-    private final PvpCanvas canvas=new PvpCanvas();
+    private BattleInfoPage battlePage;
     private final ExecutorService io=Executors.newSingleThreadExecutor(r->{Thread t=new Thread(r,"pvp-prepare");t.setDaemon(true);return t;});
     private final javax.swing.Timer pulse=new javax.swing.Timer(5,e->pump());
     private final MatchBundle.Mounted[] mounted=new MatchBundle.Mounted[2];
@@ -71,15 +67,10 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         row(6,"",share);row(7,"",development);
         JPanel actions=new JPanel(new FlowLayout(FlowLayout.LEADING));actions.add(create);actions.add(join);actions.add(copyRoom);actions.add(ready);row(8,"",actions);row(9,"友人用サーバー",friendServer);
         ready.setEnabled(false);leave.setEnabled(false);copyRoom.setEnabled(false);
-        render.setSelectedItem(CommonStatic.getConfig().performanceModeBattle?60:30);
         back.addActionListener(e->{cleanup();changePanel(front);});leave.addActionListener(e->{savePreferences();resetMatch();message("部屋から退出しました。起動中の友人用サーバーはそのまま使えます。");});
         create.addActionListener(e->connect(true));join.addActionListener(e->connect(false));
         copyRoom.addActionListener(e->Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(room.getText()),null));
         ready.addActionListener(e->{ready.setEnabled(false);client.ready();message("準備完了。相手の準備を待っています。");});
-        render.addActionListener(e->canvas.fps((Integer)render.getSelectedItem()));
-        worker.addActionListener(e->command(InputFrame.WORKER));cannon.addActionListener(e->command(InputFrame.CANNON));
-        for(int i=0;i<10;i++){final int index=i;units[i]=new JButton();units[i].addActionListener(e->command(1<<index));
-            units[i].addMouseListener(new MouseAdapter(){@Override public void mousePressed(MouseEvent e){if(SwingUtilities.isRightMouseButton(e))command(1<<(12+index));}});controls.add(units[i]);}
         message("同じオンライン対応版と標準データが必要です。自作キャラは一時共有し、元データは変更しません。\nパスワードは空欄なら不要です。同一PCテストでは2つのBCUを起動し、同じ接続先と部屋IDで参加してください。");
         bindPreferences();
     }
@@ -158,7 +149,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 battle=PvpStageBasis.create(match,mounted[leftSlot].lineup,mounted[1-leftSlot].lineup,Protocol.number(e,"seed"),leftSlot);
                 showBattle();break;
             case "result":
-                pulse.stop();resultSent=true;int winner=Protocol.integer(e,"winner");
+                resultSent=true;int winner=Protocol.integer(e,"winner");
                 message(winner==-1?"引き分けです。両者の結果が一致しました。":(winner==(slot==leftSlot?0:1)?"勝利！":"敗北")+" 両者の結果が一致しました。");break;
             default:break;
         }
@@ -180,13 +171,13 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     }
     private void updateReady(){if(uploaded&&prepared&&mounted[0]!=null&&mounted[1]!=null&&!client.realtimeTransport().equals("PROBING")){ready.setEnabled(true);message("両者のキャラクターを同期しました。\n相手: "+(slot==0?guestName:hostName)+"\n準備完了を押すと対戦を開始します。");}}
     private void showBattle(){
-        JPanel matchPanel=new JPanel(new BorderLayout(8,8));matchPanel.add(canvas,BorderLayout.CENTER);
-        JPanel bottom=new JPanel(new BorderLayout(8,8));bottom.add(controls,BorderLayout.CENTER);
-        JPanel actions=new JPanel(new FlowLayout(FlowLayout.LEADING));actions.add(economy);actions.add(worker);actions.add(cannon);actions.add(new JLabel("描画FPS"));actions.add(render);bottom.add(actions,BorderLayout.SOUTH);matchPanel.add(bottom,BorderLayout.SOUTH);
-        content.remove(setup);content.add(matchPanel,BorderLayout.CENTER);content.revalidate();
-        canvas.names(leftSlot==0?hostName:guestName,leftSlot==0?guestName:hostName);canvas.fps((Integer)render.getSelectedItem());canvas.snapshot(battle.displayCopy());
-        message("左＝青、右＝ピンク。数字1〜5／QWERTで出撃、右クリックで自動生産切替。\nF：働きネコ、C：にゃんこ砲。表示FPSは変更しても戦闘処理は30TPSのままです。");
-        refreshHud();nextPaint=0;pulse.start();
+        battlePage=new BattleInfoPage(this,battle.displayCopy(),slot==leftSlot?1:-1,
+                this::command,()->{resetMatch();message("部屋から退出しました。友人用サーバーは維持しています。");},
+                leftSlot==0?hostName:guestName,leftSlot==0?guestName:hostName);
+        battlePage.onlineStatus(transportLabel(),true);
+        changePanel(battlePage);
+        battlePage.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());
+        nextPaint=0;pulse.start();
     }
     private void pump(){
         if(disposed||battle==null)return;
@@ -197,35 +188,32 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 if(battle.time%Protocol.HASH_INTERVAL==0)client.checkpoint(battle.time,BattleDigest.of(battle));
                 if(battle.winner()!=-2){resultSent=true;client.result(battle.time,battle.winner(),BattleDigest.of(battle));message("試合終了。両者の結果を照合しています…");}
             }
-            if(advanced>0){canvas.snapshot(battle.displayCopy());refreshHud();}
-            long now=System.nanoTime();if(now>=nextPaint){canvas.renderFrame();nextPaint=now+1_000_000_000L/(Integer)render.getSelectedItem();}
+            if(battlePage==null)return;
+            if(advanced>0)battlePage.publishOnline(battle.displayCopy());
+            long now=System.nanoTime();if(now>=nextPaint){
+                if(!resultSent)battlePage.onlineStatus(transportLabel(),true);
+                battlePage.renderOnlineFrame();
+                nextPaint=now+1_000_000_000L/(CommonStatic.getConfig().performanceModeBattle?60:30);
+            }
         }catch(Exception e){failed("同期処理を停止しました: "+e.getMessage());}
     }
     private String transportLabel(){
         online.net.realtime.ReliabilityWindow.Metrics m=client.udpMetrics();
         return m==null?client.realtimeTransport():String.format(Locale.ROOT,"UDP RTT %.0fms / 揺れ %.0fms / 損失 %.1f%%",m.smoothedRttMillis,m.jitterMillis,m.lossRate*100);
     }
-    private void refreshHud(){StageBasis own=slot==leftSlot?battle.left():battle.right();
-        economy.setText("お金 "+own.money/100+" / "+own.maxMoney/100+"　働きLv "+own.work_lv+"　通信: "+transportLabel());
-        worker.setEnabled(!resultSent&&own.work_lv<8&&own.money>own.upgradeCost);worker.setText("働きネコ ("+own.getUpgradeCost()+") [F]");
-        cannon.setEnabled(!resultSent&&own.cannon==own.maxCannon);cannon.setText("にゃんこ砲 "+(100L*own.cannon/Math.max(1,own.maxCannon))+"% [C]");
-        for(int i=0;i<10;i++){int row=i/5,col=i%5;Form f=own.b.lu.fs[row][col];String shortcut=i<5?""+(i+1):"QWERT".substring(i-5,i-4);
-            units[i].setText(f==null?"—":"<html>"+escape(f.toString())+" ["+shortcut+"]<br>"+own.elu.price[row][col]/100+"円　"+(own.elu.cool[row][col]>0?own.elu.cool[row][col]+"f":"準備OK")+(own.locks[row][col]?"　自動":"")+"</html>");
-            units[i].setEnabled(f!=null&&!resultSent);}
-    }
     private void command(int bit){if(client!=null&&battle!=null&&!resultSent)client.queueCommand(bit);}
-    @Override protected void keyPressed(KeyEvent e){if(battle==null||e.getComponent() instanceof javax.swing.text.JTextComponent)return;
-        String key=KeyEvent.getKeyText(e.getKeyCode()).toUpperCase(Locale.ROOT);int index="12345QWERT".indexOf(key);
-        if(key.length()==1&&index>=0)command(1<<index);else if(e.getKeyCode()==KeyEvent.VK_F)command(InputFrame.WORKER);else if(e.getKeyCode()==KeyEvent.VK_C)command(InputFrame.CANNON);}
     @Override public void failed(String reason){failed(generation,reason);}
     private void failed(int attempt,String reason){SwingUtilities.invokeLater(()->{
         if(!current(attempt))return;
         System.err.println("BCU online: "+reason);
+        BattleInfoPage previous=battlePage;
         resetMatch();
+        if(previous!=null&&MainFrame.getPanel()==previous)changePanel(this);
         message(reason+"\n入力を修正して、そのまま作成／参加を再試行できます。友人用サーバーは停止していません。");
     });}
     private void message(int attempt,String text){SwingUtilities.invokeLater(()->{if(current(attempt))message(text);});}
     private void message(String text){if(SwingUtilities.isEventDispatchThread()){
+        if(battlePage!=null)battlePage.onlineStatus(text,!resultSent);
         if(!disposed)status.setText((playerId>0?"部屋ID: "+room.getText()+" / "+(roomProtected?"パスワードあり":"パスワードなし")+"\n":"")+text);
     }else{int attempt=generation;message(attempt,text);}}
     private void loadPreferences(){
@@ -251,7 +239,9 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private void resetMatch(){
         generation++;pulse.stop();if(connecting!=null){connecting.cancel(true);connecting=null;}
         RoomClient previous=client;client=null;
-        if(previous!=null)previous.close();battle=null;canvas.snapshot(null);
+        if(previous!=null)previous.close();
+        if(battlePage!=null){battlePage.detachOnline();battlePage=null;}
+        battle=null;
         for(MatchBundle.Mounted m:mounted)if(m!=null)m.close();Arrays.fill(mounted,null);Arrays.fill(hashes,null);
         for(Path p:temporary)delete(p);temporary.clear();localBundle=null;localArchive=null;roster=null;
         match=null;hostName=null;guestName=null;slot=-1;leftSlot=-1;playerId=0;
@@ -260,9 +250,9 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         if(center!=setup){if(center!=null)content.remove(center);content.add(setup,BorderLayout.CENTER);content.revalidate();content.repaint();}
         setSetupEnabled(true);ready.setEnabled(false);leave.setEnabled(false);copyRoom.setEnabled(false);
     }
-    private static String escape(String s){return s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;");}
     private static void delete(Path p){try{Files.deleteIfExists(p);}catch(java.io.IOException ignored){}}
     private void cleanup(){if(disposed)return;savePreferences();disposed=true;resetMatch();friendServer.close();io.shutdownNow();}
-    @Override protected void leave(){cleanup();}
+    // Opening the native child battle page must not tear down its sockets/server/packs.
+    @Override protected void leave(){if(battlePage==null)cleanup();}
     @Override protected void exit(){cleanup();}
 }

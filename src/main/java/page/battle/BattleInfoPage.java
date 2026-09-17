@@ -11,6 +11,8 @@ import common.util.unit.Form;
 import io.BCMusic;
 import main.MainBCU;
 import main.Opts;
+import online.ui.OnlineBattleField;
+import java.util.function.IntConsumer;
 import page.*;
 import page.awt.BBBuilder;
 import page.battle.BattleBox.OuterBox;
@@ -67,6 +69,11 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	private final JSlider jsl = new JSlider();
 	private final BattleBox bb;
 	private final BattleField basis;
+
+	private OnlineBattleField online;
+	private Runnable onlineExit;
+	private boolean onlineClosed;
+	private String onlineLeftName, onlineRightName;
 
 	private boolean pause = false, changedBG = false;
 	private Replay recd;
@@ -137,8 +144,96 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		current = this;
 	}
 
+	/** Native battle page with a network-fed, display-only controller. */
+	public BattleInfoPage(Page parent, PvpStageBasis displayCopy, int direction,
+	                      IntConsumer commands, Runnable onExit, String leftName, String rightName) {
+		super(parent);
+		online = new OnlineBattleField(this, displayCopy, direction, commands);
+		onlineExit = onExit;
+		onlineLeftName = leftName;
+		onlineRightName = rightName;
+		basis = online;
+		bb = BBBuilder.def.getCtrl(this, online);
+		ct.setData(basis.sb.st);
+		et.useUnitIcons();
+		est.useUnitIcons();
+		utd = new TotalDamageTable(online.playerState());
+		utdsp = new JScrollPane(utd);
+		jtb.setSelected(DEF_LARGE);
+		ini();
+		// These native single-player operations cannot be performed independently online.
+		paus.setEnabled(false);
+		next.setEnabled(false);
+		rply.setEnabled(false);
+		rply.setVisible(false);
+		jsl.setEnabled(false);
+		paus.setToolTipText("オンライン対戦では単独で一時停止できません");
+		next.setToolTipText("オンライン対戦ではコマ送りできません");
+		add(stream);
+		current = this;
+	}
+
+	public void publishOnline(PvpStageBasis displayCopy) {
+		if (online != null && !onlineClosed) online.publish(displayCopy);
+	}
+
+	public void onlineStatus(String text, boolean interactive) {
+		if (online == null || onlineClosed) return;
+		online.interactive(interactive);
+		stream.setText(text);
+		stream.setToolTipText(text);
+	}
+
+	/** Called on the EDT by the lobby's fixed-network-tick pump, at the configured render rate. */
+	public void renderOnlineFrame() {
+		if (online == null || onlineClosed) return;
+		online.update();
+		updateKey();
+		online.renderStep();
+		StageBasis sb = online.sb;
+		List<Entity> left = new ArrayList<>(), right = new ArrayList<>();
+		for (Entity e : sb.le) (e.dire == 1 ? left : right).add(e);
+		et.setList(left); est.setList(new ArrayList<>(left));
+		ut.setList(right); ust.setList(new ArrayList<>(right));
+		List<Form> lineup = new ArrayList<>();
+		for (Form[] row : online.playerState().b.lu.fs) for (Form f : row) if (f != null) lineup.add(f);
+		utd.setBasis(online.playerState()); utd.setList(lineup);
+		ebase.setText(onlineLeftName + "  HP: " + sb.ebase.health + "/" + sb.ebase.maxH);
+		ubase.setText(onlineRightName + "  HP: " + sb.ubase.health);
+		timer.setText(sb.time + "f");
+		ecount.setText(sb.entityCount(1) + "/" + sb.playerFor(1).maxNum);
+		ucount.setText(sb.entityCount(-1) + "/" + sb.playerFor(-1).maxNum);
+		if (bb.getPainter().dragging) bb.getPainter().dragFrame++;
+		if (MainBCU.loaded) BCMusic.flush(sb.ebase.health > 0 && sb.ubase.health > 0);
+		if (((Canvas) bb).isDisplayable()) bb.paint();
+	}
+
+	/** Invalidate references before lobby unmounts temporary character packs. Idempotent. */
+	public void detachOnline() {
+		if (online == null || onlineClosed) return;
+		onlineClosed = true;
+		online.interactive(false);
+		getPress().clear();
+		if (current == this) current = null;
+	}
+
+	private void closeOnline() {
+		if (online == null || onlineClosed) return;
+		detachOnline();
+		BCMusic.stopAll();
+		onlineExit.run();
+	}
+
+	@Override protected void exit() { closeOnline(); }
+
+	@Override protected void windowDeactivated() {
+		if (online != null) getPress().clear();
+		super.windowDeactivated();
+	}
+
 	@Override
 	public void callBack(Object o) {
+		if (online != null) return;
 		BCMusic.stopAll();
 		if(o instanceof Stage) {
 			changePanel(new BattleInfoPage(getFront(), (Stage) o, 0, basis.sb.b, new int[1]));
@@ -154,6 +249,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 
 	@Override
 	protected synchronized void keyTyped(KeyEvent e) {
+		if (online != null) return;
 		if (spe > -5 && e.getKeyChar() == ',') {
 			spe--;
 			bb.reset();
@@ -196,6 +292,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 
 	@Override
 	protected void renew() {
+		if (online != null) return;
 		backClicked = false;
 
 		if (basis.sb.mus != null) {
@@ -227,7 +324,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		if (jtb.isSelected()) {
 			set(paus, x, y, 700, 0, 200, 50);
 			set(rply, x, y, 900, 0, 200, 50);
-			set(stream, x, y, 900, 0, 400, 50);
+			set(stream, x, y, 900, 0, online == null ? 400 : 200, 50);
 			set(next, x, y, 1100, 0, 200, 50);
 			set(row, x, y, 1300, 0, 200, 50);
 			set(ebase, x, y, 240, 0, 600, 50);
@@ -254,7 +351,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 			set(row, x, y , 1300, 200, 200, 50);
 			set(paus, x, y, 700, 200, 200, 50);
 			set(rply, x, y, 900, 200, 200, 50);
-			set(stream, x, y, 900, 200, 400, 50);
+			set(stream, x, y, 900, 200, online == null ? 400 : 200, 50);
 			set(next, x, y, 1100, 200, 200, 50);
 			set(eup, x, y, 1650, 100, 600, 700);
 			set(eusp, x, y, 1650, 100, 600, 700);
@@ -279,6 +376,8 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 
 	@Override
 	public synchronized void onTimer(int t) {
+		// Online simulation/render scheduling belongs to the EDT network pump, not Timer.p.
+		if (online != null) return;
 		super.onTimer(t);
 
 		StageBasis sb = basis.sb;
@@ -463,6 +562,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		});
 
 		back.setLnr(x -> {
+			if (online != null) { closeOnline(); changePanel(getFront()); return; }
 			backClicked = true;
 			BCMusic.stopAll();
 			if (bb instanceof BBRecd) {
