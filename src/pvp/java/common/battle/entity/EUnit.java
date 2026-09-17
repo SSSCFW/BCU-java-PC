@@ -62,6 +62,7 @@ public class EUnit extends Entity {
 	public final boolean isOrbBoosted;
 	public boolean bountyOrbCheck = false;
 	public int legendGrade = -1, coloGrade = -1, counterGrade = -1, bountyGrade = -1;
+	private boolean pvpDefeatRewarded;
 
 	public EUnit(StageBasis b, MaskUnit de, EAnimU ea, float d0, int layer0, int layer1, Level level, PCoin pc,
 				 int[] index, boolean isSpirit, boolean isEveryOther) {
@@ -184,12 +185,40 @@ public class EUnit extends Entity {
 	@Override
 	public void kill(KillMode atk) {
 		super.kill(atk);
+		rewardPvpDefeat(atk);
 
 		if (getProc().MONEYBACK.exists() && index != null)
 			basis.money += basis.elu.price[index[0]][index[1]] * getProc().MONEYBACK.mult / 100;
 		if (getProc().CANONCHARGE.exists() && basis.cannon < basis.maxCannon - 1)
 			basis.cannon = Math.min(basis.maxCannon - 1, basis.cannon + getProc().CANONCHARGE.mult);
 	}
+
+    private void rewardPvpDefeat(KillMode mode) {
+        if (pvpDefeatRewarded || mode != KillMode.NORMAL || !basis.isPvp() || index == null || isSpirit)
+            return;
+
+        boolean opponentKill = false;
+        for (AttackAb attack : lastKilledBy) {
+            if (attack != null && attack.dire == -dire) {
+                opponentKill = true;
+                break;
+            }
+        }
+        if (!opponentKill)
+            return;
+
+        int cost = basis.elu.price[index[0]][index[1]];
+        if (cost <= 0)
+            return;
+
+        pvpDefeatRewarded = true;
+        int reward = cost / 2;
+        if (reward <= 0)
+            return;
+
+        StageBasis winner = basis.playerFor(-dire);
+        winner.money = (int) Math.min((long) winner.maxMoney, (long) winner.money + reward);
+    }
 
 	@Override
 	public int getAtk() { // visual only
