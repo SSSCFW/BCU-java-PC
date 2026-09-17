@@ -1,0 +1,47 @@
+name: Recover interrupted PvP snapshot
+on:
+  push:
+    branches: [feature/online-pvp-30tps]
+    paths: [.github/workflows/pvp-recover.yml]
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Recover complete files from interrupted snapshot
+        run: |
+          python3 - <<'PY'
+          import base64, io, lzma, pathlib, tarfile
+          parts=sorted(pathlib.Path('.pvp-transfer').glob('hybrid-*.b64'))
+          raw=base64.b64decode(''.join(p.read_text().strip() for p in parts),validate=True)
+          decoder=lzma.LZMADecompressor()
+          data=decoder.decompress(raw)
+          print('Recovered bytes:',len(data),'complete stream:',decoder.eof)
+          dest=pathlib.Path('/tmp/pvp-recovered');dest.mkdir()
+          try:
+              with tarfile.open(fileobj=io.BytesIO(data),mode='r:') as archive:
+                  for entry in archive:
+                      p=pathlib.PurePosixPath(entry.name)
+                      if not entry.isfile() or p.is_absolute() or '..' in p.parts: continue
+                      try: content=archive.extractfile(entry).read()
+                      except (EOFError,tarfile.ReadError): break
+                      if len(content)!=entry.size: break
+                      out=dest/p;out.parent.mkdir(parents=True,exist_ok=True);out.write_bytes(content)
+                      print(entry.name,entry.size)
+          except (EOFError,tarfile.ReadError): pass
+          PY
+          tar --exclude=.git --exclude=target --exclude=build -czf /tmp/pvp-current-source.tar.gz .
+          tar -czf /tmp/pvp-recovered.tar.gz -C /tmp/pvp-recovered .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pvp-recovery
+          path: |
+            /tmp/pvp-current-source.tar.gz
+            /tmp/pvp-recovered.tar.gz
+          retention-days: 7
