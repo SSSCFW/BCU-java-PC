@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate portable layout and essential v3 classes, without running downloaded code."""
+"""Validate portable layout and essential v4 classes, without running downloaded code."""
 from pathlib import Path, PurePosixPath
 import io
 import sys
