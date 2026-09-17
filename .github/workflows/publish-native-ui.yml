@@ -44,39 +44,27 @@ jobs:
             'src/test/java/online/tests/NativeBattleUiTests.java': '4413107e49bb9ddbe03e047c1f8db8d515ab448e'
           }
           assert subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip() == base
-          req = urllib.request.Request('https://api.github.com/repos/SSSCFW/BCU-java-PC/git/blobs/db65a5149831ad17cd46e9b895622e0ac728f751', headers={'Authorization': 'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json'})
-          with urllib.request.urlopen(req, timeout=30) as response: blob = json.load(response)
-          raw = base64.b64decode(blob['content'])
-          assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest() == 'db65a5149831ad17cd46e9b895622e0ac728f751'
-          manifest = json.loads(lzma.decompress(raw))
-          print('Snapshot keys:', sorted(manifest)); print('Snapshot base:', manifest.get('base'))
-          assert manifest['base'] == base
-          entries = manifest['files']
-          print('Snapshot files:', [e['path'] for e in entries])
-          seen = set()
           def git_blob(data): return hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
-          for item in entries:
-              name = item['path']
-              assert name in expected and name not in seen, name
-              seen.add(name)
+          parts = []
+          for sha in ['933e990d9eece219a5a8aab72691a474445cfedf', '792f5045eddfe562aece08ce8a7a1da20cde76cf', 'b5dcb7bb766e381c58a7538cb8bbfdadf1f08003', '74815170112b3d237eb3bb438d83c9fbad145a29']:
+              req = urllib.request.Request('https://api.github.com/repos/SSSCFW/BCU-java-PC/git/blobs/'+sha, headers={'Authorization': 'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(req, timeout=30) as response: blob = json.load(response)
+              part = base64.b64decode(blob['content'])
+              assert git_blob(part) == sha, sha
+              parts.append(part)
+          compressed = b''.join(parts)
+          assert hashlib.sha256(compressed).hexdigest() == '24ea742376ada405700cb43b4999b8d941d7a1a6220c964905bcdeb5acb8401c'
+          patch = lzma.decompress(compressed)
+          assert hashlib.sha256(patch).hexdigest() == 'db6d0c27dc13039a9f31ee7995ee6cdf031b000c2ed01af80a7b48951ba991f8'
+          path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'native-ui.patch'
+          path.write_bytes(patch)
+          subprocess.run(['git','apply','--check',str(path)], check=True)
+          subprocess.run(['git','apply','--index',str(path)], check=True)
+          subprocess.run(['git','rm','src/main/java/online/ui/PvpCanvas.java'], check=True)
+          for name, sha in expected.items():
               target = pathlib.Path(name)
               assert not target.is_symlink()
-              if 'expected' in item:
-                  assert (git_blob(target.read_bytes()) if target.exists() else None) == item['expected'], name
-              content = item['content']
-              if content is None:
-                  assert expected[name] is None
-                  target.unlink()
-              else:
-                  data = content.encode('utf-8')
-                  assert git_blob(data) == expected[name], (name, git_blob(data))
-                  target.parent.mkdir(parents=True, exist_ok=True); target.write_bytes(data)
-          removed = pathlib.Path('src/main/java/online/ui/PvpCanvas.java')
-          if removed.exists(): removed.unlink()
-          for name, sha in expected.items():
-              path = pathlib.Path(name)
-              assert (git_blob(path.read_bytes()) if path.exists() else None) == sha, name
-          subprocess.run(['git','add','--',*expected], check=True)
+              assert (git_blob(target.read_bytes()) if target.exists() else None) == sha, name
           changed = set(subprocess.check_output(['git','diff','--cached','--name-only'], text=True).splitlines())
           assert changed == set(expected), changed
           subprocess.run(['git','diff','--cached','--check'], check=True)
