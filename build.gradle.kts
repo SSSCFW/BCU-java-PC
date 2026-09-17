@@ -20,16 +20,27 @@ repositories {
     mavenCentral()
 }
 
+// Preserve the upstream gitlink: compile a generated tree with our common overlays.
+val overlayPaths = fileTree("src/pvp/java").files.map { it.relativeTo(file("src/pvp/java")).invariantSeparatorsPath }
+val preparePvpSources by tasks.registering(Sync::class) {
+    from("src/main/java") { exclude(overlayPaths); exclude("**/.git") }
+    from("src/pvp/java")
+    into(layout.buildDirectory.dir("generated/sources/pvp"))
+}
+
 sourceSets {
     main {
+        java.setSrcDirs(listOf(layout.buildDirectory.dir("generated/sources/pvp")))
         resources {
             srcDirs("src/main/java", "src/main/resources")
-            exclude("**/*.java")
+            exclude("**/*.java", "**/*.kt", "**/.git")
         }
     }
 }
 
 dependencies {
+    implementation("org.java-websocket:Java-WebSocket:1.6.0")
+    runtimeOnly("org.slf4j:slf4j-simple:2.0.16")
     api(libs.commons.codec.commons.codec)
     api(libs.commons.io.commons.io)
     api(libs.commons.logging.commons.logging)
@@ -74,5 +85,17 @@ tasks.withType<Javadoc> {
 }
 
 kotlin {
-    jvmToolchain(8)
+    jvmToolchain(21)
+    compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+    sourceSets.named("main") { kotlin.setSrcDirs(listOf(layout.buildDirectory.dir("generated/sources/pvp"))) }
 }
+
+tasks.named("compileKotlin") { dependsOn(preparePvpSources) }
+tasks.named("compileJava") { dependsOn(preparePvpSources) }
+val pvpTests by tasks.registering(JavaExec::class) {
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("online.tests.AllTests")
+    jvmArgs("-ea", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8")
+}
+tasks.named("check") { dependsOn(pvpTests) }
