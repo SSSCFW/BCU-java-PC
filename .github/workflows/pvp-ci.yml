@@ -51,7 +51,7 @@ jobs:
           path: |
             diagnostics/
             target/surefire-reports/
-            target/pvp-canvas-test.png
+            target/native-ui-*.png
             target/lobby-ui-logs/
           if-no-files-found: ignore
   gradle:
@@ -123,13 +123,14 @@ jobs:
             gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref=refs/tags/pvp-dev -f sha="$GITHUB_SHA" >/dev/null
           fi
           cat > release-notes.md <<NOTES
-          BCU PvP 開発テスト版（プロトコルv2）。戦闘はUDP優先、制御とキャラ共有はWebSocket/WSS。現在のゲームモードは1対1のみです。
+          BCU PvP 開発テスト版（プロトコルv3）。戦闘はUDP優先、制御とキャラ共有はWebSocket/WSS。現在のゲームモードは1対1のみです。両クライアントとサーバーを同じv3版へ更新してください。
 
           ビルドとテスト: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
           Commit: $GITHUB_SHA
 
           bcu-pvp-portable.zip を直接ダウンロードし、既存BCUフォルダーのコピーへ配置してください。Java 21が必要です。標準ゲームデータは含みません。
           パスワードは空欄なら不要です。表示名・サーバーアドレスは自動保存されます。同一PCではサーバー起動は片方だけにして、もう片方は「このPCのサーバーを使う」から同じ部屋IDで参加してください。
+          入室後の専用ロビーで編成を変更でき、ホストが城間距離・背景・BGM・60FPS固定を設定できます。各自の音量はロビーと戦闘中に調整でき、生産や再生産完了の通知は自分側だけに鳴ります。
           友人用サーバーはゲーム内ボタン、または start-pvp-server.bat / start-pvp-server.sh で起動します。TCP 8766とUDP 8767を使用します。
           公開回線の制御通信はWSS、LAN/VPNのWSは明示許可が必要です。3人以上の戦闘・観戦・再接続は未実装です。
           NOTES
