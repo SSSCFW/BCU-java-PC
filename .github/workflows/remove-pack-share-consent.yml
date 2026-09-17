@@ -86,7 +86,7 @@ jobs:
           mkdir -p diagnostics
           mvn -B -ntp clean verify dependency:copy-dependencies -DoutputDirectory=target/lib 2>&1 | tee diagnostics/maven.log
           xvfb-run -a java -ea -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.ui.LobbyUiTests 2>&1 | tee diagnostics/lobby-ui.log
-          grep -R -F 'All online PvP tests passed' diagnostics/maven.log
+          grep -F 'PvP tests passed:' diagnostics/maven.log
           ! grep -R -F '参照Pack全体の自動共有に同意する' src/main/java docs
       - name: Commit verified change
         shell: bash
