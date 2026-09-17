@@ -1,0 +1,25 @@
+name: PvP UI source checkpoint
+on:
+  push:
+    branches: [feature/online-pvp-30tps]
+    paths: [.github/workflows/pvp-ui-source.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Source snapshot
+        run: |
+          git rev-parse HEAD > SOURCE_REVISION.txt
+          tar --exclude=.git --exclude=target --exclude=build -czf "$RUNNER_TEMP/bcu-ui-source.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pvp-ui-source
+          path: ${{ runner.temp }}/bcu-ui-source.tar.gz
+          retention-days: 3
