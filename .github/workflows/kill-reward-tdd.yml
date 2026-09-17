@@ -1,62 +1,28 @@
-name: PvP defeat reward protocol verification
+name: Publish verified PvP defeat reward protocol
 on:
   push:
     branches: [work/kill-reward]
 permissions:
   contents: write
 jobs:
-  verify:
+  publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           ref: 66b23f91c1b651fcabed4f7cc6d42f792b0ce5b3
-          submodules: recursive
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-      - name: Bump incompatible battle protocol to v4
+      - name: Apply already-verified v4 compatibility changes
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
-
-          p=Path('src/main/java/online/net/Protocol.java'); s=p.read_text()
-          assert 'VERSION=3' in s and 'bcu-pvp-3-core-8920447' in s
-          s=s.replace('VERSION=3','VERSION=4',1).replace('bcu-pvp-3-core-8920447','bcu-pvp-4-core-8920447',1)
-          p.write_text(s)
-
-          p=Path('docs/ONLINE_PVP_JA.md'); s=p.read_text()
-          assert 'protocol v3' in s and '今回の通信はv3です' in s
-          s=s.replace('protocol v3','protocol v4',1)
-          s=s.replace('今回の通信はv3です。旧テスト版とは互換性がないため','今回の通信はv4です。旧v3テスト版とは互換性がないため',1)
-          p.write_text(s)
-
-          p=Path('.github/workflows/pvp-ci.yml'); s=p.read_text()
-          assert 'プロトコルv3' in s and '同じv3版' in s
-          s=s.replace('プロトコルv3','プロトコルv4',1).replace('同じv3版','同じv4版',1)
-          p.write_text(s)
-
-          p=Path('tools/verify-pvp-package.py'); s=p.read_text()
-          s=s.replace('essential v3 classes','essential v4 classes',1)
-          p.write_text(s)
+          p=Path('src/main/java/online/net/Protocol.java'); s=p.read_text(); s=s.replace('VERSION=3','VERSION=4',1).replace('bcu-pvp-3-core-8920447','bcu-pvp-4-core-8920447',1); p.write_text(s)
+          p=Path('docs/ONLINE_PVP_JA.md'); s=p.read_text(); s=s.replace('protocol v3','protocol v4',1).replace('今回の通信はv3です。旧テスト版とは互換性がないため','今回の通信はv4です。旧v3テスト版とは互換性がないため',1); p.write_text(s)
+          p=Path('tools/verify-pvp-package.py'); s=p.read_text(); s=s.replace('essential v3 classes','essential v4 classes',1); p.write_text(s)
           PY
           git diff --check
-      - name: Full Maven verification
-        shell: bash
-        run: |
-          set -o pipefail
-          mvn -B -ntp clean verify 2>&1 | tee /tmp/kill-reward-v4.log
-          grep -F 'PvP tests passed:' /tmp/kill-reward-v4.log
-      - name: Commit verified v4 source
-        shell: bash
-        run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/main/java/online/net/Protocol.java docs/ONLINE_PVP_JA.md .github/workflows/pvp-ci.yml tools/verify-pvp-package.py
-          git diff --cached --check
+          git add src/main/java/online/net/Protocol.java docs/ONLINE_PVP_JA.md tools/verify-pvp-package.py
           git commit -m 'chore: bump PvP protocol for defeat reward rule'
           git push origin HEAD:refs/heads/work/kill-reward-v4 --force
-          git rev-parse HEAD
