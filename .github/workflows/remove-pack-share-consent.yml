@@ -1,0 +1,106 @@
+name: Remove Pack sharing consent gate
+on:
+  push:
+    branches: [work/remove-pack-share-consent]
+    paths: [.github/workflows/remove-pack-share-consent.yml]
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 3e9734fc75baabbb88f7e9b7821498dbe9d33203
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: RED - require consent control to be absent
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/test/java/online/ui/LobbyUiTests.java')
+          s=p.read_text()
+          old='edt(() -> { text("name").setText(name);text("password").setText(password);((JCheckBox)field(page,"share")).setSelected(true);return null; });'
+          new='edt(() -> { text("name").setText(name);text("password").setText(password);return null; });'
+          assert old in s
+          s=s.replace(old,new,1)
+          marker='        newPage();\n'
+          test='        Check.that(Arrays.stream(OnlineLobbyPage.class.getDeclaredFields()).noneMatch(f->f.getName().equals("share")),"connection page must not keep Pack-sharing consent control");\n        Check.that(Arrays.stream(RoomLobbyPage.class.getDeclaredFields()).noneMatch(f->f.getName().equals("share")),"room lobby must not keep Pack-sharing consent control");\n'
+          assert marker in s
+          s=s.replace(marker,marker+test,1)
+          p.write_text(s)
+          PY
+          mvn -B -ntp test-compile dependency:copy-dependencies -DoutputDirectory=target/lib >/tmp/red-build.log
+          set +e
+          xvfb-run -a java -ea -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.ui.LobbyUiTests local-button target/red-user target/red-shared >/tmp/red.log 2>&1
+          code=$?
+          set -e
+          cat /tmp/red.log
+          test "$code" -ne 0
+          grep -q 'Pack-sharing consent control' /tmp/red.log
+      - name: GREEN - make Pack sharing automatic
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          def edit(path, pairs):
+              p=Path(path); s=p.read_text()
+              for old,new in pairs:
+                  assert old in s, f'missing pattern in {path}: {old[:100]}'
+                  s=s.replace(old,new,1)
+              p.write_text(s)
+          edit('src/main/java/online/ui/OnlineLobbyPage.java', [
+              ('    private final JCheckBox share=new JCheckBox("参照Pack全体の自動共有に同意する（未編成キャラも含む）");\n',''),
+              ('development.setEnabled(enabled);share.setEnabled(enabled);create.setEnabled(enabled);','development.setEnabled(enabled);create.setEnabled(enabled);'),
+              ('roomLobby=new RoomLobbyPage(this,client,playerId,room.getText(),roomProtected,lineup,share,ready);','roomLobby=new RoomLobbyPage(this,client,playerId,room.getText(),roomProtected,lineup,ready);')
+          ])
+          edit('src/main/java/online/ui/RoomLobbyPage.java', [
+              ('    private final JCheckBox share,force60=new JCheckBox("全員の表示を60FPSに揃える（戦闘処理は30TPS）");','    private final JCheckBox force60=new JCheckBox("全員の表示を60FPSに揃える（戦闘処理は30TPS）");'),
+              ('    private final ActionListener lineupListener, shareListener;','    private final ActionListener lineupListener;'),
+              ('RoomLobbyPage(OnlineLobbyPage owner,RoomClient client,int id,String room,boolean protectedRoom,JComboBox<BasisLU> lineup,JCheckBox share,JButton ready){\n        super(owner);this.owner=owner;this.client=client;playerId=id;this.lineup=lineup;this.share=share;this.ready=ready;',
+               'RoomLobbyPage(OnlineLobbyPage owner,RoomClient client,int id,String room,boolean protectedRoom,JComboBox<BasisLU> lineup,JButton ready){\n        super(owner);this.owner=owner;this.client=client;playerId=id;this.lineup=lineup;this.ready=ready;'),
+              ('own.add(slots,BorderLayout.CENTER);own.add(share,BorderLayout.SOUTH);sections.add(own);','own.add(slots,BorderLayout.CENTER);sections.add(own);'),
+              ('        shareListener=e->refreshControls();\n',''),
+              ('force60.addActionListener(e->rulesChanged());share.addActionListener(shareListener);','force60.addActionListener(e->rulesChanged());'),
+              ('        lineup.setEnabled(can);edit.setEnabled(can);share.setEnabled(can);','        lineup.setEnabled(can);edit.setEnabled(can);'),
+              ('(ownReady()||(!dirty&&share.isSelected()&&lineup.getSelectedItem()!=null))','(ownReady()||(!dirty&&lineup.getSelectedItem()!=null))'),
+              ('if(!share.isSelected()||lineup.getSelectedItem()==null)throw new IllegalArgumentException("編成と自動共有への同意が必要です");','if(lineup.getSelectedItem()==null)throw new IllegalArgumentException("編成を選択してください");'),
+              ('lineup.removeActionListener(lineupListener);share.removeActionListener(shareListener);refreshControls();','lineup.removeActionListener(lineupListener);refreshControls();')
+          ])
+          p=Path('docs/ONLINE_PVP_JA.md'); s=p.read_text()
+          s=s.replace('6. ホストがルールを変更したら**「ルールを適用」**を押します。各自が共有に同意して**「準備完了」**を押します。','6. ホストがルールを変更したら**「ルールを適用」**を押します。各自が**「準備完了」**を押します。')
+          s=s.replace('**共有範囲に注意:** この初期版は、編成が参照するカスタムPackとその依存Packを','**共有範囲に注意:** 準備完了後、この版は編成が参照するカスタムPackとその依存Packを自動的に')
+          p.write_text(s)
+          PY
+          ! grep -R -F '参照Pack全体の自動共有に同意する' src/main/java docs
+          ! grep -R -F '自動共有への同意' src/main/java docs
+      - name: Verify full suite and real Swing lobby
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p diagnostics
+          mvn -B -ntp clean verify dependency:copy-dependencies -DoutputDirectory=target/lib 2>&1 | tee diagnostics/maven.log
+          xvfb-run -a java -ea -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.ui.LobbyUiTests 2>&1 | tee diagnostics/lobby-ui.log
+          grep -R -F 'All online PvP tests passed' diagnostics/maven.log
+          ! grep -R -F '参照Pack全体の自動共有に同意する' src/main/java docs
+      - name: Commit verified change
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/main/java/online/ui/OnlineLobbyPage.java src/main/java/online/ui/RoomLobbyPage.java src/test/java/online/ui/LobbyUiTests.java docs/ONLINE_PVP_JA.md
+          git diff --cached --check
+          git commit -m 'fix: make custom Pack sharing automatic'
+          git push origin HEAD:refs/heads/work/remove-pack-share-consent-verified
+          git rev-parse HEAD | tee diagnostics/verified-commit.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: remove-pack-share-consent-verification
+          path: diagnostics/
+          retention-days: 7
