@@ -1,0 +1,107 @@
+name: Verify native battle UI for integration
+on:
+  push:
+    branches: [work/native-ui-publish]
+    paths: [.github/workflows/publish-native-ui.yml]
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 90accba0089904e1397a4ad3236a9721d62be4f1
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Restore saved source with exact per-file verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, lzma, os, pathlib, subprocess, urllib.request
+          base = '90accba0089904e1397a4ad3236a9721d62be4f1'
+          expected = {
+            'docs/ONLINE_PVP_JA.md': '5b8d772261588474c9b9ba5f7759f82ee3581e6f',
+            'src/main/java/online/ui/OnlineLobbyPage.java': '7a00d17985bb67a818c452a6c878494451d46911',
+            'src/main/java/online/ui/PvpCanvas.java': None,
+            'src/main/java/page/awt/BattleBoxDef.java': '24ad3b5b28d4f889b78aa27ceb40bf378d68013a',
+            'src/main/java/page/battle/BBCtrl.java': '1aac2114d8d6d45b0c75a35ea4c0f7e481e85a46',
+            'src/main/java/page/battle/BattleBox.java': '8997288df2e607c04ffd3f8727b6f05cf20e19cc',
+            'src/main/java/page/battle/BattleInfoPage.java': 'e4632cc139561c5d4f6d4a4e8a62f86997b386b4',
+            'src/main/java/page/battle/EntityTable.java': 'bfc1819996ff58f7e1b7e449475931068b81241f',
+            'src/main/java/page/battle/TotalDamageTable.java': '5b99f46d9ef26798aadeb50aad95acdea740ac8b',
+            'src/test/java/online/tests/UiTests.java': '59c189915c08cfc643dcc914a7d3b128841de81a',
+            'src/test/java/online/ui/LobbyUiTests.java': 'dff2ccb0298281d74e219060464fedaae467c2e2',
+            'tools/verify-pvp-package.py': '8ba487271b3eb184b7981b6a791ea6cbb56aff65',
+            'docs/superpowers/plans/2026-09-17-native-battle-ui.md': '108e10d547cda359c20e57edf002a21fad861353',
+            'src/main/java/online/ui/OnlineBattleField.java': '42e74b51c52dbaf24814e0502d653b21f6f627c2',
+            'src/test/java/online/tests/FixtureNativeUi.java': 'faa6e78837e5b894e65759fd91178eb8762a5334',
+            'src/test/java/online/tests/NativeBattleUiTests.java': '4413107e49bb9ddbe03e047c1f8db8d515ab448e'
+          }
+          assert subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip() == base
+          req = urllib.request.Request('https://api.github.com/repos/SSSCFW/BCU-java-PC/git/blobs/db65a5149831ad17cd46e9b895622e0ac728f751', headers={'Authorization': 'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json'})
+          with urllib.request.urlopen(req, timeout=30) as response: blob = json.load(response)
+          raw = base64.b64decode(blob['content'])
+          assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest() == 'db65a5149831ad17cd46e9b895622e0ac728f751'
+          manifest = json.loads(lzma.decompress(raw))
+          print('Snapshot keys:', sorted(manifest)); print('Snapshot base:', manifest.get('base'))
+          assert manifest['base'] == base
+          entries = manifest['files']
+          print('Snapshot files:', [e['path'] for e in entries])
+          seen = set()
+          def git_blob(data): return hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+          for item in entries:
+              name = item['path']
+              assert name in expected and name not in seen, name
+              seen.add(name)
+              target = pathlib.Path(name)
+              assert not target.is_symlink()
+              if 'expected' in item:
+                  assert (git_blob(target.read_bytes()) if target.exists() else None) == item['expected'], name
+              content = item['content']
+              if content is None:
+                  assert expected[name] is None
+                  target.unlink()
+              else:
+                  data = content.encode('utf-8')
+                  assert git_blob(data) == expected[name], (name, git_blob(data))
+                  target.parent.mkdir(parents=True, exist_ok=True); target.write_bytes(data)
+          removed = pathlib.Path('src/main/java/online/ui/PvpCanvas.java')
+          if removed.exists(): removed.unlink()
+          for name, sha in expected.items():
+              path = pathlib.Path(name)
+              assert (git_blob(path.read_bytes()) if path.exists() else None) == sha, name
+          subprocess.run(['git','add','--',*expected], check=True)
+          changed = set(subprocess.check_output(['git','diff','--cached','--name-only'], text=True).splitlines())
+          assert changed == set(expected), changed
+          subprocess.run(['git','diff','--cached','--check'], check=True)
+          assert subprocess.check_output(['git','ls-files','-s','src/main/java/common'], text=True).split()[1] == '8920447e73bea56289a2da5a2a9294e24ff08c67'
+          print('All 16 source paths exactly match the reviewed patch and obsolete-renderer deletion.')
+          PY
+      - name: Clean Maven and native UI regression tests
+        run: |
+          set -o pipefail
+          mkdir -p diagnostics
+          mvn -B -ntp clean verify dependency:copy-dependencies -DoutputDirectory=target/lib 2>&1 | tee diagnostics/native-maven.log
+          xvfb-run -a java -ea -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.ui.LobbyUiTests 2>&1 | tee diagnostics/native-gui.log
+          python3 tools/test-package-pvp.py
+          bash tools/package-pvp.sh
+      - name: Commit verified source only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git diff --cached --quiet -- .github src/main/java/common
+          git commit -m 'fix: restore original BCU battle UI for online matches'
+          git push origin HEAD:refs/heads/work/native-ui-verified
+          git rev-parse HEAD | tee diagnostics/verified-commit.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ui-verification
+          path: diagnostics/
+          retention-days: 7
