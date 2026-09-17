@@ -1,0 +1,80 @@
+name: Assemble PvP sources
+on:
+  push:
+    branches: [feature/online-pvp-30tps]
+    paths: [.github/workflows/pvp-import.yml]
+permissions:
+  contents: write
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify and assemble source snapshot
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, io, json, pathlib, shutil, tarfile, subprocess
+          root = pathlib.Path('.')
+          encoded = ''.join((root / f'.pvp-transfer/part-{i}.b64').read_text().strip() for i in range(7))
+          raw = base64.b64decode(encoded, validate=True)
+          assert hashlib.sha256(raw).hexdigest() == '5a078b104604e69ee9027b30cfe83360d61e7f9cb4492325d1697aaa66c0b158', 'Source snapshot checksum mismatch'
+          allowed = ('src/main/java/online/', 'src/test/', 'src/pvp/java/', 'distribution/', 'tools/', 'docs/superpowers/')
+          explicit = {'pom.xml', 'build.gradle.kts', 'src/main/java/page/MainPage.java', 'docs/ONLINE_PVP_JA.md', 'core-overlay.patch', 'overlay-paths.json'}
+          with tarfile.open(fileobj=io.BytesIO(raw), mode='r:xz') as archive:
+              for member in archive.getmembers():
+                  p = pathlib.PurePosixPath(member.name)
+                  assert member.isfile() and not p.is_absolute() and '..' not in p.parts
+                  assert member.name in explicit or member.name.startswith(allowed), member.name
+                  target = root / p
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(archive.extractfile(member).read())
+                  target.chmod(0o755 if member.name.endswith('.sh') else 0o644)
+          for name, expected in json.loads(pathlib.Path('overlay-paths.json').read_text()).items():
+              target = pathlib.Path(name)
+              relative = target.relative_to('src/pvp/java/common')
+              original = pathlib.Path('src/main/java/common') / relative
+              assert hashlib.sha256(original.read_bytes()).hexdigest() == expected, str(original)
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_text(original.read_text(), encoding='utf-8')
+          subprocess.run(['git', 'apply', '--check', 'core-overlay.patch'], check=True)
+          subprocess.run(['git', 'apply', 'core-overlay.patch'], check=True)
+          pathlib.Path('core-overlay.patch').unlink()
+          pathlib.Path('overlay-paths.json').unlink()
+          shutil.rmtree('.pvp-transfer')
+          assert subprocess.check_output(['git', '-C', 'src/main/java/common', 'rev-parse', 'HEAD'], text=True).strip() == '8920447e73bea56289a2da5a2a9294e24ff08c67'
+          PY
+      - name: Clean Maven build and integration tests
+        run: |
+          set -o pipefail
+          mvn -B -ntp clean verify dependency:copy-dependencies -DoutputDirectory=target/lib 2>&1 | tee "$RUNNER_TEMP/pvp-build.log"
+      - name: Commit assembled source without changing upstream gitlink
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add pom.xml build.gradle.kts src/main/java/page/MainPage.java src/main/java/online src/test src/pvp distribution tools docs/ONLINE_PVP_JA.md docs/superpowers
+          git add -u .pvp-transfer
+          git diff --cached --quiet -- src/main/java/common
+          git commit -m 'feat: add passworded 1v1 PvP with isolated character exchange and fixed 30 TPS'
+          git push origin HEAD:feature/online-pvp-30tps
+      - name: Package portable build
+        run: bash tools/package-pvp.sh
+      - name: Collect assembled source
+        if: always()
+        run: tar --exclude=.git --exclude=target --exclude=build -czf "$RUNNER_TEMP/pvp-source-assembled.tar.gz" src pom.xml build.gradle.kts distribution tools docs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pvp-assembly
+          path: |
+            ${{ runner.temp }}/pvp-build.log
+            ${{ runner.temp }}/pvp-source-assembled.tar.gz
+            target/bcu-pvp-portable.zip
+          retention-days: 7
