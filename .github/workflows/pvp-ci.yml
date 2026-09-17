@@ -1,17 +1,15 @@
 name: PvP build
-
 on:
   push:
     branches: [feature/online-pvp-30tps]
+    paths: ['src/**', 'pom.xml', 'build.gradle.kts', 'tools/**', 'distribution/**']
   pull_request:
     branches: [slow_kotlin]
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
-  build:
+  maven:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -23,26 +21,34 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Source diagnostics
-        run: |
-          git rev-parse HEAD > SOURCE_REVISION.txt
-          git submodule status >> SOURCE_REVISION.txt
-          tar --exclude=.git --exclude=target -czf "$RUNNER_TEMP/bcu-source.tar.gz" .
+      - name: Clean build and real-engine integration tests
+        run: mvn -B -ntp clean verify dependency:copy-dependencies -DoutputDirectory=target/lib
+      - name: Portable distribution
+        run: bash tools/package-pvp.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: pvp-source
-          path: ${{ runner.temp }}/bcu-source.tar.gz
-          retention-days: 3
-      - name: Build and tests
-        run: mvn -B -ntp test package dependency:copy-dependencies -DoutputDirectory=target/lib
-      - name: Offline build diagnostics
-        if: always()
-        run: |
-          mkdir -p target/lib
-          tar -czf "$RUNNER_TEMP/bcu-build.tar.gz" target
+          name: bcu-pvp-portable
+          path: target/bcu-pvp-portable.zip
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pvp-build
-          path: ${{ runner.temp }}/bcu-build.tar.gz
-          retention-days: 3
+          name: pvp-test-reports
+          path: |
+            target/surefire-reports/
+            target/pvp-canvas-test.png
+          if-no-files-found: ignore
+  gradle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Gradle build and integration tests
+        run: ./gradlew --no-daemon check
