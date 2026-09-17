@@ -62,7 +62,7 @@ jobs:
             'src/test/java/online/tests/LobbyTestSupport.java': '737a3950e39d4dc23f87e757f10876c7fb149b8a',
             'src/test/java/online/tests/NetworkTests.java': 'f02781fe5a7aa650e112652ade8f5edb4ebc4cb9',
             'src/test/java/online/tests/PasswordRoomTests.java': 'c759c278e496547b5802a820bd2f5cff134dc9e3',
-            'src/test/java/online/tests/RoomAudioTests.java': 'b73c2d5d3d0e3416b56458b60d0dba9ef5ad88d96',
+            'src/test/java/online/tests/RoomAudioTests.java': 'b73c2d5d3d0e3416b56458b60d0ba9ef5ad88d96',
             'src/test/java/online/tests/RoomLobbyTests.java': '51d44029dedc63f6afd9c88ab7ca521296bd62c6',
             'src/test/java/online/tests/RoomRuleTests.java': '528a65c34fdb327d19bd48cc2f143cc88bd46a0e',
             'src/test/java/online/ui/LobbyUiTests.java': '32a6002e380fa46ffe56a97b0dbbe9813355c14e',
