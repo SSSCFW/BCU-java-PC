@@ -89,36 +89,32 @@ jobs:
           assert kill in s
           s = s.replace(kill, kill + '\t\trewardPvpDefeat(atk);\n', 1)
           before_atk = '\n\t@Override\n\tpublic int getAtk() { // visual only\n'
-          reward = '''
-    private void rewardPvpDefeat(KillMode mode) {
-        if (pvpDefeatRewarded || mode != KillMode.NORMAL || !basis.isPvp() || index == null || isSpirit)
-            return;
-
-        boolean opponentKill = false;
-        for (AttackAb attack : lastKilledBy) {
-            if (attack != null && attack.dire == -dire) {
-                opponentKill = true;
-                break;
-            }
-        }
-        if (!opponentKill)
-            return;
-
-        int cost = basis.elu.price[index[0]][index[1]];
-        if (cost <= 0)
-            return;
-
-        pvpDefeatRewarded = true;
-        int reward = cost / 2;
-        if (reward <= 0)
-            return;
-
-        StageBasis winner = basis.playerFor(-dire);
-        winner.money = (int) Math.min((long) winner.maxMoney, (long) winner.money + reward);
-    }
-'''
+          reward = ''.join([
+              '\n    private void rewardPvpDefeat(KillMode mode) {\n',
+              '        if (pvpDefeatRewarded || mode != KillMode.NORMAL || !basis.isPvp() || index == null || isSpirit)\n',
+              '            return;\n\n',
+              '        boolean opponentKill = false;\n',
+              '        for (AttackAb attack : lastKilledBy) {\n',
+              '            if (attack != null && attack.dire == -dire) {\n',
+              '                opponentKill = true;\n',
+              '                break;\n',
+              '            }\n',
+              '        }\n',
+              '        if (!opponentKill)\n',
+              '            return;\n\n',
+              '        int cost = basis.elu.price[index[0]][index[1]];\n',
+              '        if (cost <= 0)\n',
+              '            return;\n\n',
+              '        pvpDefeatRewarded = true;\n',
+              '        int reward = cost / 2;\n',
+              '        if (reward <= 0)\n',
+              '            return;\n\n',
+              '        StageBasis winner = basis.playerFor(-dire);\n',
+              '        winner.money = (int) Math.min((long) winner.maxMoney, (long) winner.money + reward);\n',
+              '    }\n'
+          ])
           assert before_atk in s
-          s = s.replace(before_atk, '\n' + reward + before_atk, 1)
+          s = s.replace(before_atk, reward + before_atk, 1)
           unit.write_text(s)
 
           doc = Path('docs/ONLINE_PVP_JA.md')
