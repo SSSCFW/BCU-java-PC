@@ -21,6 +21,7 @@ public final class CombatTests {
         for(int tick=1;tick<100;tick++)duel.step(new InputFrame(tick,0,0));
         Check.that(duel.le.get(0).health<initial,"real opposing units inflict damage");
         Check.equal(duel.le.get(0).health,duel.le.get(1).health,"same-unit combat is symmetric");
+        defeatRewardTests();
         for(boolean mini:new boolean[]{false,true}) {
             PvpStageBasis b=duel(!mini,mini);
             EUnit left=(EUnit)b.le.stream().filter(e->e.dire==1).findFirst().get();
@@ -50,6 +51,53 @@ public final class CombatTests {
         }
         CommonStatic.getConfig().performanceModeAnimation=false;
     }
+
+    private static void defeatRewardTests() throws Exception {
+        PvpStageBasis leftWins=duel(false,false);
+        EUnit left=unit(leftWins,1),right=unit(leftWins,-1);
+        StageBasis leftPlayer=leftWins.left(),rightPlayer=leftWins.right();
+        leftPlayer.money=0;rightPlayer.money=0;
+        int rightCost=rightPlayer.elu.price[right.index[0]][right.index[1]];
+        right.lastKilledBy.add((AttackSimple)model(left).getAttack(0));
+        right.kill(Entity.KillMode.NORMAL);
+        Check.equal(rightCost/2,leftPlayer.money,"left player receives half of defeated unit cost");
+        Check.equal(0,rightPlayer.money,"victim side receives no defeat reward");
+        int once=leftPlayer.money;
+        right.kill(Entity.KillMode.NORMAL);
+        Check.equal(once,leftPlayer.money,"one deployed unit pays defeat reward only once");
+
+        PvpStageBasis rightWins=duel(false,false);
+        EUnit reverseLeft=unit(rightWins,1),reverseRight=unit(rightWins,-1);
+        rightWins.right().money=0;
+        int leftCost=rightWins.left().elu.price[reverseLeft.index[0]][reverseLeft.index[1]];
+        reverseLeft.lastKilledBy.add((AttackSimple)model(reverseRight).getAttack(0));
+        reverseLeft.kill(Entity.KillMode.NORMAL);
+        Check.equal(leftCost/2,rightWins.right().money,"right player receives the same half-cost reward");
+
+        PvpStageBasis capped=duel(false,false);
+        EUnit cappedLeft=unit(capped,1),cappedRight=unit(capped,-1);
+        int cappedCost=capped.left().elu.price[cappedLeft.index[0]][cappedLeft.index[1]];
+        capped.right().money=Math.max(0,capped.right().maxMoney-Math.max(1,cappedCost/4));
+        cappedLeft.lastKilledBy.add((AttackSimple)model(cappedRight).getAttack(0));
+        cappedLeft.kill(Entity.KillMode.NORMAL);
+        Check.equal(capped.right().maxMoney,capped.right().money,"defeat reward never exceeds max money");
+
+        PvpStageBasis cleanup=duel(false,false);
+        EUnit cleanupRight=unit(cleanup,-1);
+        cleanup.left().money=0;
+        cleanupRight.kill(Entity.KillMode.NORMAL);
+        Check.equal(0,cleanup.left().money,"normal cleanup without an opposing attack pays no reward");
+
+        PvpStageBasis selfDestruct=duel(false,false);
+        EUnit selfLeft=unit(selfDestruct,1),selfRight=unit(selfDestruct,-1);
+        selfDestruct.left().money=0;
+        selfRight.lastKilledBy.add((AttackSimple)model(selfLeft).getAttack(0));
+        selfRight.kill(Entity.KillMode.SELF_DESTRUCT);
+        Check.equal(0,selfDestruct.left().money,"self-destruction pays no defeat reward");
+    }
+
+    private static EUnit unit(PvpStageBasis b,int direction){return (EUnit)b.le.stream().filter(e->e.dire==direction).findFirst().get();}
+
     public static PvpStageBasis duel(boolean wave,boolean mini)throws Exception {
         Unit u=Fixture.unit("duel_a",100000),v=Fixture.unit("duel_b",100000);
         for(Unit f:new Unit[]{u,v}) {
