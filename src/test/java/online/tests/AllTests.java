@@ -8,6 +8,7 @@ public final class AllTests {
         DuelAdapterTests.run();
         HybridNetworkTests.run();
         NetworkTests.run();
+        PasswordRoomTests.run();
         LifecycleTests.run();
         ServerHostTests.run();
         online.net.CheckpointTests.run();

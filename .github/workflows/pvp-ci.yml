@@ -28,6 +28,8 @@ jobs:
           set -o pipefail
           mkdir -p diagnostics
           mvn -B -ntp clean verify dependency:copy-dependencies -DoutputDirectory=target/lib 2>&1 | tee diagnostics/maven.log
+      - name: Actual Swing lobby and same-PC two-client regression tests
+        run: xvfb-run -a java -ea -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.ui.LobbyUiTests
       - name: Portable distribution and regression checks
         id: package
         run: |
@@ -50,6 +52,7 @@ jobs:
             diagnostics/
             target/surefire-reports/
             target/pvp-canvas-test.png
+            target/lobby-ui-logs/
           if-no-files-found: ignore
   gradle:
     runs-on: ubuntu-latest
@@ -126,6 +129,7 @@ jobs:
           Commit: $GITHUB_SHA
 
           bcu-pvp-portable.zip を直接ダウンロードし、既存BCUフォルダーのコピーへ配置してください。Java 21が必要です。標準ゲームデータは含みません。
+          パスワードは空欄なら不要です。表示名・サーバーアドレスは自動保存されます。同一PCではサーバー起動は片方だけにして、もう片方は「このPCのサーバーを使う」から同じ部屋IDで参加してください。
           友人用サーバーはゲーム内ボタン、または start-pvp-server.bat / start-pvp-server.sh で起動します。TCP 8766とUDP 8767を使用します。
           公開回線の制御通信はWSS、LAN/VPNのWSは明示許可が必要です。3人以上の戦闘・観戦・再接続は未実装です。
           NOTES

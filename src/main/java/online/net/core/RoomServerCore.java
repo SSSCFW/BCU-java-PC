@@ -96,7 +96,9 @@ public final class RoomServerCore implements AutoCloseable {
                 error(peer, "VERSION", "PvP versions differ; update both clients and server"); return;
             }
             String name = Protocol.string(o, "name", 40).trim(), password = Protocol.string(o, "password", 128), game = Protocol.string(o, "game", 64);
-            if (name.isEmpty() || password.length() < 8 || !Hashes.valid(game)) throw new IOException("Name, 8+ character password and game fingerprint required");
+            if (name.isEmpty() || !Hashes.valid(game)) throw new IOException("Name and game fingerprint required");
+            if (create && !password.isEmpty() && password.length() < 8)
+                throw new IOException("Password must be empty (open room) or 8-128 characters");
             RoomSession existing;
             synchronized (this) {
                 if (!opened.containsKey(peer) || !peer.isOpen() || closed) return;
@@ -133,6 +135,7 @@ public final class RoomServerCore implements AutoCloseable {
                 JsonObject joined = Protocol.message("joined");
                 joined.addProperty("room", room.id); joined.addProperty("match", room.matchId);
                 joined.addProperty("playerId", id); joined.addProperty("side", seat.name);
+                joined.addProperty("passwordRequired", room.password.required());
                 joined.addProperty("inputDelayTicks", room.inputDelayTicks); joined.addProperty("mode", room.gameMode.id());
                 peer.send(joined);
                 if (udp != null && (!o.has("udp") || o.get("udp").getAsBoolean())) {
