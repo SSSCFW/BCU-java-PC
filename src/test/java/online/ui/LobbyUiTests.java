@@ -63,6 +63,8 @@ public final class LobbyUiTests {
         common.pack.UserProfile.getBCData().musics.set(7,new common.util.stage.Music(new common.pack.Identifier<>("000000",common.util.stage.Music.class,7),0,new common.system.files.FDByte(new byte[]{1,2,3})));
         edt(() -> { MainBCU.author=""; MainFrame.F=new MainFrame("lobby regression");MainFrame.F.setSize(1200,900); return null; });
         newPage();
+        Check.that(Arrays.stream(OnlineLobbyPage.class.getDeclaredFields()).noneMatch(f->f.getName().equals("share")),"connection page must not keep Pack-sharing consent control");
+        Check.that(Arrays.stream(RoomLobbyPage.class.getDeclaredFields()).noneMatch(f->f.getName().equals("share")),"room lobby must not keep Pack-sharing consent control");
     }
     private static void config(int port) throws Exception {
         byte[] bytes=("bind=127.0.0.1\ncontrolPort="+port+"\nudpPort=0\n").getBytes(StandardCharsets.UTF_8);
@@ -77,7 +79,7 @@ public final class LobbyUiTests {
         return edt(() -> (ServerHost)field(field(page,"friendServer"),"host"));
     }
     private static void setup(String name, String password) throws Exception {
-        edt(() -> { text("name").setText(name);text("password").setText(password);((JCheckBox)field(page,"share")).setSelected(true);return null; });
+        edt(() -> { text("name").setText(name);text("password").setText(password);return null; });
     }
     private static void create() throws Exception { edt(() -> { button("create").doClick();return null; }); }
     private static void test(String mode) throws Exception {

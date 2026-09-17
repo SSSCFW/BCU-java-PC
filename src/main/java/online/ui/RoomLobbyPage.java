@@ -27,7 +27,7 @@ public final class RoomLobbyPage extends Page {
     private final JPanel content=new JPanel(new BorderLayout(12,12));
     private final JButton back=new JButton("部屋から退出"),edit=new JButton("編成を編集"),apply=new JButton("ルールを適用"),ready;
     private final JComboBox<BasisLU> lineup;
-    private final JCheckBox share,force60=new JCheckBox("全員の表示を60FPSに揃える（戦闘処理は30TPS）");
+    private final JCheckBox force60=new JCheckBox("全員の表示を60FPSに揃える（戦闘処理は30TPS）");
     private final JSpinner distance=new JSpinner(new SpinnerNumberModel(4400,RoomRules.MIN_DISTANCE,RoomRules.MAX_DISTANCE,100));
     private final JComboBox<Background> background=new JComboBox<>();
     private final JComboBox<MusicChoice> music=new JComboBox<>();
@@ -37,17 +37,17 @@ public final class RoomLobbyPage extends Page {
     private final AudioSettingsPanel audio=new AudioSettingsPanel();
     private JsonObject state;
     private boolean loading,editing,dirty,pending,closed;
-    private final ActionListener lineupListener, shareListener;
+    private final ActionListener lineupListener;
 
-    RoomLobbyPage(OnlineLobbyPage owner,RoomClient client,int id,String room,boolean protectedRoom,JComboBox<BasisLU> lineup,JCheckBox share,JButton ready){
-        super(owner);this.owner=owner;this.client=client;playerId=id;this.lineup=lineup;this.share=share;this.ready=ready;
+    RoomLobbyPage(OnlineLobbyPage owner,RoomClient client,int id,String room,boolean protectedRoom,JComboBox<BasisLU> lineup,JButton ready){
+        super(owner);this.owner=owner;this.client=client;playerId=id;this.lineup=lineup;this.ready=ready;
         content.setBorder(BorderFactory.createEmptyBorder(12,16,12,16));add(content);
         JPanel header=new JPanel(new FlowLayout(FlowLayout.LEADING));header.add(back);header.add(new JLabel("対戦ロビー  /  部屋ID: "+room+"  /  "+(protectedRoom?"パスワードあり":"パスワードなし")));
         JButton copy=new JButton("部屋IDをコピー");copy.addActionListener(e->Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(room),null));header.add(copy);content.add(header,BorderLayout.NORTH);
         JPanel sections=new JPanel();sections.setLayout(new BoxLayout(sections,BoxLayout.Y_AXIS));
         participants.setEditable(false);participants.setBorder(BorderFactory.createTitledBorder("参加者・準備状態"));sections.add(participants);
         JPanel own=new JPanel(new BorderLayout(6,6));own.setBorder(BorderFactory.createTitledBorder("自分の編成"));JPanel choose=new JPanel(new BorderLayout(8,0));choose.add(lineup,BorderLayout.CENTER);choose.add(edit,BorderLayout.EAST);own.add(choose,BorderLayout.NORTH);
-        JPanel slots=new JPanel(new GridLayout(2,5,6,6));for(int i=0;i<10;i++){icons[i]=new JLabel("—",SwingConstants.CENTER);icons[i].setVerticalTextPosition(SwingConstants.BOTTOM);icons[i].setHorizontalTextPosition(SwingConstants.CENTER);slots.add(icons[i]);}own.add(slots,BorderLayout.CENTER);own.add(share,BorderLayout.SOUTH);sections.add(own);
+        JPanel slots=new JPanel(new GridLayout(2,5,6,6));for(int i=0;i<10;i++){icons[i]=new JLabel("—",SwingConstants.CENTER);icons[i].setVerticalTextPosition(SwingConstants.BOTTOM);icons[i].setHorizontalTextPosition(SwingConstants.CENTER);slots.add(icons[i]);}own.add(slots,BorderLayout.CENTER);sections.add(own);
         JPanel rules=new JPanel(new GridBagLayout());rules.setBorder(BorderFactory.createTitledBorder("対戦ルール（ホストのみ変更可能）"));
         for(Background b:UserProfile.getBCData().bgs.getList())if(b!=null)background.addItem(b);
         music.addItem(new MusicChoice(null));for(Music m:UserProfile.getBCData().musics.getList())if(m!=null&&m.data!=null)music.addItem(new MusicChoice(m));
@@ -56,9 +56,8 @@ public final class RoomLobbyPage extends Page {
         JPanel footer=new JPanel(new BorderLayout(8,8));footer.add(ready,BorderLayout.EAST);status.setEditable(false);status.setLineWrap(true);status.setWrapStyleWord(true);footer.add(new JScrollPane(status),BorderLayout.CENTER);content.add(footer,BorderLayout.SOUTH);
         back.addActionListener(e->owner.returnToConnection());edit.addActionListener(e->editLineup());apply.addActionListener(e->applyRules());
         lineupListener=e->{if(!loading&&!closed&&!editing){preview();pending=true;client.setLineupName(summary());refreshControls();}};
-        shareListener=e->refreshControls();
         lineup.addActionListener(lineupListener);
-        distance.addChangeListener(e->rulesChanged());background.addActionListener(e->rulesChanged());music.addActionListener(e->rulesChanged());force60.addActionListener(e->rulesChanged());share.addActionListener(shareListener);
+        distance.addChangeListener(e->rulesChanged());background.addActionListener(e->rulesChanged());music.addActionListener(e->rulesChanged());force60.addActionListener(e->rulesChanged());
         preview();refreshControls();message("編成とルールを確認してください。全員が準備完了するとキャラを自動共有し、対戦を開始します。");
     }
     private static void row(JPanel panel,int y,String title,Component component){GridBagConstraints c=new GridBagConstraints();c.gridy=y;c.gridx=0;c.anchor=GridBagConstraints.WEST;c.insets=new Insets(4,8,4,8);panel.add(new JLabel(title),c);c.gridx=1;c.weightx=1;c.fill=GridBagConstraints.HORIZONTAL;panel.add(component,c);}
@@ -81,16 +80,16 @@ public final class RoomLobbyPage extends Page {
     }
     private void refreshControls(){
         boolean can=editable()&&!ownReady()&&!pending&&!closed;
-        lineup.setEnabled(can);edit.setEnabled(can);share.setEnabled(can);
+        lineup.setEnabled(can);edit.setEnabled(can);
         distance.setEnabled(can&&host());background.setEnabled(can&&host());music.setEnabled(can&&host());force60.setEnabled(can&&host());apply.setEnabled(can&&host()&&dirty);
-        ready.setText(ownReady()?"準備を解除":"準備完了");ready.setEnabled(editable()&&!pending&&!closed&&(ownReady()||(!dirty&&share.isSelected()&&lineup.getSelectedItem()!=null)));
+        ready.setText(ownReady()?"準備を解除":"準備完了");ready.setEnabled(editable()&&!pending&&!closed&&(ownReady()||(!dirty&&lineup.getSelectedItem()!=null)));
         if(!editable()&&state!=null){ready.setText("共有・開始待ち…");edit.setEnabled(false);}
     }
     private void rulesChanged(){if(loading||closed)return;dirty=true;refreshControls();}
     private void applyRules(){try{distance.commitEdit();Background b=(Background)background.getSelectedItem();MusicChoice m=(MusicChoice)music.getSelectedItem();if(b==null||m==null)throw new IllegalArgumentException("背景とBGMを選択してください");RoomRules r=new RoomRules((Integer)distance.getValue(),b.id.id,m.id(),force60.isSelected());PvpStageBasis.validateRulesAssets(r);pending=true;dirty=false;client.setRoomRules(r,state.get("revision").getAsLong());refreshControls();}catch(Exception e){message(e.getMessage());}}
     void toggleReady(){
         if(closed||!editable()||pending)return;
-        if(!ownReady())try{distance.commitEdit();if(dirty)throw new IllegalArgumentException("変更したルールを先に適用してください");if(!share.isSelected()||lineup.getSelectedItem()==null)throw new IllegalArgumentException("編成と自動共有への同意が必要です");PvpStageBasis.validateRulesAssets(client.roomRules());}catch(Exception e){message(e.getMessage());return;}
+        if(!ownReady())try{distance.commitEdit();if(dirty)throw new IllegalArgumentException("変更したルールを先に適用してください");if(lineup.getSelectedItem()==null)throw new IllegalArgumentException("編成を選択してください");PvpStageBasis.validateRulesAssets(client.roomRules());}catch(Exception e){message(e.getMessage());return;}
         pending=true;client.lobbyReady(!ownReady(),state.get("revision").getAsLong());refreshControls();
     }
     private String summary(){String s=String.valueOf(lineup.getSelectedItem());return s.length()>120?s.substring(0,120):s;}
@@ -110,7 +109,7 @@ public final class RoomLobbyPage extends Page {
     }
     void message(String text){status.setText(text==null?"":text);}
     void notice(String text){pending=false;message(text);refreshControls();}
-    void closeLobby(){if(closed)return;closed=true;lineup.removeActionListener(lineupListener);share.removeActionListener(shareListener);refreshControls();}
+    void closeLobby(){if(closed)return;closed=true;lineup.removeActionListener(lineupListener);refreshControls();}
     @Override protected JButton getBackButton(){return back;}
     @Override protected void resized(int w,int h){setBounds(0,0,w,h);content.setBounds(0,0,w,h);content.revalidate();}
     private static final class MusicChoice{final Music music;MusicChoice(Music m){music=m;}int id(){return music==null?-1:music.id.id;}public String toString(){return music==null?"BGMなし":music.toString();}}

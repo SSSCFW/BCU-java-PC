@@ -34,7 +34,6 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private final JPasswordField password=new JPasswordField(24);
     private final JComboBox<String> side=new JComboBox<>(new String[]{"味方側（右・ピンク）","敵側（左・青）"});
     private final JComboBox<BasisLU> lineup=new JComboBox<>();
-    private final JCheckBox share=new JCheckBox("参照Pack全体の自動共有に同意する（未編成キャラも含む）");
     private final JCheckBox development=new JCheckBox("信頼するLAN／暗号化VPNでWSを許可（公開回線はWSS）");
     private final JTextArea status=new JTextArea(5,50);
     private BattleInfoPage battlePage;
@@ -118,7 +117,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         public void bundle(int id,Path file,String hash){receiveBundle(attempt,id,file,hash);}
         public void failed(String reason){OnlineLobbyPage.this.failed(attempt,reason);}
     };}
-    private void setSetupEnabled(boolean enabled){friendServer.connectionActive(!enabled);server.setEnabled(enabled);name.setEnabled(enabled);room.setEnabled(enabled);password.setEnabled(enabled);lineup.setEnabled(enabled);side.setEnabled(enabled);development.setEnabled(enabled);share.setEnabled(enabled);create.setEnabled(enabled);join.setEnabled(enabled);}
+    private void setSetupEnabled(boolean enabled){friendServer.connectionActive(!enabled);server.setEnabled(enabled);name.setEnabled(enabled);room.setEnabled(enabled);password.setEnabled(enabled);lineup.setEnabled(enabled);side.setEnabled(enabled);development.setEnabled(enabled);create.setEnabled(enabled);join.setEnabled(enabled);}
     @Override public void event(JsonObject event){dispatch(generation,event);}
     private void dispatch(int attempt,JsonObject event){SwingUtilities.invokeLater(()->{if(!current(attempt))return;try{handle(event);}catch(Exception e){failed("対戦の準備に失敗: "+e.getMessage());}});}
     private void handle(JsonObject e)throws Exception{
@@ -130,7 +129,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 match=Protocol.string(e,"match",32);playerId=Protocol.integer(e,"playerId");if(playerId<=0)throw new java.io.IOException("Invalid identity");
                 room.setText(Protocol.string(e,"room",32));copyRoom.setEnabled(true);password.setText("");
 
-                roomLobby=new RoomLobbyPage(this,client,playerId,room.getText(),roomProtected,lineup,share,ready);
+                roomLobby=new RoomLobbyPage(this,client,playerId,room.getText(),roomProtected,lineup,ready);
                 changePanel(roomLobby);roomLobby.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());
                 message("入室しました。対戦ロビーで編成とルールを設定できます。");break;
             case "room_state":if(roomLobby!=null)roomLobby.state(e);break;
