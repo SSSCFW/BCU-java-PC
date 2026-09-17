@@ -48,7 +48,7 @@ public final class PasswordRoomTests {
                 Check.equal(false, joined.get("passwordRequired").getAsBoolean(), "blank password creates open room");
                 guest.enter(false, joined.get("room").getAsString(), "");
                 Check.equal(false, guest.take("joined").get("passwordRequired").getAsBoolean(), "blank password joins open room");
-                host.take("prepare"); guest.take("prepare");
+                host.take("room_state"); guest.take("room_state");
                 try (Peer third = new Peer(server.getPort())) {
                     third.enter(false, joined.get("room").getAsString(), ""); third.rejected("FULL");
                 }

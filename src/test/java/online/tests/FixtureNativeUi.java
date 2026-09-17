@@ -14,6 +14,8 @@ public final class FixtureNativeUi {
     public static void init() throws Exception {
         FixtureAssets.init();
         CommonStatic.BCAuxAssets a = CommonStatic.getBCAssets();
+        // Native BasisPage expects the default combo-category catalogue to be loaded.
+        a.filter = new int[32][0];
         ImgCut backgroundCut = new ImgCut(); backgroundCut.cuts[0] = new int[]{0, 0, 512, 256};
         while (a.iclist.size() < 2) a.iclist.add(backgroundCut);
         common.util.pack.Background bg = new common.util.pack.Background(

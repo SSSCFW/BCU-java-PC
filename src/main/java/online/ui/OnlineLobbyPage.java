@@ -38,6 +38,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private final JCheckBox development=new JCheckBox("信頼するLAN／暗号化VPNでWSを許可（公開回線はWSS）");
     private final JTextArea status=new JTextArea(5,50);
     private BattleInfoPage battlePage;
+    private RoomLobbyPage roomLobby;
     private final ExecutorService io=Executors.newSingleThreadExecutor(r->{Thread t=new Thread(r,"pvp-prepare");t.setDaemon(true);return t;});
     private final javax.swing.Timer pulse=new javax.swing.Timer(5,e->pump());
     private final MatchBundle.Mounted[] mounted=new MatchBundle.Mounted[2];
@@ -63,14 +64,14 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         status.setEditable(false);status.setLineWrap(true);status.setWrapStyleWord(true);content.add(new JScrollPane(status),BorderLayout.SOUTH);
         for(BasisSet set:BasisSet.list())for(BasisLU b:set.lb)lineup.addItem(b);
         if(BasisSet.current()!=null)lineup.setSelectedItem(BasisSet.current().sele);
-        row(0,"サーバー",server);row(1,"表示名",name);row(2,"編成",lineup);row(3,"城の位置（作成者）",side);row(4,"部屋ID（参加時）",room);row(5,"パスワード（任意・設定時8文字以上）",password);
-        row(6,"",share);row(7,"",development);
-        JPanel actions=new JPanel(new FlowLayout(FlowLayout.LEADING));actions.add(create);actions.add(join);actions.add(copyRoom);actions.add(ready);row(8,"",actions);row(9,"友人用サーバー",friendServer);
+        row(0,"サーバー",server);row(1,"表示名",name);row(3,"城の位置（作成者）",side);row(4,"部屋ID（参加時）",room);row(5,"パスワード（任意・設定時8文字以上）",password);
+        row(7,"",development);
+        JPanel actions=new JPanel(new FlowLayout(FlowLayout.LEADING));actions.add(create);actions.add(join);row(8,"",actions);row(9,"友人用サーバー",friendServer);
         ready.setEnabled(false);leave.setEnabled(false);copyRoom.setEnabled(false);
-        back.addActionListener(e->{cleanup();changePanel(front);});leave.addActionListener(e->{savePreferences();resetMatch();message("部屋から退出しました。起動中の友人用サーバーはそのまま使えます。");});
+        back.addActionListener(e->{cleanup();changePanel(front);});leave.addActionListener(e->returnToConnection());
         create.addActionListener(e->connect(true));join.addActionListener(e->connect(false));
         copyRoom.addActionListener(e->Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(room.getText()),null));
-        ready.addActionListener(e->{ready.setEnabled(false);client.ready();message("準備完了。相手の準備を待っています。");});
+        ready.addActionListener(e->{if(roomLobby!=null)roomLobby.toggleReady();});
         message("同じオンライン対応版と標準データが必要です。自作キャラは一時共有し、元データは変更しません。\nパスワードは空欄なら不要です。同一PCテストでは2つのBCUを起動し、同じ接続先と部屋IDで参加してください。");
         bindPreferences();
     }
@@ -80,23 +81,20 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private void connect(boolean createRoom){
         if(busy||client!=null||disposed)return;
         savePreferences();
-        if(!share.isSelected()){message("カスタムデータの自動共有への同意が必要です。");return;}
         char[] secret=password.getPassword();String pass=new String(secret);Arrays.fill(secret,'\0');
         if(pass.length()>128||pass.indexOf('\0')>=0||(createRoom&&!pass.isEmpty()&&pass.length()<8)){
             message("パスワードなしで作る場合は空欄にしてください。設定する場合は8〜128文字です。");return;
         }
         String playerName=name.getText().trim(),roomId=room.getText().trim(),castleSide=side.getSelectedIndex()==0?"right":"left";
-        if(playerName.isEmpty()||playerName.length()>40||playerName.indexOf('\0')>=0||lineup.getSelectedItem()==null){message("1〜40文字の表示名と編成を指定してください。");return;}
+        if(playerName.isEmpty()||playerName.length()>40||playerName.indexOf('\0')>=0 ){message("1〜40文字の表示名を指定してください。");return;}
         if(!createRoom&&roomId.isEmpty()){message("起動済みサーバーへの接続だけでは入室できません。ホストが作成した部屋IDを入力してください。");return;}
         boolean allowDevelopment=development.isSelected();
         URI uri;try{uri=RoomClient.validateUri(new URI(server.getText().trim()),allowDevelopment);}catch(Exception e){message("接続先を確認してください: "+e.getMessage());return;}
         final int attempt=++generation;
-        creating=createRoom;busy=true;setSetupEnabled(false);leave.setEnabled(true);message("編成とカスタムデータを固定しています…");
+        creating=createRoom;busy=true;setSetupEnabled(false);leave.setEnabled(true);message("サーバーへ接続しています…");
         // Export reads mutable editor objects on the EDT. Network callbacks belong to this attempt only.
         SwingUtilities.invokeLater(()->{
             if(!current(attempt))return;
-            try{localArchive=MatchBundle.export((BasisLU)lineup.getSelectedItem());temporary.add(localArchive);localBundle=MatchBundle.read(localArchive);}
-            catch(Exception e){failed(attempt,"キャラクターの共有準備に失敗: "+e.getMessage());return;}
             connecting=io.submit(()->{
                 RoomClient connection=null;
                 try{
@@ -132,21 +130,27 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 match=Protocol.string(e,"match",32);playerId=Protocol.integer(e,"playerId");if(playerId<=0)throw new java.io.IOException("Invalid identity");
                 room.setText(Protocol.string(e,"room",32));copyRoom.setEnabled(true);password.setText("");
 
-                message(creating?"相手の参加を待っています。部屋IDをコピーして伝えてください。":"入室しました。");break;
+                roomLobby=new RoomLobbyPage(this,client,playerId,room.getText(),roomProtected,lineup,share,ready);
+                changePanel(roomLobby);roomLobby.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());
+                message("入室しました。対戦ロビーで編成とルールを設定できます。");break;
+            case "room_state":if(roomLobby!=null)roomLobby.state(e);break;
+            case "notice":if(roomLobby!=null)roomLobby.notice(Protocol.string(e,"message",1024));break;
             case "prepare":
                 if(playerId<=0)throw new java.io.IOException("No identity assignment");
+                if(roomLobby!=null)roomLobby.state(e);
+                localArchive=MatchBundle.export((BasisLU)lineup.getSelectedItem());temporary.add(localArchive);localBundle=MatchBundle.read(localArchive);
                 roster=DuelRoster.read(e);slot=roster.indexOf(playerId);leftSlot=roster.leftIndex();prepared=true;
                 hostName=roster.name(0);guestName=roster.name(1);
                 hashes[slot]=Hashes.sha256(localArchive);mounted[slot]=localBundle.mount(match,playerId);
                 message("キャラクターのデータを自動共有しています…");client.sendBundle(localArchive);break;
             case "bundle_ok":uploaded=true;updateReady();break;
-            case "transport_selected":message("戦闘通信: "+Protocol.string(e,"transport",8)+(prepared?"。キャラデータを共有しています。":"。相手が部屋に参加するのを待っています。"));updateReady();break;
+            case "transport_selected":message("戦闘通信: "+Protocol.string(e,"transport",8)+(prepared?"。キャラデータを共有しています。":"。対戦ロビーで編成・ルールを確認してください。"));updateReady();break;
             case "start":
                 if(!uploaded||mounted[0]==null||mounted[1]==null)throw new java.io.IOException("Character synchronization not complete");
                 DuelRoster startedRoster=DuelRoster.read(e);
                 if(startedRoster.playerId(0)!=roster.playerId(0)||startedRoster.playerId(1)!=roster.playerId(1)||startedRoster.leftIndex()!=leftSlot)
                     throw new java.io.IOException("Duel roster changed at start");
-                battle=PvpStageBasis.create(match,mounted[leftSlot].lineup,mounted[1-leftSlot].lineup,Protocol.number(e,"seed"),leftSlot);
+                battle=PvpStageBasis.create(match,mounted[leftSlot].lineup,mounted[1-leftSlot].lineup,Protocol.number(e,"seed"),leftSlot,client.roomRules());
                 showBattle();break;
             case "result":
                 resultSent=true;int winner=Protocol.integer(e,"winner");
@@ -169,11 +173,12 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         }catch(Exception e){delete(verified);failed(attempt,"受信データを拒否: "+e.getMessage());}});}
         catch(RejectedExecutionException e){delete(verified);}
     }
-    private void updateReady(){if(uploaded&&prepared&&mounted[0]!=null&&mounted[1]!=null&&!client.realtimeTransport().equals("PROBING")){ready.setEnabled(true);message("両者のキャラクターを同期しました。\n相手: "+(slot==0?guestName:hostName)+"\n準備完了を押すと対戦を開始します。");}}
+    private void updateReady(){if(uploaded&&prepared&&mounted[0]!=null&&mounted[1]!=null&&!client.realtimeTransport().equals("PROBING")){client.ready();message("両者のキャラクターを同期しました。対戦を開始しています…");}}
     private void showBattle(){
         battlePage=new BattleInfoPage(this,battle.displayCopy(),slot==leftSlot?1:-1,
                 this::command,()->{resetMatch();message("部屋から退出しました。友人用サーバーは維持しています。");},
                 leftSlot==0?hostName:guestName,leftSlot==0?guestName:hostName);
+        battlePage.force60Fps(client.roomRules().force60Fps);
         battlePage.onlineStatus(transportLabel(),true);
         changePanel(battlePage);
         battlePage.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());
@@ -184,7 +189,8 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         try{
             int advanced=0;ResolvedFrame frame;
             while(!resultSent&&advanced<5&&(frame=client.pollResolvedFrame())!=null){
-                battle.step(roster.toDuel(frame));advanced++;
+                final InputFrame tickFrame=roster.toDuel(frame);
+                PvpAudio.forPlayer(slot==leftSlot?1:-1,()->battle.step(tickFrame));advanced++;
                 if(battle.time%Protocol.HASH_INTERVAL==0)client.checkpoint(battle.time,BattleDigest.of(battle));
                 if(battle.winner()!=-2){resultSent=true;client.result(battle.time,battle.winner(),BattleDigest.of(battle));message("試合終了。両者の結果を照合しています…");}
             }
@@ -193,7 +199,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
             long now=System.nanoTime();if(now>=nextPaint){
                 if(!resultSent)battlePage.onlineStatus(transportLabel(),true);
                 battlePage.renderOnlineFrame();
-                nextPaint=now+1_000_000_000L/(CommonStatic.getConfig().performanceModeBattle?60:30);
+                nextPaint=now+1_000_000_000L/battlePage.onlineFps();
             }
         }catch(Exception e){failed("同期処理を停止しました: "+e.getMessage());}
     }
@@ -206,14 +212,15 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private void failed(int attempt,String reason){SwingUtilities.invokeLater(()->{
         if(!current(attempt))return;
         System.err.println("BCU online: "+reason);
-        BattleInfoPage previous=battlePage;
+        boolean child=isSessionChild();
         resetMatch();
-        if(previous!=null&&MainFrame.getPanel()==previous)changePanel(this);
+        if(child)changePanel(this);
         message(reason+"\n入力を修正して、そのまま作成／参加を再試行できます。友人用サーバーは停止していません。");
     });}
     private void message(int attempt,String text){SwingUtilities.invokeLater(()->{if(current(attempt))message(text);});}
     private void message(String text){if(SwingUtilities.isEventDispatchThread()){
         if(battlePage!=null)battlePage.onlineStatus(text,!resultSent);
+        if(roomLobby!=null)roomLobby.message(text);
         if(!disposed)status.setText((playerId>0?"部屋ID: "+room.getText()+" / "+(roomProtected?"パスワードあり":"パスワードなし")+"\n":"")+text);
     }else{int attempt=generation;message(attempt,text);}}
     private void loadPreferences(){
@@ -236,12 +243,15 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         catch(java.io.IOException e){System.err.println("BCU online preferences: "+e.getMessage());if(!disposed)status.append("\n表示名・サーバーの保存に失敗しました: "+e.getMessage());}
     }
     /** Leave/cancel a match, not the embedded server. Stale socket/asset callbacks are fenced out. */
+    private boolean isSessionChild(){Page p=MainFrame.getPanel();if(p==this)return false;while(p!=null){if(p==this)return true;p=p.getFront();}return false;}
+    void returnToConnection(){boolean child=isSessionChild();savePreferences();resetMatch();if(child)changePanel(this);message("部屋から退出しました。友人用サーバーは維持しています。");}
     private void resetMatch(){
         generation++;pulse.stop();if(connecting!=null){connecting.cancel(true);connecting=null;}
         RoomClient previous=client;client=null;
         if(previous!=null)previous.close();
         if(battlePage!=null){battlePage.detachOnline();battlePage=null;}
         battle=null;
+        if(roomLobby!=null){roomLobby.closeLobby();roomLobby=null;}
         for(MatchBundle.Mounted m:mounted)if(m!=null)m.close();Arrays.fill(mounted,null);Arrays.fill(hashes,null);
         for(Path p:temporary)delete(p);temporary.clear();localBundle=null;localArchive=null;roster=null;
         match=null;hostName=null;guestName=null;slot=-1;leftSlot=-1;playerId=0;
@@ -253,6 +263,6 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private static void delete(Path p){try{Files.deleteIfExists(p);}catch(java.io.IOException ignored){}}
     private void cleanup(){if(disposed)return;savePreferences();disposed=true;resetMatch();friendServer.close();io.shutdownNow();}
     // Opening the native child battle page must not tear down its sockets/server/packs.
-    @Override protected void leave(){if(battlePage==null)cleanup();}
+    @Override protected void leave(){if(battlePage==null&&roomLobby==null)cleanup();}
     @Override protected void exit(){cleanup();}
 }

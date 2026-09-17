@@ -6,6 +6,7 @@ import common.pack.Identifier;
 import common.util.stage.*;
 import common.util.pack.Background;
 import online.sync.InputFrame;
+import online.net.lobby.RoomRules;
 import java.util.*;
 
 /** Two independently owned player states, a single simulation world, no native CPU spawner. */
@@ -13,13 +14,19 @@ public final class PvpStageBasis extends StageBasis {
     public static final int TPS = 30;
     private String matchScope;
     public static PvpStageBasis create(String match, BasisLU left, BasisLU right, long seed, int leftSeat) throws Exception {
-        return PvpTiming.inMatch(match, () -> {PvpStageBasis b=new PvpStageBasis(left,right,seed,leftSeat);b.matchScope=match;return b;});
+        return create(match,left,right,seed,leftSeat,RoomRules.DEFAULT);
+    }
+    public static PvpStageBasis create(String match, BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules) throws Exception {
+        return PvpTiming.inMatch(match, () -> {PvpStageBasis b=new PvpStageBasis(left,right,seed,leftSeat,rules);b.matchScope=match;return b;});
     }
     public static final int ARENA_LENGTH = 6000;
     public static final int MAX_UNITS = 50;
 
     public PvpStageBasis(BasisLU left, BasisLU right, long seed, int leftSeat) {
-        this(arena(), left, right, seed, leftSeat);
+        this(left,right,seed,leftSeat,RoomRules.DEFAULT);
+    }
+    public PvpStageBasis(BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules) {
+        this(arena(rules),left,right,seed,leftSeat);
     }
     private PvpStageBasis(Stage arena, BasisLU left, BasisLU right, long seed, int leftSeat) {
         super(null, new EStage(arena, 0), right, new int[3], seed, false);
@@ -74,6 +81,7 @@ public final class PvpStageBasis extends StageBasis {
                 p.spiritEmphasizeStartTime[i][j]=time; p.spiritEmphasizeCount[i][j]=10;
             }
         }
+        if(p.cannon==p.maxCannon-1)PvpAudio.notification(p,SE_CANNON_CHARGE);
         if (active) {
             p.cannon++;
             p.maxMoney=p.b.t().getMaxMon(p.work_lv,StageLimit.isComboBanned(p.est.lim,C_M_MAX));
@@ -103,11 +111,21 @@ public final class PvpStageBasis extends StageBasis {
     public void advanceDisplay() {
         PvpTiming.halfStep(() -> {updateAnimation();pvpOther.canon.updateAnimation();});
     }
-    private static Stage arena() {
+    public static void validateRulesAssets(RoomRules rules) {
+        if(Identifier.get(new Identifier<>(Identifier.DEF,Background.class,rules.backgroundId))==null)
+            throw new IllegalArgumentException("背景データがありません: "+rules.backgroundId);
+        if(rules.musicId>=0) {
+            Music music=Identifier.get(new Identifier<>(Identifier.DEF,Music.class,rules.musicId));
+            if(music==null||music.data==null)throw new IllegalArgumentException("BGMデータがありません: "+rules.musicId);
+        }
+    }
+    private static Stage arena(RoomRules rules) {
+        validateRulesAssets(rules);
         ArenaMap map=new ArenaMap(); ArenaStage stage=new ArenaStage(map);
-        stage.names.put("Online PvP");stage.len=ARENA_LENGTH;stage.max=MAX_UNITS;
+        stage.names.put("Online PvP");stage.len=rules.castleDistance+1600;stage.max=MAX_UNITS;
         stage.non_con=true;stage.drop=false;stage.health=60000;stage.data=new SCDef(0);
-        stage.bg=new Identifier<>(Identifier.DEF,Background.class,0);
+        stage.bg=new Identifier<>(Identifier.DEF,Background.class,rules.backgroundId);
+        stage.mus0=stage.mus1=rules.musicId<0?null:new Identifier<>(Identifier.DEF,Music.class,rules.musicId);
         stage.castle=CastleList.defset().stream().sorted(Comparator.comparing(CastleList::getSID))
                 .map(c -> c.getRaw(0)).filter(Objects::nonNull).map(c -> c.id).findFirst()
                 .orElseThrow(() -> new IllegalStateException("Default castle assets are not loaded"));

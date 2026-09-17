@@ -2,6 +2,7 @@ package online.net;
 
 import com.google.gson.*;
 import online.bundle.Hashes;
+import online.net.lobby.RoomRules;
 import online.net.realtime.*;
 import online.sync.*;
 import org.java_websocket.client.WebSocketClient;
@@ -50,6 +51,8 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
     private long expectedBytes, received, lastFrameProgress, lastRescue, serverExpected, serverRequest = -1, maxCheckpoint, lastWsSend;
     private long rescueCount, retransmitRequests;
     private int playerId, delay = Protocol.INPUT_DELAY;
+    private long roomRevision=-1;
+    private RoomRules rules=RoomRules.DEFAULT;
     private boolean started, completed, ended, reported, manifestSeen, readyRequested, readySent;
 
     public RoomClient(URI uri, boolean allowPrivateWs, Listener listener) throws IOException { this(uri, allowPrivateWs, true, listener); }
@@ -105,7 +108,12 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
                         if (playerId != 0) throw new IOException("Duplicate identity assignment");
                         playerId = Protocol.integer(o, "playerId"); if (playerId <= 0) throw new IOException("Invalid player identity");
                         delay = readDelay(o); listener.event(o); break;
+                    case "room_state":
+                        roomRevision=Protocol.number(o,"revision");rules=RoomRules.read(o);listener.event(o);break;
                     case "prepare":
+                        long revision=Protocol.number(o,"revision");
+                        RoomRules frozen=RoomRules.read(o);
+                        if(revision!=roomRevision||!frozen.equals(rules))throw new IOException("Room rules changed without confirmation");
                         if (!roster.isEmpty()) throw new IOException("Duplicate roster");
                         readRoster(o); listener.event(o); break;
                     case "udp_offer": offerUdp(o); break;
@@ -184,7 +192,7 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
         if (started || selected == null || readDelay(o) != delay || !manifestSeen || !hashes.keySet().equals(roster)) throw new IOException("Start barrier not complete");
         LinkedHashSet<Integer> startIds = new LinkedHashSet<>();
         for (JsonElement p : o.getAsJsonArray("players")) startIds.add(Protocol.integer(p.getAsJsonObject(), "id"));
-        if (!startIds.equals(roster)) throw new IOException("Roster changed at start");
+        if (!startIds.equals(roster)||Protocol.number(o,"revision")!=roomRevision||!RoomRules.read(o).equals(rules)) throw new IOException("Roster/rules changed at start");
         frameBuffer = new FrameBuffer(roster); started = true; lastFrameProgress = System.nanoTime();
         for (int tick = 0; tick < delay; tick++) inputHistory.add(tick, 0);
         listener.event(o);
@@ -324,8 +332,16 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
         if (ended || readySent || !readyRequested || selected == null || !manifestSeen || !hashes.keySet().equals(roster)) return;
         JsonObject o = Protocol.message("ready"), all = new JsonObject();
         for (int id : roster) all.addProperty(Integer.toString(id), hashes.get(id));
-        o.add("hashes", all); readySent = true; send(o.toString());
+        o.add("hashes", all); o.addProperty("revision",roomRevision); readySent = true; send(o.toString());
     }
+    public RoomRules roomRules(){synchronized(state){return rules;}}
+    public long roomRevision(){synchronized(state){return roomRevision;}}
+    public void lobbyReady(boolean ready){synchronized(state){lobbyReady(ready,roomRevision);}}
+    /** Confirm the revision actually displayed on the EDT, not a newer network-thread revision. */
+    public void lobbyReady(boolean ready,long displayedRevision){synchronized(state){JsonObject o=Protocol.message("lobby_ready");o.addProperty("revision",displayedRevision);o.addProperty("ready",ready);send(o.toString());}}
+    public void setRoomRules(RoomRules value){synchronized(state){setRoomRules(value,roomRevision);}}
+    public void setRoomRules(RoomRules value,long displayedRevision){synchronized(state){JsonObject o=Protocol.message("rules");o.addProperty("revision",displayedRevision);o.add("rules",value.json());send(o.toString());}}
+    public void setLineupName(String value){JsonObject o=Protocol.message("lineup");o.addProperty("name",value);send(o.toString());}
     public void queueCommand(int bit) {
         synchronized (state) { if (!started || ended || completed || !InputFrame.valid(bit)) return; }
         commands.getAndUpdate(old -> (old | (bit & 4095)) ^ (bit & ~4095));

@@ -1,6 +1,7 @@
 package online.net.core;
 import online.net.bundle.BundleStore;
 import online.net.Protocol;
+import online.net.lobby.RoomRules;
 import java.io.IOException;
 import java.util.*;
 
@@ -13,6 +14,9 @@ public final class RoomSession implements AutoCloseable {
     public final LinkedHashMap<Integer,Participant> participants=new LinkedHashMap<>();
     public final BundleStore bundles;
     public LockstepState lockstep;
+    public RoomRules rules=RoomRules.DEFAULT;
+    public int hostId;
+    public long revision;
     public final long created=System.nanoTime();
     public long progressed=created,nextFrameAt,seed;
     public boolean prepared,manifestSent,started;
@@ -21,6 +25,7 @@ public final class RoomSession implements AutoCloseable {
         this.id=id;matchId=match;gameFingerprint=game;gameMode=mode;inputDelayTicks=delay;password=verifier;bundles=new BundleStore(limit,capacity);
     }
     public List<GameMode.Seat> occupiedSeats(){List<GameMode.Seat> seats=new ArrayList<>();for(Participant p:participants.values())seats.add(p.seat);return seats;}
+    public void changed(){revision++;progressed=System.nanoTime();for(Participant p:participants.values())p.lobbyReady=false;}
     public void prepare(){lockstep=new LockstepState(participants.keySet(),Protocol.MAX_AHEAD);prepared=true;}
     public void close()throws IOException{closed=true;password.close();bundles.close();}
 }

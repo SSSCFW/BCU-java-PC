@@ -68,6 +68,7 @@ public final class HeadlessPeer implements RoomClient.Listener {
         while(!Files.exists(directory.resolve(host?"guest-done":"host-done"))){if(System.nanoTime()>deadline)throw new AssertionError("Other peer did not finish");Thread.sleep(10);}
     }
     @Override public void event(JsonObject o){events.offer(()->{try {
+        LobbyTestSupport.acceptDefaults(client,o);
         switch(o.get("type").getAsString()) {
             case "joined":id=o.get("playerId").getAsInt();match=o.get("match").getAsString();
                 if(host)Files.write(directory.resolve("room"),o.get("room").getAsString().getBytes(StandardCharsets.UTF_8));break;

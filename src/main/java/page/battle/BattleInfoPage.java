@@ -12,6 +12,7 @@ import io.BCMusic;
 import main.MainBCU;
 import main.Opts;
 import online.ui.OnlineBattleField;
+import online.ui.AudioSettingsPanel;
 import java.util.function.IntConsumer;
 import page.*;
 import page.awt.BBBuilder;
@@ -71,6 +72,8 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	private final BattleField basis;
 
 	private OnlineBattleField online;
+    private final JButton audio=new JButton("音量");
+    private JDialog audioDialog;
 	private Runnable onlineExit;
 	private boolean onlineClosed;
 	private String onlineLeftName, onlineRightName;
@@ -162,7 +165,9 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		jtb.setSelected(DEF_LARGE);
 		ini();
 		// These native single-player operations cannot be performed independently online.
-		paus.setEnabled(false);
+		paus.setEnabled(false);paus.setVisible(false);
+        add(audio);audio.addActionListener(e->{getPress().clear();if(audioDialog!=null&&audioDialog.isDisplayable()){audioDialog.toFront();return;}audioDialog=AudioSettingsPanel.open(this);});
+        if(MainBCU.loaded){BCMusic.stopAll();BCMusic.play(basis.sb.st.mus0);}
 		next.setEnabled(false);
 		rply.setEnabled(false);
 		rply.setVisible(false);
@@ -172,6 +177,9 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		add(stream);
 		current = this;
 	}
+
+    public void force60Fps(boolean value){if(online!=null)online.force60Fps(value);}
+    public int onlineFps(){return online==null?30:online.renderFps();}
 
 	public void publishOnline(PvpStageBasis displayCopy) {
 		if (online != null && !onlineClosed) online.publish(displayCopy);
@@ -212,6 +220,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	public void detachOnline() {
 		if (online == null || onlineClosed) return;
 		onlineClosed = true;
+        if(audioDialog!=null){audioDialog.dispose();audioDialog=null;}
 		online.interactive(false);
 		getPress().clear();
 		if (current == this) current = null;
@@ -366,6 +375,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 			set(respawn, x, y, 50, 800, 600, 50);
 			set(jsl, x, y, 700, 800, 800, 50);
 		}
+        if(online!=null)audio.setBounds(paus.getBounds());
 		ct.setRowHeight(size(x, y, 50));
 		et.setRowHeight(size(x, y, 50));
 		est.setRowHeight(size(x, y, 50));

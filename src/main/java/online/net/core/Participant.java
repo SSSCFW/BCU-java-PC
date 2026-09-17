@@ -13,7 +13,8 @@ public final class Participant {
     public RealtimeTransport realtime;
     public UdpService.Connection udp;
     public String bundleHash, uploadingHash, result;
-    public boolean uploaded, ready, downloading;
+    public boolean uploaded, ready, downloading, lobbyReady;
+    public String lineupName="";
     public long nextFrameExpected, requestedFrame = -1, lastRescue, lastSend, lastFrameAckProgress = System.nanoTime();
     Participant(int id, String name, GameMode.Seat seat, ControlPeer control) {
         this.id = id; displayName = name; this.seat = seat; this.control = control;

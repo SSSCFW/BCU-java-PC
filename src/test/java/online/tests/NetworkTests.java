@@ -20,9 +20,13 @@ public final class NetworkTests {
     private static final class Peer extends WebSocketClient {
         final BlockingQueue<JsonObject> messages=new LinkedBlockingQueue<>();
         final List<JsonObject> pending=new ArrayList<>();
+        volatile int id;volatile long revision;
         Peer(int port)throws Exception{super(new URI("ws://127.0.0.1:"+port));Check.that(connectBlocking(3,TimeUnit.SECONDS),"raw peer connects");}
         public void onOpen(ServerHandshake h){} public void onClose(int c,String r,boolean remote){} public void onError(Exception e){}
-        public void onMessage(ByteBuffer b){} public void onMessage(String s){messages.add(JsonParser.parseString(s).getAsJsonObject());}
+        public void onMessage(ByteBuffer b){} public void onMessage(String s){JsonObject o=JsonParser.parseString(s).getAsJsonObject();String type=o.get("type").getAsString();
+            if(type.equals("joined"))id=o.get("playerId").getAsInt();
+            if(type.equals("room_state")){revision=o.get("revision").getAsLong();if(o.getAsJsonArray("players").size()==2)for(JsonElement value:o.getAsJsonArray("players")){JsonObject p=value.getAsJsonObject();if(p.get("id").getAsInt()==id&&!p.get("lobbyReady").getAsBoolean()){JsonObject r=Protocol.message("lobby_ready");r.addProperty("revision",revision);r.addProperty("ready",true);send(r.toString());}}}
+            messages.add(o);}
         JsonObject take(String type)throws Exception{
             for(Iterator<JsonObject> i=pending.iterator();i.hasNext();){JsonObject o=i.next();if(type.equals(o.get("type").getAsString())){i.remove();return o;}}
             long end=System.nanoTime()+TimeUnit.SECONDS.toNanos(5);
@@ -41,7 +45,7 @@ public final class NetworkTests {
         }
         void input(long tick,int mask)throws Exception{RealtimeData d=new RealtimeData();d.nextExpected=tick;d.requestTick=tick;d.inputs.put(tick,mask);send(d.control("realtime").toString());}
         void bundle(byte[] bytes)throws Exception{JsonObject o=Protocol.message("bundle");o.addProperty("size",bytes.length);o.addProperty("hash",Hashes.sha256(bytes));send(o.toString());take("bundle_upload");send(bytes);send(Protocol.message("bundle_end").toString());take("bundle_ok");}
-        void ready(Map<Integer,String> hashes){JsonObject o=Protocol.message("ready"),all=new JsonObject();for(Map.Entry<Integer,String> e:hashes.entrySet())all.addProperty(e.getKey().toString(),e.getValue());o.add("hashes",all);send(o.toString());}
+        void ready(Map<Integer,String> hashes){JsonObject o=Protocol.message("ready"),all=new JsonObject();for(Map.Entry<Integer,String> e:hashes.entrySet())all.addProperty(e.getKey().toString(),e.getValue());o.add("hashes",all);o.addProperty("revision",revision);send(o.toString());}
     }
     public static void run()throws Exception{
         RoomServer server=new RoomServer(new InetSocketAddress("127.0.0.1",0));server.start();Check.that(server.awaitStarted(5,TimeUnit.SECONDS),"raw relay started");List<Peer> all=new ArrayList<>();

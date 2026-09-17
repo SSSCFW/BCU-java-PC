@@ -41,6 +41,11 @@ public final class LobbyUiTests {
         while (System.nanoTime() < end) { if(uiFailure!=null)throw new AssertionError("EDT failed",uiFailure); if (edt(condition)) return; Thread.sleep(20); }
         throw new AssertionError(reason + "\n" + status());
     }
+    private static void screenshot(java.awt.Component component,String name) throws Exception {
+        java.awt.image.BufferedImage image=new java.awt.image.BufferedImage(component.getWidth(),component.getHeight(),java.awt.image.BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g=image.createGraphics();try{component.paint(g);}finally{g.dispose();}
+        javax.imageio.ImageIO.write(image,"png",shared.resolve("room-"+name+".png").toFile());
+    }
     private static void disposePage() throws Exception {
         edt(() -> { Method m = OnlineLobbyPage.class.getDeclaredMethod("cleanup"); m.setAccessible(true); m.invoke(page); return null; });
     }
@@ -52,6 +57,10 @@ public final class LobbyUiTests {
         Unit u = FixtureNativeUi.unit("same_local_pack", 0xffccaa55);
         CustomUnit d = (CustomUnit)u.forms[0].du; d.price=1;d.speed=500;d.range=250;
         BasisLU b = Fixture.lineup(u);BasisSet.current().lb.add(b);BasisSet.current().sele=b;
+        Unit alternate=FixtureNativeUi.unit("edited_in_lobby",0xffaa77cc);CustomUnit ad=(CustomUnit)alternate.forms[0].du;ad.price=1;ad.speed=80;ad.range=250;
+        BasisSet.current().lb.add(Fixture.lineup(alternate));
+        common.pack.UserProfile.getBCData().bgs.set(4,new common.util.pack.Background(new common.pack.Identifier<>("000000",common.util.pack.Background.class,4),FixtureNativeUi.image(512,256,0xffaaccdd)));
+        common.pack.UserProfile.getBCData().musics.set(7,new common.util.stage.Music(new common.pack.Identifier<>("000000",common.util.stage.Music.class,7),0,new common.system.files.FDByte(new byte[]{1,2,3})));
         edt(() -> { MainBCU.author=""; MainFrame.F=new MainFrame("lobby regression");MainFrame.F.setSize(1200,900); return null; });
         newPage();
     }
@@ -137,7 +146,33 @@ public final class LobbyUiTests {
                     Properties p=new Properties();try(java.io.Reader in=Files.newBufferedReader(shared.resolve("room.properties"),StandardCharsets.UTF_8)){p.load(in);}
                     setup("同一PCゲスト","");edt(()->{text("server").setText(p.getProperty("url"));text("room").setText(p.getProperty("room"));button("join").doClick();return null;});
                 }
-                await(()->button("ready").isEnabled(),"GUI asset synchronization/ready barrier");
+                await(()->field(page,"roomLobby")!=null&&field(field(page,"roomLobby"),"state")!=null&&((com.google.gson.JsonObject)field(field(page,"roomLobby"),"state")).getAsJsonArray("players").size()==2,"dedicated room lobby roster");
+                edt(()->{
+                    RoomLobbyPage lobby=(RoomLobbyPage)field(page,"roomLobby");
+                    Check.that(MainFrame.getPanel()==lobby,"joining opens dedicated RoomLobbyPage");
+                    Check.equal(null,field(page,"localArchive"),"no character export before every player confirms lobby");
+                    Check.that(((JSpinner)field(lobby,"distance")).isEnabled()==host,"only host can edit distance");
+                    if(host){
+                        ((JButton)field(lobby,"edit")).doClick();
+                        Check.that(MainFrame.getPanel() instanceof page.basis.BasisPage,"lineup edit reuses original BasisPage");
+                        ((JButton)field(MainFrame.getPanel(),"back")).doClick();
+                        Check.that(MainFrame.getPanel()==lobby,"original editor returns to dedicated lobby");
+                    }
+                    return null;
+                });
+                await(()->!((Boolean)field(field(page,"roomLobby"),"pending")),"lineup editor acknowledgement");
+                edt(()->{JComboBox<?> choices=(JComboBox<?>)field(page,"lineup");choices.setSelectedIndex(choices.getItemCount()-1);return null;});
+                await(()->!((Boolean)field(field(page,"roomLobby"),"pending")),"changed lineup acknowledged");
+                if(host){
+                    edt(()->{RoomLobbyPage lobby=(RoomLobbyPage)field(page,"roomLobby");((JSpinner)field(lobby,"distance")).setValue(8000);((JComboBox<?>)field(lobby,"background")).setSelectedIndex(1);((JComboBox<?>)field(lobby,"music")).setSelectedIndex(1);((JCheckBox)field(lobby,"force60")).doClick();((JButton)field(lobby,"apply")).doClick();return null;});
+                }
+                await(()->((RoomClient)field(page,"client")).roomRules().castleDistance==8000,"host rules reach both room clients");
+                edt(()->{Object audio=field(field(page,"roomLobby"),"audio");((JSlider)field(audio,"bg")).setValue(host?23:81);((JSlider)field(audio,"se")).setValue(host?45:11);((JSlider)field(audio,"ui")).setValue(host?67:9);return null;});
+                Files.write(shared.resolve(host?"host-lobby":"guest-lobby"),new byte[]{1});
+                long readyDeadline=System.nanoTime()+10_000_000_000L;
+                while(!Files.exists(shared.resolve(host?"guest-lobby":"host-lobby"))){if(System.nanoTime()>readyDeadline)throw new AssertionError("other lobby not edited");Thread.sleep(20);}
+                await(()->button("ready").isEnabled(),"explicit editable-lobby readiness");
+                edt(()->{screenshot(MainFrame.F.getRootPane(),host?"host":"guest");return null;});
                 edt(()->{button("ready").doClick();return null;});
                 await(()->field(page,"battle")!=null,"GUI battle starts");
                 edt(()->{
@@ -145,6 +180,17 @@ public final class LobbyUiTests {
                     CommonStatic.getConfig().performanceModeAnimation=!host;
                     BattleInfoPage nativePage=(BattleInfoPage)field(page,"battlePage");
                     Check.that(MainFrame.getPanel()==nativePage,"real native BattleInfoPage must be the current page");
+                    Check.equal(60,nativePage.onlineFps(),"room force60 overrides a 30FPS preference locally");
+                    Check.equal(!host,CommonStatic.getConfig().performanceModeBattle,"force60 must not rewrite saved client preference");
+                    PvpStageBasis live=(PvpStageBasis)field(page,"battle");Check.equal(8000f,live.ubase.pos-live.ebase.pos,"exact castle separation from host rules");
+                    Check.equal(4,live.st.bg.id,"host background selected");Check.equal(7,live.st.mus0.id,"host BGM selected");
+                    Check.that(live.b.lu.fs[0][0].unit.id.pack.contains("pvp"),"edited lineup remains isolated by match");
+                    Check.equal(host?23:81,io.BCMusic.VOL_BG,"individual lobby BGM gain retained");
+                    ((JButton)field(nativePage,"audio")).doClick();JDialog dialog=(JDialog)field(nativePage,"audioDialog");
+                    Check.that(dialog.isVisible()&&!dialog.isModal(),"battle audio settings are nonmodal and visible");
+                    ((JSlider)field(dialog.getContentPane(),"bg")).setValue(host?31:72);
+                    Check.equal(host?31:72,io.BCMusic.VOL_BG,"battle slider updates local volume immediately");
+                    screenshot(dialog.getContentPane(),host?"battle-audio-host":"battle-audio-guest");
                     Check.that(!((JButton)field(nativePage,"paus")).isEnabled(),"native solo pause is disabled online");
                     Check.that(!((JButton)field(nativePage,"next")).isEnabled(),"native solo step is disabled online");
                     Check.that(!((JButton)field(nativePage,"rply")).isEnabled(),"native single-player replay is disabled online");
@@ -173,10 +219,11 @@ public final class LobbyUiTests {
                     if(nativePage!=null)((JButton)field(nativePage,"back")).doClick();
                     Check.that(MainFrame.getPanel()==page,"native Back or peer disconnect returns to the reusable lobby");
                     Check.that(button("create").isEnabled(),"native page exit resets room state");
+                    Check.equal(0,((JComboBox<?>)field(page,"lineup")).getActionListeners().length,"closed room must detach its lineup listener before the next room");
                     if(host)Check.that(field(field(page,"friendServer"),"host")!=null,"native Back must not stop embedded friend server");
                     return null;
                 });
-                System.out.println("GUI_DUEL_OK "+mode+" native BattleInfoPage / 150 ticks / 30-60 FPS / empty password");break;
+                System.out.println("GUI_DUEL_OK "+mode+" editable lobby / original editor / rules / live audio / forced60 / native BattleInfoPage / 150 ticks");break;
             }
             default:throw new AssertionError("Unknown test "+mode);
         }
@@ -198,6 +245,7 @@ public final class LobbyUiTests {
         }
         Process host=spawn("duel-host",root.resolve("host"),root,logs),guest=spawn("duel-guest",root.resolve("guest"),root,logs);
         try{finish(host,"duel-host",logs);finish(guest,"duel-guest",logs);}finally{host.destroyForcibly();guest.destroyForcibly();}
+        for(String image:Arrays.asList("host","guest","battle-audio-host","battle-audio-guest"))Files.copy(root.resolve("room-"+image+".png"),logs.resolve("room-"+image+".png"),StandardCopyOption.REPLACE_EXISTING);
         System.out.println("Real Swing lobby regression tests passed; transcripts: "+logs);
     }
     private static Process spawn(String mode,Path user,Path shared,Path logs)throws Exception{

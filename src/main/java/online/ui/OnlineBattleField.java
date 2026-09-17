@@ -23,6 +23,9 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     private int frontRow, changeFrame = -1;
     private boolean goingUp, interactive = true, halfAdvanced;
     private long published;
+    private boolean force60;
+    public void force60Fps(boolean value){force60=value;}
+    public int renderFps(){return force60||CommonStatic.getConfig().performanceModeBattle?60:30;}
 
     public OnlineBattleField(CommonStatic.FakeKey keys, PvpStageBasis displayCopy,
                              int direction, IntConsumer send) {
@@ -54,7 +57,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     }
 
     public void renderStep() {
-        if (CommonStatic.getConfig().performanceModeBattle && !halfAdvanced
+        if (renderFps()==60 && !halfAdvanced
                 && System.nanoTime() - published >= 16_666_667L) {
             ((PvpStageBasis) sb).advanceDisplay();
             halfAdvanced = true;

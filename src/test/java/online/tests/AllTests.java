@@ -9,6 +9,7 @@ public final class AllTests {
         HybridNetworkTests.run();
         NetworkTests.run();
         PasswordRoomTests.run();
+        RoomLobbyTests.run();
         LifecycleTests.run();
         ServerHostTests.run();
         online.net.CheckpointTests.run();
@@ -20,6 +21,9 @@ public final class AllTests {
         CoreTests.run();
         CombatTests.run();
         UiTests.run();
+        RoomAudioTests.run();
+        RoomRuleTests.run();
+        io.AudioVolumeTests.run();
         ProcessTests.run();
         System.out.println("PvP tests passed: " + Check.count + " assertions");
     }

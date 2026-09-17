@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate portable layout and essential v2 classes, without running downloaded code."""
+"""Validate portable layout and essential v3 classes, without running downloaded code."""
 from pathlib import Path, PurePosixPath
 import io
 import sys
@@ -17,6 +17,8 @@ REQUIRED_CLASSES = {
     "online/ui/FriendServerPanel.class", "common/battle/PvpStageBasis.class",
     "online/ui/OnlineBattleField.class", "page/battle/BattleInfoPage.class",
     "page/battle/BattleBox$PlayerView.class", "page/battle/BBCtrl.class",
+    "online/ui/RoomLobbyPage.class", "online/ui/AudioSettingsPanel.class",
+    "online/net/lobby/RoomRules.class", "common/battle/PvpAudio.class", "common/battle/ELineUp.class",
 }
 
 

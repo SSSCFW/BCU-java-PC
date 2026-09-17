@@ -428,16 +428,16 @@ public class StageBasis extends BattleObj {
 
 		if (cannon == maxCannon) {
 			if(canon.id == BASE_WALL && entityCount(ownDirection()) >= maxNum) {
-				CommonStatic.setSE(SE_SPEND_FAIL);
+				PvpAudio.notification(this, SE_SPEND_FAIL);
 				return false;
 			}
 
-			CommonStatic.setSE(SE_SPEND_SUC);
+			PvpAudio.notification(this, SE_SPEND_SUC);
 			canon.activate();
 			cannon = 0;
 			return true;
 		}
-		CommonStatic.setSE(SE_SPEND_FAIL);
+		PvpAudio.notification(this, SE_SPEND_FAIL);
 		return false;
 	}
 
@@ -450,14 +450,14 @@ public class StageBasis extends BattleObj {
 			return false;
 
 		if (work_lv < 8 && money > upgradeCost) {
-			CommonStatic.setSE(SE_SPEND_SUC);
+			PvpAudio.notification(this, SE_SPEND_SUC);
 			money -= upgradeCost;
 			work_lv++;
 			upgradeCost = b.t().getLvCost(work_lv);
 			maxMoney = b.t().getMaxMon(work_lv, StageLimit.isComboBanned(est.lim, C_M_MAX));
 			return true;
 		}
-		CommonStatic.setSE(SE_SPEND_FAIL);
+		PvpAudio.notification(this, SE_SPEND_FAIL);
 		return false;
 	}
 
@@ -543,7 +543,7 @@ public class StageBasis extends BattleObj {
 		List<Entity> summoners = findEntitiesOf(i, j).stream().filter(e -> e.anim.dead < 0).collect(Collectors.toList());
 		if (manual && f.du.getProc().SPIRIT.exists() && summonerSummoned[i][j] && !summoners.isEmpty() && !spiritSummoned[i][j]) {
 			if (spiritCooldown[i][j] > 0) {
-				CommonStatic.setSE(SE_SPEND_FAIL);
+				PvpAudio.notification(this, SE_SPEND_FAIL);
 				return false;
 			}
 
@@ -552,7 +552,7 @@ public class StageBasis extends BattleObj {
 				return false;
 
 			if (entityCount(ownDirection()) >= maxNum - f.du.getWill() * summoners.size()) {
-				CommonStatic.setSE(SE_SPEND_FAIL);
+				PvpAudio.notification(this, SE_SPEND_FAIL);
 				return false;
 			}
 
@@ -576,25 +576,25 @@ public class StageBasis extends BattleObj {
 			int rar = b.lu.fs[i][j].unit.rarity;
 			if (entityCount(ownDirection()) >= maxNum - f.du.getWill()) {
 				if (manual)
-					CommonStatic.setSE(SE_SPEND_FAIL);
+					PvpAudio.notification(this, SE_SPEND_FAIL);
 
 				return false;
 			}
 			if (maxRarityNum[rar] > -1 && entityCountRar(rar) >= maxRarityNum[rar] - b.lu.fs[i][j].du.getWill()) {
 				if (manual)
-					CommonStatic.setSE(SE_SPEND_FAIL);
+					PvpAudio.notification(this, SE_SPEND_FAIL);
 
 				return false;
 			}
 			if (maxCatSpawns == 0) {
 				if (manual)
-					CommonStatic.setSE(SE_SPEND_FAIL);
+					PvpAudio.notification(this, SE_SPEND_FAIL);
 
 				return false;
 			}
 			if (elu.cool[i][j] > 0) {
 				if (manual) {
-					CommonStatic.setSE(SE_SPEND_FAIL);
+					PvpAudio.notification(this, SE_SPEND_FAIL);
 				}
 
 				return false;
@@ -608,18 +608,18 @@ public class StageBasis extends BattleObj {
 
 			if (price > money) {
 				if (manual)
-					CommonStatic.setSE(SE_SPEND_FAIL);
+					PvpAudio.notification(this, SE_SPEND_FAIL);
 
 				return false;
 			}
 			if (f.du.getProc().SPIRIT.exists() && summonerSummoned[i][j] && !findEntitiesOf(i, j).isEmpty()) {
 				if (manual)
-					CommonStatic.setSE(SE_SPEND_FAIL);
+					PvpAudio.notification(this, SE_SPEND_FAIL);
 
 				return false;
 			}
 
-			CommonStatic.setSE(SE_SPEND_SUC);
+			PvpAudio.notification(this, SE_SPEND_SUC);
 			elu.get(i, j);
 			EUnit eu = f.getEntity(this, new int[] {i, j}, false, elu.tick[i][j] == 1);
 			eu.added(ownDirection(), spawnPosition());
@@ -817,7 +817,7 @@ public class StageBasis extends BattleObj {
 			}
 
 			if(cannon == maxCannon -1) {
-				CommonStatic.setSE(SE_CANNON_CHARGE);
+				PvpAudio.notification(this, SE_CANNON_CHARGE);
 			}
 			if (active) {
 				cannon++;

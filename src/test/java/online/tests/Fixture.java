@@ -31,7 +31,7 @@ public final class Fixture {
             public File getBackupFile(String s){return root.resolve("backup").resolve(s).toFile();}
             public File getBCUFolder(){return root.toFile();}
             public String getAuthor(){return "test";}
-            public InputStream getLangFile(String s){return null;}
+            public InputStream getLangFile(String s){return Fixture.class.getResourceAsStream("/common/util/lang/assets/"+s);}
             public boolean confirmDelete(){return false;} public boolean confirmDelete(File f){return false;}
             public void initProfile(){} public void loadProg(String s){}
             public void noticeErr(Exception e,ErrType t,String s){throw new IllegalStateException(s,e);}

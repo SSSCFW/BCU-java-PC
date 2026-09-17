@@ -15,4 +15,4 @@ The regular PvP build workflow reruns Maven and Gradle on the integrated commit.
 
 Real loopback sockets cover UDP/UDP, UDP/WS, WS/UDP, WS/WS, loss, duplication, reordering, emergency retransmission, blocked-UDP fallback, timeout cleanup, concurrent rooms and eight participant identities. Synthetic character assets drive real BCU battle logic in separate JVMs with 30/60 FPS rendering and matching state hashes.
 
-These results do not certify real WAN conditions, every custom ability combination or every Windows/macOS/JOGL configuration. Use a copy of the existing BCU installation. Clients and server must all be updated to protocol v2.
+These results do not certify real WAN conditions, every custom ability combination or every Windows/macOS/JOGL configuration. Use a copy of the existing BCU installation. These historical results were for protocol v2. The editable-room update requires all clients and the server to use v3; current regression evidence is in `docs/superpowers/plans/2026-09-17-room-lobby-audio.md`.

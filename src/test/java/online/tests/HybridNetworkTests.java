@@ -26,7 +26,7 @@ public final class HybridNetworkTests {
             };
             Check.that(client.connectBlocking(5,TimeUnit.SECONDS),"hybrid peer connects");
         }
-        public void event(JsonObject o){events.offer(o);if(o.get("type").getAsString().equals("prepare")){client.sendBundle(archive);client.ready();}}
+        public void event(JsonObject o){LobbyTestSupport.acceptDefaults(client,o);events.offer(o);if(o.get("type").getAsString().equals("prepare")){client.sendBundle(archive);client.ready();}}
         public void bundle(int id,Path path,String hash){try{if(!Arrays.equals(Files.readAllBytes(archive),Files.readAllBytes(path)))throw new IOException("Wrong bundle bytes");Files.delete(path);bundleCount++;}catch(IOException e){failure=e.toString();}}
         public void failed(String reason){failure=reason;}
         JsonObject await(String type)throws Exception{
