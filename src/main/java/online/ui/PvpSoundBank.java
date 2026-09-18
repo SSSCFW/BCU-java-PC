@@ -122,10 +122,20 @@ public final class PvpSoundBank {
         void start(int fallbackMillis){
             if(clip==null){startFallback(fallbackMillis);return;}
             clip.addLineListener(this);setVolume(clip);clip.setFramePosition(0);
-            if(loop)clip.loop(Clip.LOOP_CONTINUOUSLY);else clip.start();
+            if(loop){
+                clip.loop(Clip.LOOP_CONTINUOUSLY);
+            }else{
+                // Some Java Sound/Vorbis providers do not emit a natural STOP event
+                // consistently. Always keep an independent completion watchdog so
+                // battle-end sequencing can never wait forever on an audio callback.
+                long clipMillis=Math.max(1L,(clip.getMicrosecondLength()+999L)/1000L);
+                startFallback((int)Math.min(Integer.MAX_VALUE,Math.max((long)fallbackMillis,clipMillis+150L)));
+                clip.start();
+            }
         }
 
         void startFallback(int millis){
+            if(fallbackTimer!=null)fallbackTimer.stop();
             fallbackTimer=new javax.swing.Timer(Math.max(1,millis),e->complete());
             fallbackTimer.setRepeats(false);fallbackTimer.start();
         }
@@ -134,7 +144,9 @@ public final class PvpSoundBank {
             Runnable callback;
             synchronized(PvpSoundBank.class){
                 if(cancelled||completed)return;
-                completed=true;closeClip();ACTIVE.remove(this);LOOPS.values().remove(this);callback=after;
+                completed=true;
+                if(fallbackTimer!=null){fallbackTimer.stop();fallbackTimer=null;}
+                closeClip();ACTIVE.remove(this);LOOPS.values().remove(this);callback=after;
             }
             if(callback!=null)SwingUtilities.invokeLater(callback);
         }
