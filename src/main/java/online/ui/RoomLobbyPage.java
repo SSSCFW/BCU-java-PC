@@ -55,6 +55,7 @@ public final class RoomLobbyPage extends Page {
     private final AudioSettingsPanel audio=new AudioSettingsPanel();
     private JsonObject state;
     private boolean loading,editing,dirty,playerDirty,pending,closed,restoredHostPreferences,restoredPlayerPreferences,musicPreviewing;
+    private int musicPreviewId=-1;
     private final ActionListener lineupListener;
 
     RoomLobbyPage(OnlineLobbyPage owner,RoomClient client,int id,String room,boolean protectedRoom,JComboBox<BasisLU> lineup,JButton ready){
@@ -168,6 +169,8 @@ public final class RoomLobbyPage extends Page {
                 dirty=false;
             }
         }finally{loading=false;}
+        MusicChoice selectedMusic=(MusicChoice)music.getSelectedItem();
+        if(musicPreviewing&&(selectedMusic==null||selectedMusic.id()!=musicPreviewId))stopMusicPreview();
 
         StringBuilder names=new StringBuilder();
         boolean previousLoading=loading;loading=true;
@@ -202,13 +205,13 @@ public final class RoomLobbyPage extends Page {
         if(track==null||track.data==null){message("試聴できるBGMデータがありません: "+choice);return;}
         BCMusic.stopAll();BCMusic.music=null;
         BCMusic.play(track.id);
-        musicPreviewing=true;musicPreviewStatus.setText("試聴中: "+choice);
+        musicPreviewing=true;musicPreviewId=choice.id();musicPreviewStatus.setText("試聴中: "+choice);
         refreshControls();
     }
 
     private void stopMusicPreview(){
         if(musicPreviewing){BCMusic.stopAll();BCMusic.music=null;}
-        musicPreviewing=false;musicPreviewStatus.setText("停止中");
+        musicPreviewing=false;musicPreviewId=-1;musicPreviewStatus.setText("停止中");
         if(!closed)refreshControls();
     }
 
