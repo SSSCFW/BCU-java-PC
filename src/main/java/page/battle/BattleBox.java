@@ -524,21 +524,10 @@ public interface BattleBox {
 					drawRouletteSpin(g, state);
 					return;
 				}
-
-				if (rouletteWasSpinning && state.lastResult >= 0) {
-					rouletteResultTick = bf.sb.time;
-					rouletteResult = state.lastResult;
-				}
 				rouletteWasSpinning = false;
-
-				if (rouletteResultTick >= 0 && rouletteResult >= 0) {
-					int age = bf.sb.time - rouletteResultTick;
-					if (age >= 0 && age < ROULETTE_RESULT_TICKS)
-						drawRouletteResult(g, state, rouletteResult, age);
-					else if (age >= ROULETTE_RESULT_TICKS) {
-						rouletteResultTick = -1;
-						rouletteResult = -1;
-					}
+				if (state.pendingResult >= 0 && state.resultDelayTicks > 0) {
+					int age=Math.max(0,ROULETTE_RESULT_TICKS-state.resultDelayTicks);
+					drawRouletteResult(g,state,state.pendingResult,age);
 				}
 			} catch (RuntimeException ignored) {
 				// The compact Swing HUD has its own text fallback; never break battle rendering
