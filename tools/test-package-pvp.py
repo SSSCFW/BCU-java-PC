@@ -31,6 +31,12 @@ class PackageTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("fixture", encoding="utf-8")
             with zipfile.ZipFile(root / "bcu-pvp.jar", "w") as jar:
+                manifest = (
+                    "Manifest-Version: 1.0\n"
+                    "Main-Class: main.MainBCU\n"
+                    "Add-Opens: " + " ".join(sorted(verify.REQUIRED_ADD_OPENS)) + "\n\n"
+                )
+                jar.writestr("META-INF/MANIFEST.MF", manifest.encode("utf-8"))
                 for name in verify.REQUIRED_CLASSES:
                     jar.writestr(name, b"test-class")
             (root / "lib").mkdir(exist_ok=True)
