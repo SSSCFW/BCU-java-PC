@@ -74,6 +74,7 @@ public final class RouletteTests {
 
         right.work_lv=1;right.money=123;right.elu.cool[0][0]=99;
         right.pvpRoulette.forceResult(b,right,PvpRouletteState.BABY_RUSH);
+        Check.equal(PvpRouletteState.CUTIN_TICKS,right.pvpRoulette.cutinTicks,"roulette result starts deterministic 3DS cut-in window");
         Check.equal(0,right.elu.cool[0][0],"petit baby rush immediately removes production cooldown");
         Check.equal(1,right.work_lv,"petit baby rush does not change worker level");
         Check.equal(123,right.money,"petit baby rush does not fill money");
