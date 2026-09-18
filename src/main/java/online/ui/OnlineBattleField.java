@@ -80,12 +80,12 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
         boolean specialPressed=keys.pressed(-1,1);
         boolean specialReady=false;
         PvpStageBasis world=(PvpStageBasis)sb;
-        switch(world.rules.specialMode) {
+        switch(world.specialMode()) {
             case CANNON: specialReady=own.cannon==own.maxCannon; break;
             case ROULETTE: specialReady=own.pvpRoulette!=null&&own.pvpRoulette.spinning; break;
             default: break;
         }
-        if ((action.contains(-2) || specialPressed) && world.rules.specialMode!=online.net.lobby.RoomRules.SpecialMode.NONE) {
+        if ((action.contains(-2) || specialPressed) && world.specialMode()!=online.net.lobby.RoomRules.SpecialMode.NONE) {
             if(action.contains(-2)||specialReady)send.accept(InputFrame.SPECIAL);
             if(specialPressed)keys.remove(-1, 1);
         }
@@ -114,7 +114,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     public String specialStatus() {
         PvpStageBasis world=(PvpStageBasis)sb;
         StageBasis own=playerState();
-        switch(world.rules.specialMode) {
+        switch(world.specialMode()) {
             case NONE:return "特殊機能: なし";
             case CANNON:return "にゃんこ砲 "+Math.min(100,own.cannon*100/Math.max(1,own.maxCannon))+"%";
             case ROULETTE:
@@ -128,9 +128,9 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     private void syncSpecialHud() {
         PvpStageBasis world=(PvpStageBasis)sb;
         StageBasis own=playerState();
-        if(world.rules.specialMode==online.net.lobby.RoomRules.SpecialMode.ROULETTE && own.pvpRoulette!=null)
+        if(world.specialMode()==online.net.lobby.RoomRules.SpecialMode.ROULETTE && own.pvpRoulette!=null)
             own.cannon=Math.min(own.maxCannon,(int)((long)own.maxCannon*own.pvpRoulette.gauge/PvpRouletteState.MAX_GAUGE));
-        else if(world.rules.specialMode==online.net.lobby.RoomRules.SpecialMode.NONE)own.cannon=0;
+        else if(world.specialMode()==online.net.lobby.RoomRules.SpecialMode.NONE)own.cannon=0;
     }
     private void syncRow() {
         StageBasis own = playerState();
