@@ -142,6 +142,9 @@ public class AtkModelUnit extends AtkModelEntity {
 		if (((EUnit) e).legendGrade != -1)
 			atk = atk * (100 + ORB_LEGEND_ATTACK[((EUnit) e).legendGrade]) / 100;
 
+		if (e.basis.pvpRoulette != null && e.basis.pvpRoulette.attackLevel > 0)
+			atk = (int) Math.round(atk * e.basis.pvpRoulette.attackMultiplier());
+
 		extraAtk(ind);
 
 		return atk;

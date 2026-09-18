@@ -35,8 +35,6 @@ public final class PvpDamage extends Data {
                 if((atk.abi&AB_BAKILL)!=0)damage=(int)(damage*1.6);
                 if(unit.coloGrade!=-1)damage=damage*ORB_BARON_DAMAGE[unit.coloGrade]/100;
             }
-            if(owner.pvpRoulette!=null && owner.pvpRoulette.attackLevel>0)
-                damage=(int)Math.round(damage*owner.pvpRoulette.attackMultiplier());
         }
         if(has(target,TRAIT_BEAST)&&atk.getProc().BSTHUNT.active==1)damage=(int)(damage*2.5);
         if(has(target,TRAIT_SAGE)&&(atk.abi&AB_SKILL)!=0)damage=(int)(damage*SUPER_SAGE_HUNTER_ATTACK);

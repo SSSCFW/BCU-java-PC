@@ -277,6 +277,8 @@ public class EUnit extends Entity {
 			atk = atk * status[P_WEAK][1] / 100;
 		if (legendGrade != -1)
 			atk = atk * (100 + ORB_LEGEND_ATTACK[legendGrade]) / 100;
+		if (basis.pvpRoulette != null && basis.pvpRoulette.attackLevel > 0)
+			atk = (int) Math.round(atk * basis.pvpRoulette.attackMultiplier());
 		return atk;
 	}
 
