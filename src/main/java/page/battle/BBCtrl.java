@@ -39,6 +39,30 @@ public class BBCtrl extends BBPainter {
 		sbc = bas;
 	}
 
+	public synchronized Form formAt(Point p) {
+		BCAuxAssets aux=CommonStatic.getBCAssets();int w=box.getWidth(),h=box.getHeight();double hr=unir;
+		if(p==null||hr<=0)return null;
+		double term=hr*aux.slot[0].getImg().getWidth()*0.2;
+		if(CommonStatic.getConfig().twoRow){
+			double termh=hr*aux.slot[0].getImg().getHeight()*0.1;
+			for(int i=0;i<2;i++)for(int j=0;j<5;j++){
+				Form f=controlState().b.lu.fs[i][j];if(f==null)continue;
+				FakeImage img=f.anim.getUni().getImg();int iw=(int)(hr*img.getWidth()),ih=(int)(hr*img.getHeight());
+				int x=(w-iw*5)/2+iw*j+(int)(term*(j-2)),y=(int)(h-(2-i)*(ih+termh));
+				if(!new PP(p).out(new P(x,y),new P(x+iw,y+ih),0))return f;
+			}
+		}else{
+			int row=controlState().frontLineup;
+			for(int i=0;i<5;i++){
+				Form f=controlState().b.lu.fs[row][i];if(f==null)continue;
+				FakeImage img=f.anim.getUni().getImg();int iw=(int)(hr*img.getWidth()),ih=(int)(hr*img.getHeight());
+				int x=(w-iw*5)/2+iw*i+(int)(term*(i-2)+(row==0?0:term/2)),y=h-(int)(ih*1.1);
+				if(!new PP(p).out(new P(x,y),new P(x+iw,y+ih),0))return f;
+			}
+		}
+		return null;
+	}
+
 	@Override
 	public synchronized void click(Point p, int button) {
 		BCAuxAssets aux = CommonStatic.getBCAssets();
