@@ -74,7 +74,7 @@ Effects target the roulette owner unless the original effect is hostile:
 - slow/stop: opponent deployed units;
 - attack/HP/move: owner, existing and future units;
 - roulette cannon: owner fires the normal basic cannon immediately regardless of the room's special mode;
-- petit baby rush: owner receives the native-style temporary rapid-production benefit, implemented as a deterministic timed production override rather than a paid God action.
+- petit baby rush: owner gets **10 seconds (300 logic ticks at fixed 30 TPS) of zero production cooldown only**. It does not alter worker level or money and is distinct from the paid God Baby Rush miracle.
 
 Permanent modifiers live on each `StageBasis` player state and persist until the match ends.
 
