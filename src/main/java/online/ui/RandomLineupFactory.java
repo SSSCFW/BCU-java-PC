@@ -1,0 +1,68 @@
+package online.ui;
+
+import common.battle.BasisLU;
+import common.battle.BasisSet;
+import common.pack.Identifier;
+import common.pack.PackData;
+import common.pack.UserProfile;
+import common.util.unit.Form;
+import common.util.unit.Unit;
+
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
+
+/** Creates a fresh ten-unit PvP lineup every time a random choice enters a match. */
+public final class RandomLineupFactory {
+    private RandomLineupFactory(){}
+
+    public static BasisLU create(boolean vanilla) throws IOException {
+        return create(vanilla,ThreadLocalRandom.current());
+    }
+
+    public static BasisLU create(boolean vanilla,Random random) throws IOException {
+        if(random==null)throw new IllegalArgumentException("random");
+        List<Unit> candidates=candidates(vanilla);
+        if(candidates.size()<10)throw new IOException((vanilla?"バニラ":"全パック")+"の有効キャラが10体未満です");
+        Collections.shuffle(candidates,random);
+        BasisSet set=BasisSet.current();
+        if(set==null)throw new IOException("編成データがありません");
+        BasisLU result=new BasisLU(set);
+        result.name=vanilla?"ランダム(バニラ)":"ランダム";
+        BasisLU base=set.sele;
+        if(base!=null&&base.nyc!=null)result.nyc=base.nyc.clone();
+        for(int i=0;i<10;i++){
+            Form form=bestForm(candidates.get(i));
+            result.lu.fs[i/5][i%5]=form;
+            result.lu.getLv(form);
+        }
+        result.lu.renew();
+        return result;
+    }
+
+    public static List<Unit> candidates(boolean vanilla) {
+        Map<String,Unit> unique=new TreeMap<>();
+        if(vanilla){
+            for(Unit unit:UserProfile.getBCData().units.getList())add(unique,unit,true);
+        }else{
+            for(PackData pack:UserProfile.getAllPacks())for(Unit unit:pack.units)add(unique,unit,false);
+        }
+        return new ArrayList<>(unique.values());
+    }
+
+    private static void add(Map<String,Unit> out,Unit unit,boolean vanilla){
+        if(unit==null||unit.id==null||unit.lv==null||unit.forms==null)return;
+        if(vanilla&&!Identifier.DEF.equals(unit.id.pack))return;
+        if(bestForm(unit)==null)return;
+        out.put(unit.id.pack+":"+unit.id.id,unit);
+    }
+
+    private static Form bestForm(Unit unit){
+        if(unit==null||unit.forms==null)return null;
+        for(int i=unit.forms.length-1;i>=0;i--){
+            Form form=unit.forms[i];
+            if(form!=null&&form.du!=null&&form.anim!=null)return form;
+        }
+        return null;
+    }
+}
