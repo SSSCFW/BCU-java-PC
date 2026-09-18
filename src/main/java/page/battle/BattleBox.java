@@ -1462,6 +1462,17 @@ public interface BattleBox {
 			}
 
 			P.delete(p);
+			if(bf.sb.isPvp()&&sb.pvpRoulette!=null&&sb.pvpRoulette.babyRushTicks>0){
+				int seconds=Math.max(1,(sb.pvpRoulette.babyRushTicks+PvpStageBasis.TPS-1)/PvpStageBasis.TPS);
+				try{
+					FakeImage badge=Pvp3dsAssets.textBadge("ぷちベビーラッシュ 残り "+seconds+"秒");
+					float bh=Math.max(22f,box.getHeight()*0.042f);
+					float bw=bh*badge.getWidth()/Math.max(1f,badge.getHeight());
+					float bx=box.getHeight()*0.01f;
+					float by=box.getHeight()*0.01f+nameheight+box.getHeight()*0.07f+4f;
+					g.drawImage(badge,bx,by,bw,bh);
+				}catch(RuntimeException ignored){}
+			}
 		}
 
 		protected synchronized void drawMaxSpawn(FakeGraphics gra) {
