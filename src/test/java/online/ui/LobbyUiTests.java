@@ -189,7 +189,7 @@ public final class LobbyUiTests {
                     PvpStageBasis live=(PvpStageBasis)field(page,"battle");Check.equal(8000f,live.ubase.pos-live.ebase.pos,"exact castle separation from host rules");
                     Check.equal(4,live.st.bg.id,"host background selected");Check.equal(7,live.st.mus0.id,"host BGM selected");
                     Check.equal(online.net.lobby.RoomRules.SpecialMode.ROULETTE,live.specialMode(),"battle uses synchronized roulette special mode");
-                    PvpRouletteHud rouletteHud=(PvpRouletteHud)field(nativePage,"onlineSpecial");Check.that(rouletteHud.isVisible()&&rouletteHud.has3dsAssets(),"native battle page uses decoded 3DS roulette assets without replacing BCU UI");
+                    PvpRouletteHud rouletteHud=(PvpRouletteHud)field(nativePage,"onlineSpecial");Check.that(rouletteHud.isVisible(),"native roulette HUD is visible in roulette mode");Check.that(rouletteHud.has3dsAssets(),"native battle page uses decoded 3DS roulette assets: "+Pvp3dsAssets.diagnostic());
                     Check.that(live.b.lu.fs[0][0].unit.id.pack.contains("pvp"),"edited lineup remains isolated by match");
                     Check.equal(host?23:81,io.BCMusic.VOL_BG,"individual lobby BGM gain retained");
                     ((JButton)field(nativePage,"audio")).doClick();JDialog dialog=(JDialog)field(nativePage,"audioDialog");
