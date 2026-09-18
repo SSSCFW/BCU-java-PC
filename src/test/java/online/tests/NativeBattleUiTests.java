@@ -38,7 +38,7 @@ public final class NativeBattleUiTests {
     }
     private static final class Trace extends FG2D {
         final IdentityHashMap<FakeImage,List<Rectangle>> images = new IdentityHashMap<>();
-        int axes, flips;
+        int axes, flips, ovals, fullScreenDarkRects;
         Trace(Graphics2D graphics) { super(graphics); }
         @Override public void drawImage(FakeImage image, float x, float y, float w, float h) {
             images.computeIfAbsent(image, key -> new ArrayList<>()).add(new Rectangle((int)x, (int)y, (int)w, (int)h));
@@ -46,6 +46,11 @@ public final class NativeBattleUiTests {
         }
         @Override public void drawLine(float x,float y,float w,float h) { axes++; super.drawLine(x,y,w,h); }
         @Override public void drawRect(float x,float y,float w,float h) { axes++; super.drawRect(x,y,w,h); }
+        @Override public void drawOval(float x,float y,float w,float h) { ovals++; super.drawOval(x,y,w,h); }
+        @Override public void colRect(float x,float y,float w,float h,int r,int g,int b,int a) {
+            if(x<=0&&y<=0&&w>=1100&&h>=680&&r<80&&g<80&&b<80&&a>0)fullScreenDarkRects++;
+            super.colRect(x,y,w,h,r,g,b,a);
+        }
         @Override public void scale(float x,float y) { if(x<0)flips++;super.scale(x,y); }
     }
     public static void run() throws Exception {
@@ -75,6 +80,8 @@ public final class NativeBattleUiTests {
                 Graphics2D g=image.createGraphics();Trace trace=new Trace(g);
                 try { box.painter.draw(trace); } finally { g.dispose(); }
                 Check.equal(0,trace.axes,"normal PvP rendering must hide editor axes even when global ref=true");
+                Check.that(trace.images.containsKey(Pvp3dsAssets.textBadge("属性なし")),
+                        "default PvP trait badge is drawn inside the battlefield above castle health");
                 Check.that(CommonStatic.getConfig().ref,"rendering must restore the user's editor debug setting");
                 Check.that(trace.flips>=3,"left castle, units and cannons are mirrored with native coordinates");
                 FakeImage own=(dir==1?left:right).forms[0].anim.getUni().getImg();
@@ -187,6 +194,7 @@ public final class NativeBattleUiTests {
         Check.that(!spinTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi","ルーレットリール蓋（上部）"))
                         && !spinTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi","ルーレットリール蓋（下部）")),
                 "opaque 3DS lid boards must not cover roulette effect-name text");
+        Check.equal(0,spinTrace.fullScreenDarkRects,"roulette spin must not darken the entire battlefield");
 
         for(int i=0;i<PvpRouletteState.AUTO_SPIN_TICKS;i++)live.step(new InputFrame(live.time,0,0));
         Check.that(!live.left().pvpRoulette.spinning,"roulette fixture auto-resolves after two seconds");
@@ -200,6 +208,13 @@ public final class NativeBattleUiTests {
                 "resolved effect shows the original 3DS cut-in on the battlefield");
         Check.that(resultTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_reel",rouletteEffect(result))),
                 "resolved effect shows the original 3DS activation icon on the battlefield");
+        Check.equal(0,resultTrace.fullScreenDarkRects,"roulette result must not darken the entire battlefield");
+        live.left().pvpRoulette.forceResult(live,live.left(),PvpRouletteState.KNOCKBACK);
+        field.publish(live.displayCopy());
+        BufferedImage shockImage=new BufferedImage(box.getWidth(),box.getHeight(),BufferedImage.TYPE_INT_ARGB);
+        Graphics2D kg=shockImage.createGraphics();Trace shockTrace=new Trace(kg);
+        try{box.painter.draw(shockTrace);}finally{kg.dispose();}
+        Check.that(shockTrace.ovals>=3,"knockback roulette activation renders a visible shockwave");
 
         Path spinPath=Paths.get("target/native-ui-roulette-spin.png");
         Path resultPath=Paths.get("target/native-ui-roulette-result.png");
