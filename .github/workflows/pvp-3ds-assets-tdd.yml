@@ -1,0 +1,22 @@
+name: PvP 3DS asset verification
+on:
+  push:
+    branches: [work/pvp-3ds-assets]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Maven engine and BCTEX tests
+        run: mvn -B -ntp clean verify dependency:copy-dependencies -DoutputDirectory=target/lib
+      - name: Real Swing two-client UI
+        run: xvfb-run -a java -ea -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.ui.LobbyUiTests
