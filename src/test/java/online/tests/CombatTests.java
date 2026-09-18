@@ -50,6 +50,20 @@ public final class CombatTests {
             Check.equal(BattleDigest.of(a),BattleDigest.of(b),"wave/combat digest agrees at "+tick);
         }
         CommonStatic.getConfig().performanceModeAnimation=false;
+        cannonVisualTests();
+    }
+
+    private static void cannonVisualTests() throws Exception {
+        PvpStageBasis b=duel(false,false);
+        for(StageBasis owner:new StageBasis[]{b.left(),b.right()}) {
+            common.util.Data.Proc proc=common.util.Data.Proc.blank();
+            proc.WAVE.lv=1;
+            AttackCanon source=new AttackCanon(owner.canon,1,new ArrayList<>(),0,proc,0,0,1);
+            float p=owner.ownBase().pos;
+            ContWaveCanon wave=new ContWaveCanon(new AttackWave(source.attacker,source,p,common.util.Data.NYRAN[0],common.util.Data.WT_CANN|common.util.Data.WT_WAVE),p,0);
+            Check.that(animation(wave).anim()==CommonStatic.getBCAssets().atks[0],
+                    "basic cannon wave uses the normal pink cannon asset on direction "+owner.ownDirection());
+        }
     }
     private static void defeatRewardTests() throws Exception {
     PvpStageBasis leftWins=duel(false,false);
