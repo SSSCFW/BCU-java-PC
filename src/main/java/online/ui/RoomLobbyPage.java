@@ -84,9 +84,13 @@ public final class RoomLobbyPage extends Page {
                 dirty=false;
             }
         }finally{loading=false;}
-        StringBuilder names=new StringBuilder();for(JsonElement e:value.getAsJsonArray("players")){JsonObject p=e.getAsJsonObject();
+        StringBuilder names=new StringBuilder();
+        boolean previousLoading=loading;loading=true;
+        try{for(JsonElement e:value.getAsJsonArray("players")){JsonObject p=e.getAsJsonObject();
             if(p.get("id").getAsInt()==playerId&&!playerDirty)castleHealthMultiplier.setValue(p.get("castleHealthMultiplier").getAsDouble());
-            names.append(p.get("id").getAsInt()==value.get("hostId").getAsInt()?"[ホスト] ":"[参加者] ").append(p.get("name").getAsString()).append("  /  ").append(p.get("seat").getAsString().equals("left")?"左・青":"右・ピンク").append("  / 城HP x").append(String.format(java.util.Locale.ROOT,"%.2f",p.get("castleHealthMultiplier").getAsDouble())).append("  /  ").append(p.get("lobbyReady").getAsBoolean()?"準備完了":"編集中");String label=p.get("lineupName").getAsString();if(!label.isEmpty())names.append("  /  ").append(label);names.append('\n');}participants.setText(names.toString());
+            names.append(p.get("id").getAsInt()==value.get("hostId").getAsInt()?"[ホスト] ":"[参加者] ").append(p.get("name").getAsString()).append("  /  ").append(p.get("seat").getAsString().equals("left")?"左・青":"右・ピンク").append("  / 城HP x").append(String.format(java.util.Locale.ROOT,"%.2f",p.get("castleHealthMultiplier").getAsDouble())).append("  /  ").append(p.get("lobbyReady").getAsBoolean()?"準備完了":"編集中");String label=p.get("lineupName").getAsString();if(!label.isEmpty())names.append("  /  ").append(label);names.append('\n');}}
+        finally{loading=previousLoading;}
+        participants.setText(names.toString());
         ruleNote.setText("設定バージョン "+value.get("revision").getAsLong()+"。変更すると全員の準備完了を解除します。");refreshControls();
     }
     private void refreshControls(){
