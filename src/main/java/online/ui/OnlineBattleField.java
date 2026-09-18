@@ -2,6 +2,7 @@ package online.ui;
 
 import common.CommonStatic;
 import common.battle.PvpStageBasis;
+import common.battle.PvpRouletteState;
 import common.battle.SBCtrl;
 import common.battle.StageBasis;
 import common.util.Data;
