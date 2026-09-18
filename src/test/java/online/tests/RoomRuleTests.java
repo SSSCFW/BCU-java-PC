@@ -20,9 +20,10 @@ public final class RoomRuleTests {
         Check.rejects(()->new RoomRules(4400,-1,-1,false),"negative background rejected");
         Check.rejects(()->new RoomRules(4400,0,-2,false),"invalid silence identifier rejected");
         for(int distance:new int[]{1000,4400,24000}) {
-            RoomRules rule=new RoomRules(distance,0,-1,true);
+            RoomRules rule=new RoomRules(distance,0,-1,true,RoomRules.SpecialMode.ROULETTE);
             JsonObject message=Protocol.message("rules");message.add("rules",rule.json());
             Check.equal(rule,RoomRules.read(message),"all rules roundtrip without client-local settings");
+            Check.equal(RoomRules.SpecialMode.ROULETTE,RoomRules.read(message).specialMode,"special mode is synchronized in room rules");
             BasisLU l=Fixture.lineup(FixtureNativeUi.unit("rule_l"+distance,0xff0055aa));
             BasisLU r=Fixture.lineup(FixtureNativeUi.unit("rule_r"+distance,0xffaa5500));
             PvpStageBasis a=new PvpStageBasis(l,r,134,0,rule),b=new PvpStageBasis(l,r,134,0,rule);
@@ -43,6 +44,14 @@ public final class RoomRuleTests {
                 view.force60Fps(false);Check.equal(30,view.renderFps(),"turning off override restores local preference");
             } finally {CommonStatic.getConfig().performanceModeBattle=old;}
         }
+        for(RoomRules.SpecialMode mode:RoomRules.SpecialMode.values()){
+            RoomRules special=new RoomRules(4400,0,-1,false,mode);
+            JsonObject msg=Protocol.message("rules");msg.add("rules",special.json());
+            Check.equal(mode,RoomRules.read(msg).specialMode,"host special mode roundtrip: "+mode);
+        }
+        JsonObject invalidMode=Protocol.message("rules");invalidMode.add("rules",RoomRules.DEFAULT.json());
+        invalidMode.getAsJsonObject("rules").addProperty("specialMode","NOT_A_MODE");
+        Check.rejects(()->RoomRules.read(invalidMode),"unknown special mode rejected");
         JsonObject bad=Protocol.message("rules");bad.add("rules",RoomRules.DEFAULT.json());
         bad.getAsJsonObject("rules").addProperty("force60Fps","true");
         Check.rejects(()->RoomRules.read(bad),"boolean option must not accept a string");
