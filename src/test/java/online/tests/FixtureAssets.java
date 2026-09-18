@@ -24,6 +24,7 @@ public final class FixtureAssets {
         common.util.unit.Trait.TRAITED=new java.util.ArrayList<>(UserProfile.getBCData().traits.getList().subList(0,8));
         Background bg=new Background(new Identifier<>("000000",Background.class,0),sprite);
         UserProfile.getBCData().bgs.set(0,bg);
+        UserProfile.getBCData().musics.set(3,new Music(new Identifier<>(Identifier.DEF,Music.class,3),0,new FDByte(new byte[]{1,2,3})));
         for(Field f:EffAnim.EffAnimStore.class.getFields()) {
             if(f.getType()!=EffAnim.class)continue;
             Class<?> type=(Class<?>)((ParameterizedType)f.getGenericType()).getActualTypeArguments()[0];
