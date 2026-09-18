@@ -121,7 +121,7 @@ public final class PvpSoundBank {
 
         void start(int fallbackMillis){
             if(clip==null){startFallback(fallbackMillis);return;}
-            clip.addLineListener(this);setVolume(clip);clip.setFramePosition(0);
+            setVolume(clip);clip.setFramePosition(0);clip.addLineListener(this);
             if(loop){
                 clip.loop(Clip.LOOP_CONTINUOUSLY);
             }else{
