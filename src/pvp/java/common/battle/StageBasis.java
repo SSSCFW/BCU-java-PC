@@ -30,6 +30,7 @@ public class StageBasis extends BattleObj {
     public StageBasis pvpRoot, pvpOther;
     public int pvpDirection = -1, pvpSeat = -1;
     public long pvpSequence;
+    public PvpRouletteState pvpRoulette;
     public final boolean isPvp() { return pvpRoot != null; }
     public final StageBasis world() { return pvpRoot == null ? this : pvpRoot; }
     public final int ownDirection() { return pvpDirection; }
@@ -816,11 +817,13 @@ public class StageBasis extends BattleObj {
 				}
 			}
 
-			if(cannon == maxCannon -1) {
+			boolean cannonMode = !isPvp() || ((PvpStageBasis)world()).rules.specialMode == online.net.lobby.RoomRules.SpecialMode.CANNON;
+			if(cannonMode && cannon == maxCannon -1) {
 				PvpAudio.notification(this, SE_CANNON_CHARGE);
 			}
 			if (active) {
-				cannon++;
+				if(cannonMode)cannon++;
+				else cannon=0;
 				int bank = maxBankLimit();
 				if (bank > 0) {
 					maxMoney = bank * 100;
@@ -829,6 +832,7 @@ public class StageBasis extends BattleObj {
 					int mon = b.t().getMonInc(work_lv);
 					if (!StageLimit.isComboBanned(est.lim, C_M_INC))
 						mon *= (b.getInc(C_M_INC) / 100 + 1);
+					if(pvpRoulette != null)mon = mon * pvpRoulette.workerPercent() / 100;
 					money += mon;
 				}
 			}
