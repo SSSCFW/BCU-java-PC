@@ -125,7 +125,7 @@ public final class NativeBattleUiTests {
                 Path path=Paths.get("target/native-ui-"+dir+"-"+twoRows+".png");Files.createDirectories(path.getParent());ImageIO.write(image,"png",path.toFile());
             }
             roulettePresentationTests(leftLu,rightLu);
-            online.net.lobby.RoomRules traitRules=new online.net.lobby.RoomRules(4400,0,-1,false,online.net.lobby.RoomRules.SpecialMode.NONE);
+            online.net.lobby.RoomRules traitRules=new online.net.lobby.RoomRules(4400,0,3,false,online.net.lobby.RoomRules.SpecialMode.NONE);
             PvpStageBasis traitBattle=new PvpStageBasis(leftLu,rightLu,979,0,traitRules,1.0,1.0,
                     common.util.Data.TRAIT_RED,common.util.Data.TRAIT_BLACK);
             OnlineBattleField traitField=new OnlineBattleField(new Keys(),traitBattle.displayCopy(),1,value->{});
@@ -147,7 +147,7 @@ public final class NativeBattleUiTests {
         } finally {CommonStatic.getConfig().ref=ref;CommonStatic.getConfig().twoRow=rows;CommonStatic.getConfig().performanceModeBattle=fps;}
     }
     private static void roulettePresentationTests(BasisLU leftLu,BasisLU rightLu) throws Exception {
-        online.net.lobby.RoomRules rules=new online.net.lobby.RoomRules(4400,0,-1,false,online.net.lobby.RoomRules.SpecialMode.ROULETTE);
+        online.net.lobby.RoomRules rules=new online.net.lobby.RoomRules(4400,0,3,false,online.net.lobby.RoomRules.SpecialMode.ROULETTE);
 
         PvpStageBasis charging=new PvpStageBasis(leftLu,rightLu,780,0,rules);
         for(int i=0;i<PvpStageBasis.TPS;i++)charging.step(new InputFrame(charging.time,0,0));
