@@ -2,6 +2,7 @@ package online.ui;
 
 import common.battle.PvpStageBasis;
 import online.net.lobby.PvpTraitRules;
+import online.net.lobby.PvpBattleMusic;
 import online.net.lobby.RoomRules;
 
 import java.io.*;
@@ -95,10 +96,12 @@ final class LobbyPreferences {
         }
         String server=p.getProperty("serverAddress",DEFAULT_SERVER),name=p.getProperty("displayName",fallbackName==null?"":fallbackName);
         try{
+            int music=integer(p,"musicId",RoomRules.DEFAULT.musicId);
+            if(!PvpBattleMusic.isAllowed(music))music=PvpBattleMusic.DEFAULT_ID;
             return new LobbyPreferences(server,name,
                     integer(p,"castleDistance",RoomRules.DEFAULT.castleDistance),
                     integer(p,"backgroundId",RoomRules.DEFAULT.backgroundId),
-                    integer(p,"musicId",RoomRules.DEFAULT.musicId),
+                    music,
                     bool(p,"force60Fps",RoomRules.DEFAULT.force60Fps),
                     RoomRules.SpecialMode.valueOf(p.getProperty("specialMode",RoomRules.DEFAULT.specialMode.name())),
                     bool(p,"debugMode",RoomRules.DEFAULT.debugMode),
