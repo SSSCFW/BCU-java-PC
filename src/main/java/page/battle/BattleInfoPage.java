@@ -167,7 +167,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		ini();
 		// These native single-player operations cannot be performed independently online.
 		paus.setEnabled(false);paus.setVisible(false);
-        add(audio);add(onlineSpecial);audio.addActionListener(e->{getPress().clear();if(audioDialog!=null&&audioDialog.isDisplayable()){audioDialog.toFront();return;}audioDialog=AudioSettingsPanel.open(this);});
+        add(audio);add(onlineSpecial);onlineSpecial.setText(online.specialStatus());audio.addActionListener(e->{getPress().clear();if(audioDialog!=null&&audioDialog.isDisplayable()){audioDialog.toFront();return;}audioDialog=AudioSettingsPanel.open(this);});
         if(MainBCU.loaded){BCMusic.stopAll();BCMusic.play(basis.sb.st.mus0);}
 		next.setEnabled(false);
 		rply.setEnabled(false);
