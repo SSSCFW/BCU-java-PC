@@ -13,10 +13,16 @@ public final class Participant {
     public RealtimeTransport realtime;
     public UdpService.Connection udp;
     public String bundleHash, uploadingHash, result;
-    public boolean uploaded, ready, downloading, lobbyReady;
+    public boolean uploaded, ready, downloading, lobbyReady, resultAck;
     public String lineupName="";
+    public double castleHealthMultiplier=20.0;
     public long nextFrameExpected, requestedFrame = -1, lastRescue, lastSend, lastFrameAckProgress = System.nanoTime();
     Participant(int id, String name, GameMode.Seat seat, ControlPeer control) {
         this.id = id; displayName = name; this.seat = seat; this.control = control;
+    }
+    void resetMatchState() {
+        bundleHash=null;uploadingHash=null;result=null;
+        uploaded=false;ready=false;downloading=false;lobbyReady=false;resultAck=false;
+        nextFrameExpected=0;requestedFrame=-1;lastRescue=0;lastSend=0;lastFrameAckProgress=System.nanoTime();
     }
 }

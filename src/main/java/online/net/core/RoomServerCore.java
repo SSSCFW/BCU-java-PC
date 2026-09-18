@@ -65,7 +65,7 @@ public final class RoomServerCore implements AutoCloseable {
                 RoomSession room = membership.get(peer); Participant p = participants.get(peer);
                 if (room == null || room.closed || p == null) throw new IOException("Not in a room");
                 switch (type) {
-                    case "rules": case "lineup": case "lobby_ready": editLobby(room,p,o,type); break;
+                    case "rules": case "lineup": case "lobby_ready": case "player_rules": editLobby(room,p,o,type); break;
                     case "transport_select": selectTransport(room, p, Protocol.string(o, "transport", 8)); break;
                     case "bundle": offerBundle(room, p, o); break;
                     case "bundle_end": finishBundle(room, p); break;
@@ -85,6 +85,8 @@ public final class RoomServerCore implements AutoCloseable {
                         }
                         break;
                     case "result": result(room, p, o); break;
+                    case "result_ack": resultAck(room,p); break;
+                    case "battle_abort": abortBattle(room,p); break;
                     case "leave": closeRoom(room, "CLOSED", "Player left the room"); break;
                     default: throw new IOException("Unknown request");
                 }
@@ -170,18 +172,19 @@ public final class RoomServerCore implements AutoCloseable {
         JsonObject o = Protocol.message(type); o.addProperty("mode", room.gameMode.id());
         o.addProperty("inputDelayTicks", room.inputDelayTicks);
         o.addProperty("room",room.id);o.addProperty("revision",room.revision);o.addProperty("hostId",room.hostId);
-        o.addProperty("phase",room.started?"STARTED":room.prepared?"PREPARING":"EDITING");o.add("rules",room.rules.json());
+        o.addProperty("phase",room.resultReady?"RESULT":room.started?"STARTED":room.prepared?"PREPARING":"EDITING");o.add("rules",room.rules.json());
         JsonArray players = new JsonArray();
         for (Participant p : room.participants.values()) {
             JsonObject item = new JsonObject(); item.addProperty("id", p.id); item.addProperty("name", p.displayName);
             item.addProperty("seat", p.seat.name); item.addProperty("team", p.seat.team);
-            item.addProperty("lobbyReady",p.lobbyReady);item.addProperty("lineupName",p.lineupName);players.add(item);
+            item.addProperty("lobbyReady",p.lobbyReady);item.addProperty("lineupName",p.lineupName);
+            item.addProperty("castleHealthMultiplier",p.castleHealthMultiplier);players.add(item);
         }
         o.add("players", players); return o;
     }
     /** Editable lobby commands are nonfatal: a stale click must never kick another player. */
     private void editLobby(RoomSession room,Participant p,JsonObject o,String type) {
-        if(room.prepared||room.started){notice(p,"LOCKED","全員の準備が完了したため、編成とルールは固定されています");return;}
+        if(room.prepared||room.started||room.resultReady){notice(p,"LOCKED","対戦処理中のため、編成と設定は固定されています");return;}
         try {
             if(type.equals("rules")) {
                 if(p.id!=room.hostId){notice(p,"HOST_ONLY","ルールはホストだけが変更できます");return;}
@@ -190,6 +193,10 @@ public final class RoomServerCore implements AutoCloseable {
                 if(!room.rules.equals(rules)){room.rules=rules;room.changed();}
             } else if(type.equals("lineup")) {
                 p.lineupName=Protocol.string(o,"name",120);room.changed();
+            } else if(type.equals("player_rules")) {
+                if(!currentRevision(room,p,o))return;
+                double multiplier=Protocol.real(o,"castleHealthMultiplier",0.1,1000.0);
+                if(Double.compare(multiplier,p.castleHealthMultiplier)!=0){p.castleHealthMultiplier=multiplier;room.changed();}
             } else {
                 if(!currentRevision(room,p,o))return;
                 p.lobbyReady=Protocol.bool(o,"ready");room.progressed=System.nanoTime();
@@ -296,7 +303,7 @@ public final class RoomServerCore implements AutoCloseable {
         }
     }
     private void ready(RoomSession room, Participant p, JsonObject o) throws IOException {
-        if (Protocol.number(o,"revision")!=room.revision || room.started || !room.manifestSent || !o.has("hashes") || !o.get("hashes").isJsonObject()) throw new IOException("Invalid readiness barrier");
+        if (Protocol.number(o,"revision")!=room.revision || room.started || room.resultReady || !room.manifestSent || !o.has("hashes") || !o.get("hashes").isJsonObject()) throw new IOException("Invalid readiness barrier");
         JsonObject hashes = o.getAsJsonObject("hashes");
         if (hashes.size() != room.participants.size()) throw new IOException("Incomplete bundle-hash roster");
         for (Participant member : room.participants.values())
@@ -305,7 +312,7 @@ public final class RoomServerCore implements AutoCloseable {
         startIfReady(room);
     }
     private void startIfReady(RoomSession room) {
-        if (room.started || !room.prepared || !room.manifestSent) return;
+        if (room.started || room.resultReady || !room.prepared || !room.manifestSent) return;
         for (Participant p : room.participants.values()) if (!p.ready || p.realtime == null) return;
         room.started = true; room.seed = random.nextLong(); room.progressed = System.nanoTime(); room.nextFrameAt = room.progressed;
         for (Participant p : room.participants.values()) p.lastFrameAckProgress = room.progressed;
@@ -335,14 +342,28 @@ public final class RoomServerCore implements AutoCloseable {
         if (p.result != null && !p.result.equals(value)) throw new IOException("Battle results differ"); p.result = value;
         for (Participant other : room.participants.values()) if (other.result == null) return;
         for (Participant other : room.participants.values()) if (!value.equals(other.result)) throw new IOException("Battle results differ");
-        JsonObject out = Protocol.message("result"); out.addProperty("winner", winner); out.addProperty("tick", tick); broadcast(room, out); removeRoom(room);
+        room.started=false;room.resultReady=true;room.progressed=System.nanoTime();
+        JsonObject out = Protocol.message("result"); out.addProperty("winner", winner); out.addProperty("tick", tick); broadcast(room, out);
+    }
+    private void resultAck(RoomSession room,Participant p)throws IOException{
+        if(!room.resultReady)throw new IOException("No battle result to acknowledge");
+        p.resultAck=true;room.progressed=System.nanoTime();
+        JsonObject state=Protocol.message("result_ack_state");state.addProperty("playerId",p.id);broadcast(room,state);
+        for(Participant member:room.participants.values())if(!member.resultAck)return;
+        room.resetMatch();broadcast(room,roster(room,"room_state"));
+    }
+    private void abortBattle(RoomSession room,Participant p)throws IOException{
+        if(!room.prepared&&!room.started&&!room.resultReady)throw new IOException("No active battle to abort");
+        JsonObject cancelled=Protocol.message("battle_cancelled");cancelled.addProperty("playerId",p.id);broadcast(room,cancelled);
+        room.resetMatch();broadcast(room,roster(room,"room_state"));
     }
     public synchronized void pump(long now) {
         if (closed) return;
         for (RoomSession room : new ArrayList<>(rooms.values())) {
             try {
                 if ((!room.prepared && now - room.progressed > config.roomIdleMinutes * 60L * SECOND) ||
-                        (room.prepared && now - room.progressed > (room.started ? 30 : 120) * SECOND)) {
+                        (room.prepared && now - room.progressed > (room.started ? 30 : 120) * SECOND) ||
+                        (room.resultReady && now - room.progressed > config.roomIdleMinutes * 60L * SECOND)) {
                     closeRoom(room, "TIMEOUT", "Room timed out"); continue;
                 }
                 if (room.started && now >= room.nextFrameAt) {

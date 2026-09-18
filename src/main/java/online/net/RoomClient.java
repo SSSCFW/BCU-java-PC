@@ -40,7 +40,7 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
     private final List<Path> cacheTemps = new ArrayList<>();
     private final ArrayDeque<String> downloadQueue = new ArrayDeque<>();
     private final TreeMap<Long, String> checkpoints = new TreeMap<>();
-    private final InputHistory inputHistory = new InputHistory();
+    private InputHistory inputHistory = new InputHistory();
     private FrameBuffer frameBuffer;
     private UdpRealtimeClient udp;
     private WebSocketRealtimeTransport wsRealtime;
@@ -53,7 +53,7 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
     private int playerId, delay = Protocol.INPUT_DELAY;
     private long roomRevision=-1;
     private RoomRules rules=RoomRules.DEFAULT;
-    private boolean started, completed, ended, reported, manifestSeen, readyRequested, readySent;
+    private boolean started, completed, ended, reported, manifestSeen, readyRequested, readySent, resultAckSent;
 
     public RoomClient(URI uri, boolean allowPrivateWs, Listener listener) throws IOException { this(uri, allowPrivateWs, true, listener); }
     public RoomClient(URI uri, boolean allowPrivateWs, boolean preferUdp, Listener listener) throws IOException {
@@ -109,6 +109,7 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
                         playerId = Protocol.integer(o, "playerId"); if (playerId <= 0) throw new IOException("Invalid player identity");
                         delay = readDelay(o); listener.event(o); break;
                     case "room_state":
+                        if(o.has("phase")&&"EDITING".equals(Protocol.string(o,"phase",16))&&(started||completed||!roster.isEmpty()))resetBattleState();
                         roomRevision=Protocol.number(o,"revision");rules=RoomRules.read(o);listener.event(o);break;
                     case "prepare":
                         long revision=Protocol.number(o,"revision");
@@ -138,7 +139,11 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
                         if ("UDP".equals(selected) && started) { accept(RealtimeData.fromControl(o)); rescueCount++; send(outbound().control("rescue").toString()); }
                         break;
                     case "result":
-                        completed = true; if (udp != null) udp.close(); timer.shutdownNow(); listener.event(o); break;
+                        completed = true; listener.event(o); break;
+                    case "battle_cancelled":
+                        completed = true; listener.event(o); break;
+                    case "result_ack_state":
+                        listener.event(o); break;
                     case "error": throw new IOException(Protocol.string(o, "code", 32) + ": " + Protocol.string(o, "message", 1024));
                     default: listener.event(o); break;
                 }
@@ -222,9 +227,10 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
     private void pump() {
         try {
             synchronized (state) {
-                if (ended || completed || !isOpen()) return;
+                if (ended || !isOpen()) return;
                 long now = System.nanoTime(); RealtimeData data = outbound();
-                if (udp != null) udp.pump(data, now, started && "UDP".equals(selected));
+                if (udp != null) udp.pump(data, now, started && !completed && "UDP".equals(selected));
+                if(completed)return;
                 if (!started) return;
                 if ("UDP".equals(selected)) {
                     if (udp == null || now - udp.lastReceived() > 3_000_000_000L) throw new IOException("UDP_TIMEOUT: 3秒間UDP通信が届かないため試合を停止しました");
@@ -342,6 +348,9 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
     public void setRoomRules(RoomRules value){synchronized(state){setRoomRules(value,roomRevision);}}
     public void setRoomRules(RoomRules value,long displayedRevision){synchronized(state){JsonObject o=Protocol.message("rules");o.addProperty("revision",displayedRevision);o.add("rules",value.json());send(o.toString());}}
     public void setLineupName(String value){JsonObject o=Protocol.message("lineup");o.addProperty("name",value);send(o.toString());}
+    public void setCastleHealthMultiplier(double value,long displayedRevision){synchronized(state){JsonObject o=Protocol.message("player_rules");o.addProperty("revision",displayedRevision);o.addProperty("castleHealthMultiplier",value);send(o.toString());}}
+    public void resultAck(){synchronized(state){if(!completed||ended||resultAckSent)return;resultAckSent=true;send(Protocol.message("result_ack").toString());}}
+    public void abortBattle(){synchronized(state){if(ended)return;send(Protocol.message("battle_abort").toString());}}
     public void queueCommand(int bit) {
         synchronized (state) { if (!started || ended || completed || !InputFrame.valid(bit)) return; }
         commands.getAndUpdate(old -> (old | (bit & 4095)) ^ (bit & ~4095));
@@ -362,6 +371,17 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
     }
     public void result(long tick, int winner, String hash) {
         JsonObject o = Protocol.message("result"); o.addProperty("tick", tick); o.addProperty("winner", winner); o.addProperty("hash", hash); send(o.toString());
+    }
+    private void resetBattleState() {
+        started=false;completed=false;manifestSeen=false;readyRequested=false;readySent=false;resultAckSent=false;
+        roster.clear();hashes.clear();recipients.clear();manifestSizes.clear();delivered.clear();downloadQueue.clear();
+        frames.clear();commands.set(0);checkpoints.clear();frameBuffer=null;inputHistory=new InputHistory();
+        ownHash=null;ownArchive=null;downloadingHash=null;serverExpected=0;serverRequest=-1;maxCheckpoint=0;
+        lastFrameProgress=lastRescue=lastWsSend=0;expectedBytes=received=0;
+        if(output!=null)try{output.close();}catch(IOException ignored){}
+        output=null;digest=null;
+        if(receiving!=null)try{Files.deleteIfExists(receiving);}catch(IOException ignored){}
+        receiving=null;
     }
     private void fail(String reason) {
         synchronized (state) { if (reported || ended || completed) return; reported = true; }
