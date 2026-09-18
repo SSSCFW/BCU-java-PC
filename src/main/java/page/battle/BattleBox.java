@@ -359,6 +359,9 @@ public interface BattleBox {
 			FakeImage left = aux.battle[0][mtype].getImg();
 			int ctype = sb.cannon == sb.maxCannon && time == 0 ? 1 : 0;
 			FakeImage right = aux.battle[1][ctype].getImg();
+			boolean rouletteRule = sb.isPvp()
+					&& ((PvpStageBasis) sb.world()).specialMode() == online.net.lobby.RoomRules.SpecialMode.ROULETTE
+					&& sb.pvpRoulette != null;
 			cw += left.getWidth();
 			cw += right.getWidth();
 			cw += aux.slot[0].getImg().getWidth() * 5;
@@ -371,12 +374,15 @@ public interface BattleBox {
 			g.drawImage(left, - BOTTOM_GAP * hr, h - ih, iw, ih);
 			iw = (int) (hr * right.getWidth());
 			ih = (int) (hr * right.getHeight());
-			g.drawImage(right, w - iw + BOTTOM_GAP * hr, h - ih, iw, ih);
+			if (rouletteRule)
+				drawRouletteGaugeControl(g, w, h, hr, iw, ih, sb.pvpRoulette);
+			else
+				g.drawImage(right, w - iw + BOTTOM_GAP * hr, h - ih, iw, ih);
 			Res.getCost(sb.getUpgradeCost(), mtype > 0, setSym(g, hr, hr * 5, h - hr * 5, 2));
 			Res.getWorkerLv(sb.work_lv, mtype > 0, setSym(g, hr, hr * 5, h - hr * 130, 0));
 			int hi = h;
 			float marg = 0;
-			if (ctype == 0)
+			if (!rouletteRule && ctype == 0)
 				for (int i = 0; i < 10 * sb.cannon / sb.maxCannon; i++) {
 					FakeImage img = aux.battle[1][2 + i].getImg();
 					iw = (int) (hr * img.getWidth());
@@ -390,7 +396,7 @@ public interface BattleBox {
 					g.drawImage(img, w - iw + BOTTOM_GAP * hr, hi, iw, ih);
 				}
 			boolean cannonFireLabel=!sb.isPvp()||((PvpStageBasis)sb.world()).specialMode()==online.net.lobby.RoomRules.SpecialMode.CANNON;
-			if(sb.cannon == sb.maxCannon && cannonFireLabel) {
+			if(!rouletteRule && sb.cannon == sb.maxCannon && cannonFireLabel) {
 				FakeImage fire = aux.battle[1][getFireLang()+ctype].getImg();
 
 				int fw = (int) (hr * fire.getWidth());
@@ -419,6 +425,59 @@ public interface BattleBox {
 			}
 
 			unir = hr;
+		}
+
+		/**
+		 * Roulette mode owns the bottom-right special control. Keep the native cannon
+		 * hit box/spacing, but replace every cannon pixel with a visible continuous
+		 * roulette meter so 1% native charge steps are observable immediately.
+		 */
+		private void drawRouletteGaugeControl(FakeGraphics g, int w, int h, float hr,
+		                                      int iw, int ih, PvpRouletteState state) {
+			float x = w - iw + BOTTOM_GAP * hr;
+			float y = h - ih;
+			float pad = Math.max(2f, Math.min(iw, ih) * 0.045f);
+			g.colRect(x, y, iw, ih, 8, 8, 12, 235);
+			g.colRect(x + pad, y + pad, iw - pad * 2, ih - pad * 2, 28, 28, 34, 245);
+
+			float gaugeX = x + iw * 0.16f;
+			float gaugeY = y + ih * 0.12f;
+			float gaugeW = Math.max(8f, iw * 0.30f);
+			float gaugeH = ih * 0.76f;
+			float border = Math.max(1f, pad * 0.7f);
+			g.colRect(gaugeX - border, gaugeY - border, gaugeW + border * 2, gaugeH + border * 2,
+					235, 235, 235, 255);
+			g.colRect(gaugeX, gaugeY, gaugeW, gaugeH, 18, 18, 22, 255);
+
+			float ratio = Math.max(0f, Math.min(1f, state.gauge / (float) PvpRouletteState.MAX_GAUGE));
+			float fill = gaugeH * ratio;
+			if (fill > 0f)
+				g.colRect(gaugeX, gaugeY + gaugeH - fill, gaugeW, fill,
+						state.gauge >= PvpRouletteState.MAX_GAUGE ? 255 : 235,
+						state.gauge >= PvpRouletteState.MAX_GAUGE ? 235 : 170, 35, 255);
+			for (int i = 1; i < 10; i++) {
+				float sy = gaugeY + gaugeH * i / 10f;
+				g.colRect(gaugeX, sy, gaugeW, Math.max(1f, hr * 0.7f), 0, 0, 0, 150);
+			}
+
+			try {
+				FakeImage top = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレットアイコン蓋（上部）");
+				FakeImage bottom = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレットアイコン蓋（下部）");
+				float frameW = Math.min(iw * 0.34f, ih * 0.42f);
+				float frameH = frameW * 46f / 44f;
+				float fx = x + iw * 0.55f;
+				float fy = y + ih * 0.17f;
+				g.drawImage(top, fx, fy, frameW, frameH / 2f);
+				g.drawImage(bottom, fx, fy + frameH / 2f, frameW, frameH / 2f);
+
+				String lampLabel = state.gauge >= PvpRouletteState.MAX_GAUGE || state.spinning
+						? "ルーレットランプ：ハイライト" : "ルーレットランプ：点灯";
+				FakeImage lamp = Pvp3dsAssets.fakeImage("ui_battle_multi_reel", lampLabel);
+				float lampSize = Math.min(iw * 0.27f, ih * 0.25f);
+				g.drawImage(lamp, x + iw * 0.60f, y + ih * 0.62f, lampSize, lampSize);
+			} catch (RuntimeException ignored) {
+				// The meter itself is renderer-native and remains usable without optional art.
+			}
 		}
 
 		private void drawRoulettePresentation(FakeGraphics g, StageBasis player) {

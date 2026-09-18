@@ -129,6 +129,31 @@ public final class NativeBattleUiTests {
     }
     private static void roulettePresentationTests(BasisLU leftLu,BasisLU rightLu) throws Exception {
         online.net.lobby.RoomRules rules=new online.net.lobby.RoomRules(4400,0,-1,false,online.net.lobby.RoomRules.SpecialMode.ROULETTE);
+
+        PvpStageBasis charging=new PvpStageBasis(leftLu,rightLu,780,0,rules);
+        for(int i=0;i<PvpStageBasis.TPS;i++)charging.step(new InputFrame(charging.time,0,0));
+        Check.equal(10,charging.left().pvpRoulette.gauge,
+                "real 30TPS battle steps visibly charge roulette by the reverse-engineered 1% full-HP step");
+
+        PvpStageBasis meter=new PvpStageBasis(leftLu,rightLu,781,0,rules);
+        OnlineBattleField meterField=new OnlineBattleField(new Keys(),meter.displayCopy(),1,value->{});
+        Box meterBox=new Box(meterField);
+        BufferedImage emptyMeter=new BufferedImage(meterBox.getWidth(),meterBox.getHeight(),BufferedImage.TYPE_INT_ARGB);
+        Graphics2D eg=emptyMeter.createGraphics();Trace emptyTrace=new Trace(eg);
+        try{meterBox.painter.draw(emptyTrace);}finally{eg.dispose();}
+        Check.that(!emptyTrace.images.containsKey(CommonStatic.getBCAssets().battle[1][0].getImg()),
+                "roulette mode removes the native cannon icon from the bottom-right control");
+        Check.that(emptyTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi","ルーレットアイコン蓋（上部）")),
+                "roulette mode draws original 3DS roulette framing in the cannon control position");
+
+        meter.left().pvpRoulette.gauge=meter.left().pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE/2;
+        meterField.publish(meter.displayCopy());
+        BufferedImage halfMeter=new BufferedImage(meterBox.getWidth(),meterBox.getHeight(),BufferedImage.TYPE_INT_ARGB);
+        Graphics2D hg=halfMeter.createGraphics();
+        try{meterBox.painter.draw(new Trace(hg));}finally{hg.dispose();}
+        Check.that(pixelDifference(emptyMeter,halfMeter,700,430,1100,680)>100,
+                "roulette bottom-right gauge visibly changes between 0% and 50%");
+
         PvpStageBasis live=new PvpStageBasis(leftLu,rightLu,782,0,rules);
         StageBasis own=live.left();
         own.pvpRoulette.gauge=own.pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;
@@ -165,6 +190,13 @@ public final class NativeBattleUiTests {
         Files.createDirectories(spinPath.getParent());
         ImageIO.write(spinning,"png",spinPath.toFile());
         ImageIO.write(resultImage,"png",resultPath.toFile());
+    }
+
+    private static int pixelDifference(BufferedImage a,BufferedImage b,int x0,int y0,int x1,int y1){
+        int changed=0;
+        int minX=Math.max(0,x0),minY=Math.max(0,y0),maxX=Math.min(a.getWidth(),x1),maxY=Math.min(a.getHeight(),y1);
+        for(int y=minY;y<maxY;y++)for(int x=minX;x<maxX;x++)if(a.getRGB(x,y)!=b.getRGB(x,y))changed++;
+        return changed;
     }
 
     private static String rouletteIcon(int result){return new String[]{
