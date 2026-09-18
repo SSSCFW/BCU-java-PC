@@ -25,7 +25,7 @@ public final class RoomLobbyTests {
         }
         JsonObject state(int count) throws Exception { JsonObject s;do{s=take("room_state");}while(s.getAsJsonArray("players").size()!=count);return s; }
         void hello(boolean create,String room){JsonObject o=Protocol.message(create?"create":"join");o.addProperty("version",Protocol.VERSION);o.addProperty("engine",Protocol.ENGINE);o.addProperty("name",create?"Host":"Guest");o.addProperty("password","");o.addProperty("game",Hashes.sha256(new byte[]{1}));o.addProperty("room",room);o.addProperty("side","right");o.addProperty("udp",false);send(o.toString());}
-        void rules(long revision,int distance){JsonObject o=Protocol.message("rules");o.addProperty("revision",revision);JsonObject r=new JsonObject();r.addProperty("castleDistance",distance);r.addProperty("backgroundId",4);r.addProperty("musicId",7);r.addProperty("force60Fps",true);o.add("rules",r);send(o.toString());}
+        void rules(long revision,int distance){JsonObject o=Protocol.message("rules");o.addProperty("revision",revision);JsonObject r=new JsonObject();r.addProperty("castleDistance",distance);r.addProperty("backgroundId",4);r.addProperty("musicId",7);r.addProperty("force60Fps",true);r.addProperty("specialMode","ROULETTE");o.add("rules",r);send(o.toString());}
         void ready(long revision,boolean value){JsonObject o=Protocol.message("lobby_ready");o.addProperty("revision",revision);o.addProperty("ready",value);send(o.toString());}
         void lineup(String name){JsonObject o=Protocol.message("lineup");o.addProperty("name",name);send(o.toString());}
     }
@@ -44,6 +44,7 @@ public final class RoomLobbyTests {
             host.rules(rev,8000);a=host.state(2);b=guest.state(2);long changed=a.get("revision").getAsLong();
             Check.that(changed>rev,"rules increment revision");Check.equal(a.get("rules"),b.get("rules"),"identical rules broadcast");
             Check.equal(8000,a.getAsJsonObject("rules").get("castleDistance").getAsInt(),"host rules accepted");
+            Check.equal("ROULETTE",a.getAsJsonObject("rules").get("specialMode").getAsString(),"host roulette mode accepted and broadcast");
             host.ready(rev,true);Check.equal("STALE",host.take("notice").get("code").getAsString(),"stale readiness rejected nonfatally");host.state(2);
             host.ready(changed,true);a=host.state(2);guest.state(2);Check.that(a.getAsJsonArray("players").get(0).getAsJsonObject().get("lobbyReady").getAsBoolean(),"host readiness displayed");
             guest.lineup("Changed lineup");a=host.state(2);b=guest.state(2);long lineRev=a.get("revision").getAsLong();Check.that(lineRev>changed,"lineup edits increment revision");
