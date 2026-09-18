@@ -20,7 +20,7 @@ public final class LobbyPreferencesTests {
         online.tests.Check.equal("tester",loaded.displayName,"preference display name roundtrip");
         online.tests.Check.equal(8123,loaded.castleDistance,"castle distance preference roundtrip");
         online.tests.Check.equal(RoomRules.RANDOM_BACKGROUND,loaded.backgroundId,"random background preference roundtrip");
-        online.tests.online.tests.Check.equal(3,loaded.musicId,"curated BGM preference roundtrip");
+        online.tests.Check.equal(3,loaded.musicId,"curated BGM preference roundtrip");
         online.tests.Check.that(loaded.force60Fps&&loaded.debugMode,"boolean PvP room preferences roundtrip");
         online.tests.Check.equal(RoomRules.SpecialMode.ROULETTE,loaded.specialMode,"special mode preference roundtrip");
         online.tests.Check.equal(PvpTraitRules.RANDOM,loaded.hostTraitChoice,"host trait preference roundtrip");
