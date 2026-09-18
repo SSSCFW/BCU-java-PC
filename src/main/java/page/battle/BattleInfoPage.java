@@ -74,14 +74,15 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 
 	private OnlineBattleField online;
     private final JButton audio=new JButton("音量"),rouletteDebugMax=new JButton("ルーレットMAX");
-    private final JLabel onlineTag=new JLabel("Online"),babyRushStatus=new JLabel();
+    private final JLabel onlineTag=new JLabel("Online"),babyRushStatus=new JLabel(),rouletteNotice=new JLabel();
     private PvpRouletteHud onlineSpecial;
     private JDialog audioDialog;
     private final JPanel onlineResult=new JPanel(new BorderLayout(10,10));
     private final JLabel onlineResultTitle=new JLabel("",SwingConstants.CENTER),onlineResultDetail=new JLabel("",SwingConstants.CENTER);
     private final JButton onlineResultOk=new JButton("OK");
     private Runnable onlineResultAck;
-    private boolean onlineResultAcked;
+    private boolean onlineResultAcked,opponentRouletteSpinning;
+    private int rouletteNoticeUntil=-1;
 	private Runnable onlineExit;
 	private boolean onlineClosed;
 	private String onlineLeftName, onlineRightName;
@@ -174,9 +175,10 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		ini();
 		// These native single-player operations cannot be performed independently online.
 		paus.setEnabled(false);paus.setVisible(false);
-        onlineSpecial=new PvpRouletteHud(online);add(audio);add(onlineSpecial);add(onlineTag);add(babyRushStatus);add(rouletteDebugMax);
+        onlineSpecial=new PvpRouletteHud(online);add(audio);add(onlineSpecial);add(onlineTag);add(babyRushStatus);add(rouletteNotice);add(rouletteDebugMax);
         onlineTag.setForeground(Color.WHITE);onlineTag.setFont(onlineTag.getFont().deriveFont(Font.BOLD,18f));
         babyRushStatus.setForeground(new Color(255,225,80));babyRushStatus.setFont(babyRushStatus.getFont().deriveFont(Font.BOLD,16f));babyRushStatus.setVisible(false);
+        rouletteNotice.setForeground(new Color(255,245,180));rouletteNotice.setFont(rouletteNotice.getFont().deriveFont(Font.BOLD,16f));rouletteNotice.setVisible(false);
         rouletteDebugMax.setVisible(online.debugMode()&&online.rouletteMode());
         rouletteDebugMax.addActionListener(e->{getPress().clear();online.debugRouletteMax();});
         audio.addActionListener(e->{getPress().clear();if(audioDialog!=null&&audioDialog.isDisplayable()){audioDialog.toFront();return;}audioDialog=AudioSettingsPanel.open(this);});
@@ -247,8 +249,31 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
             babyRushStatus.setVisible(true);
         }else babyRushStatus.setVisible(false);
         rouletteDebugMax.setVisible(online.debugMode()&&online.rouletteMode());
+        updateOpponentRouletteNotice();
 		if (((Canvas) bb).isDisplayable()) bb.paint();
 	}
+
+    private void updateOpponentRouletteNotice(){
+        if(online==null||!online.rouletteMode()){
+            rouletteNotice.setVisible(false);opponentRouletteSpinning=false;return;
+        }
+        PvpRouletteState roulette=online.opponentState().pvpRoulette;
+        if(roulette==null)return;
+        int tick=online.sb.time;
+        if(roulette.spinning&&!opponentRouletteSpinning){
+            rouletteNotice.setText("相手がルーレットを開始しました！");
+            rouletteNoticeUntil=tick+3*PvpStageBasis.TPS;
+            rouletteNotice.setVisible(true);
+        }else if(!roulette.spinning&&opponentRouletteSpinning&&roulette.lastResult>=0){
+            int result=roulette.lastResult,lv=roulette.lastLevel;
+            String level=lv<=0?"":lv>=4?" MAX":" Lv"+lv;
+            rouletteNotice.setText("相手のルーレット結果: "+PvpRouletteState.NAMES[result]+level);
+            rouletteNoticeUntil=tick+3*PvpStageBasis.TPS;
+            rouletteNotice.setVisible(true);
+        }
+        opponentRouletteSpinning=roulette.spinning;
+        if(rouletteNoticeUntil>=0&&tick>=rouletteNoticeUntil)rouletteNotice.setVisible(false);
+    }
 
 	/** Invalidate references before lobby unmounts temporary character packs. Idempotent. */
 	public void detachOnline() {
@@ -418,12 +443,14 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
             if(jtb.isSelected()){
                 set(onlineTag,x,y,220,60,300,34);
                 set(babyRushStatus,x,y,220,92,520,38);
-                set(rouletteDebugMax,x,y,220,134,300,50);
+                set(rouletteNotice,x,y,220,130,720,38);
+                set(rouletteDebugMax,x,y,220,172,300,50);
                 set(onlineResult,x,y,650,430,1000,320);
             }else{
                 set(onlineTag,x,y,720,310,300,34);
                 set(babyRushStatus,x,y,720,342,520,38);
-                set(rouletteDebugMax,x,y,720,384,300,50);
+                set(rouletteNotice,x,y,720,380,720,38);
+                set(rouletteDebugMax,x,y,720,422,300,50);
                 set(onlineResult,x,y,750,390,700,320);
             }
         }
