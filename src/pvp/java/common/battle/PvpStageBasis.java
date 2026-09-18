@@ -3,6 +3,7 @@ package common.battle;
 import common.battle.entity.ECastle;
 import common.battle.entity.EUnit;
 import common.pack.Identifier;
+import common.pack.UserProfile;
 import common.util.stage.*;
 import common.util.pack.Background;
 import online.sync.InputFrame;
@@ -38,7 +39,7 @@ public final class PvpStageBasis extends StageBasis {
     }
     public PvpStageBasis(BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules,
                          double leftCastleMultiplier,double rightCastleMultiplier) {
-        this(arena(rules),left,right,seed,leftSeat,rules,leftCastleMultiplier,rightCastleMultiplier);
+        this(arena(resolveRandomRules(rules,seed)),left,right,seed,leftSeat,resolveRandomRules(rules,seed),leftCastleMultiplier,rightCastleMultiplier);
     }
     private PvpStageBasis(Stage arena, BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules,
                           double leftCastleMultiplier,double rightCastleMultiplier) {
@@ -163,10 +164,35 @@ public final class PvpStageBasis extends StageBasis {
         long scaled=Math.max(1L,Math.round(base*multiplier));
         player.ownBase().maxH=scaled;player.ownBase().health=scaled;
     }
+    public static RoomRules resolveRandomRules(RoomRules rules,long seed) {
+        int background=rules.backgroundId==RoomRules.RANDOM_BACKGROUND?randomBackgroundId(seed):rules.backgroundId;
+        int music=rules.musicId==RoomRules.RANDOM_MUSIC?randomMusicId(seed):rules.musicId;
+        RoomRules resolved=new RoomRules(rules.castleDistance,background,music,rules.force60Fps,rules.specialMode,rules.debugMode);
+        validateRulesAssets(resolved);
+        return resolved;
+    }
+    private static int randomBackgroundId(long seed) {
+        List<Integer> ids=new ArrayList<>();
+        for(Background bg:UserProfile.getBCData().bgs.getList())if(bg!=null&&bg.id!=null)ids.add(bg.id.id);
+        Collections.sort(ids);
+        if(ids.isEmpty())throw new IllegalArgumentException("ランダム背景に使える標準背景がありません");
+        return ids.get(new Random(seed^0x4d5f0b17913a2c6dL).nextInt(ids.size()));
+    }
+    private static int randomMusicId(long seed) {
+        List<Integer> ids=new ArrayList<>();
+        for(Music music:UserProfile.getBCData().musics.getList())if(music!=null&&music.id!=null&&music.data!=null)ids.add(music.id.id);
+        Collections.sort(ids);
+        if(ids.isEmpty())throw new IllegalArgumentException("ランダムBGMに使える標準BGMがありません");
+        return ids.get(new Random(seed^0x729f4a1c53dbe807L).nextInt(ids.size()));
+    }
     public static void validateRulesAssets(RoomRules rules) {
-        if(Identifier.get(new Identifier<>(Identifier.DEF,Background.class,rules.backgroundId))==null)
+        if(rules.backgroundId==RoomRules.RANDOM_BACKGROUND) {
+            randomBackgroundId(0);
+        } else if(Identifier.get(new Identifier<>(Identifier.DEF,Background.class,rules.backgroundId))==null)
             throw new IllegalArgumentException("背景データがありません: "+rules.backgroundId);
-        if(rules.musicId>=0) {
+        if(rules.musicId==RoomRules.RANDOM_MUSIC) {
+            randomMusicId(0);
+        } else if(rules.musicId>=0) {
             Music music=Identifier.get(new Identifier<>(Identifier.DEF,Music.class,rules.musicId));
             if(music==null||music.data==null)throw new IllegalArgumentException("BGMデータがありません: "+rules.musicId);
         }
