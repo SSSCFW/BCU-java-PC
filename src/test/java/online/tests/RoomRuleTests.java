@@ -35,7 +35,7 @@ public final class RoomRuleTests {
             Check.that(RoomRules.read(message).debugMode,"host debug mode is synchronized in room rules");
             Check.equal(15,RoomRules.read(message).timeLimitMinutes,"time limit is synchronized in room rules");
             Check.equal(PvpTraitRules.RANDOM,RoomRules.read(message).hostTraitChoice,"host random trait is synchronized");
-            Check.equal(common.util.Data.TRAIT_RED,RoomRules.read(message).guestTraitChoice,"guest fixed trait is synchronized");
+            Check.equal((int)common.util.Data.TRAIT_RED,RoomRules.read(message).guestTraitChoice,"guest fixed trait is synchronized");
             BasisLU l=Fixture.lineup(FixtureNativeUi.unit("rule_l"+distance,0xff0055aa));
             BasisLU r=Fixture.lineup(FixtureNativeUi.unit("rule_r"+distance,0xffaa5500));
             PvpStageBasis baseline=new PvpStageBasis(l,r,133,0,rule,1.0,1.0);
