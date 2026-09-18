@@ -17,9 +17,10 @@ import online.ui.OnlineBattleField;
 import online.ui.AudioSettingsPanel;
 import online.ui.PvpRouletteHud;
 import online.ui.PvpSoundBank;
+import online.ui.PvpBattleOverlay;
+import online.ui.PvpRouletteAudio;
 import online.ui.PvpUnitAbilityOverlay;
 import online.net.lobby.PvpTraitRules;
-import online.net.lobby.RoomRules;
 import utilpc.UtilPC;
 import java.util.function.IntConsumer;
 import page.*;
@@ -90,15 +91,17 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
     private PvpRouletteHud onlineSpecial;
     private JDialog audioDialog;
     private final JPanel onlineResult=new JPanel(new BorderLayout(10,10));
-    private final JLabel onlineResultTitle=new JLabel("",SwingConstants.CENTER),onlineResultDetail=new JLabel("",SwingConstants.CENTER);
-    private final JButton onlineResultOk=new JButton("OK");
+    private final JLabel onlineResultTitle=PvpBattleOverlay.label("",32f);
+    private final JTextArea onlineResultDetail=PvpBattleOverlay.detail();
+    private final JButton onlineResultOk=PvpBattleOverlay.okButton();
+    private final PvpBattleOverlay onlineBackdrop=new PvpBattleOverlay();
     private final JPanel onlineBattleEnd=new JPanel(new BorderLayout());
-    private final JLabel onlineBattleEndLabel=new JLabel("戦闘終了",SwingConstants.CENTER);
+    private final JLabel onlineBattleEndLabel=PvpBattleOverlay.label("戦闘終了",52f);
     private Runnable onlineResultAck,pendingOnlineResultAck;
     private String pendingOnlineResultTitle,pendingOnlineResultDetail;
-    private boolean onlineResultAcked,opponentRouletteSpinning,onlineBattleEnding,onlineBattleEndSoundDone;
-    private boolean rouletteAudioInitialized,audioOwnSpinning,audioOpponentSpinning;
-    private int rouletteNoticeUntil=-1,audioGaugeSegment=-1,audioOwnPending=-1,audioOpponentPending=-1;
+    private boolean onlineResultAcked,opponentRouletteSpinning,onlineBattleEnding,onlineBattleEndSoundDone,onlineResultShown,onlineLayoutPending;
+    private final PvpRouletteAudio rouletteAudio=new PvpRouletteAudio();
+    private int rouletteNoticeUntil=-1;
 	private Runnable onlineExit;
 	private boolean onlineClosed;
 	private String onlineLeftName, onlineRightName;
@@ -206,21 +209,16 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
         rouletteDebugMax.setVisible(online.debugMode()&&online.rouletteMode());
         rouletteDebugMax.addActionListener(e->{getPress().clear();online.debugRouletteMax();});
         audio.addActionListener(e->{getPress().clear();if(audioDialog!=null&&audioDialog.isDisplayable()){audioDialog.toFront();return;}audioDialog=AudioSettingsPanel.open(this);});
-        onlineResult.setOpaque(true);onlineResult.setBackground(new Color(18,20,26));
-        onlineResult.setBorder(BorderFactory.createEmptyBorder(80,120,80,120));
-        onlineResultTitle.setForeground(Color.WHITE);onlineResultDetail.setForeground(new Color(225,228,235));
-        onlineResultTitle.setFont(onlineResultTitle.getFont().deriveFont(Font.BOLD,42f));
-        onlineResultDetail.setFont(onlineResultDetail.getFont().deriveFont(Font.PLAIN,20f));
-        onlineResultOk.setBackground(new Color(240,242,246));onlineResultOk.setForeground(new Color(20,22,28));
-        onlineResultOk.setOpaque(true);onlineResultOk.setFont(onlineResultOk.getFont().deriveFont(Font.BOLD,22f));
-        onlineResultOk.setPreferredSize(new Dimension(220,58));
-        JPanel resultCenter=new JPanel(new GridLayout(2,1,12,12));resultCenter.setOpaque(false);resultCenter.add(onlineResultTitle);resultCenter.add(onlineResultDetail);
-        JPanel resultButton=new JPanel(new FlowLayout(FlowLayout.CENTER,0,18));resultButton.setOpaque(false);resultButton.add(onlineResultOk);
-        onlineResult.add(resultCenter,BorderLayout.CENTER);onlineResult.add(resultButton,BorderLayout.SOUTH);onlineResult.setVisible(false);add(onlineResult);
+        onlineResult.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(Color.WHITE,2),BorderFactory.createEmptyBorder(18,24,18,24)));
+        onlineResult.setBackground(new Color(20,20,20));onlineResultTitle.setForeground(Color.WHITE);onlineResultDetail.setForeground(Color.WHITE);
+        onlineResultTitle.setFont(onlineResultTitle.getFont().deriveFont(Font.BOLD,30f));
+        JPanel resultCenter=new JPanel(new GridLayout(2,1,4,4));resultCenter.setOpaque(false);resultCenter.add(onlineResultTitle);resultCenter.add(onlineResultDetail);
+        onlineResult.add(resultCenter,BorderLayout.CENTER);onlineResult.add(onlineResultOk,BorderLayout.SOUTH);onlineResult.setVisible(false);add(onlineResult);
         onlineResultOk.addActionListener(e->{if(onlineResultAcked||onlineResultAck==null)return;onlineResultAcked=true;onlineResultOk.setEnabled(false);onlineResultDetail.setText("相手のOKを待っています…");onlineResultAck.run();});
-        onlineBattleEnd.setOpaque(true);onlineBattleEnd.setBackground(new Color(18,20,26));onlineBattleEnd.setBorder(null);
-        onlineBattleEndLabel.setForeground(Color.WHITE);onlineBattleEndLabel.setFont(onlineBattleEndLabel.getFont().deriveFont(Font.BOLD,64f));
+        onlineBattleEnd.setBackground(new Color(18,20,26));onlineBattleEnd.setBorder(BorderFactory.createLineBorder(new Color(235,235,235),3));
+        onlineBattleEndLabel.setForeground(Color.WHITE);onlineBattleEndLabel.setFont(onlineBattleEndLabel.getFont().deriveFont(Font.BOLD,52f));
         onlineBattleEnd.add(onlineBattleEndLabel,BorderLayout.CENTER);onlineBattleEnd.setVisible(false);add(onlineBattleEnd);
+        add(onlineBackdrop);
         setComponentZOrder(onlineResult,0);setComponentZOrder(onlineBattleEnd,0);
         if(MainBCU.loaded){BCMusic.stopAll();BCMusic.play(basis.sb.st.mus0);}
 		next.setEnabled(false);
@@ -230,14 +228,11 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		paus.setToolTipText("オンライン対戦では単独で一時停止できません");
 		next.setToolTipText("オンライン対戦ではコマ送りできません");
 		add(stream);
-        setComponentZOrder(stream,0);setComponentZOrder(audio,0);setComponentZOrder(onlineTag,0);
-        setComponentZOrder(rouletteNotice,0);setComponentZOrder(rouletteDebugMax,0);
+        orderOnlineLayers();queueOnlineLayout();PvpSoundBank.preload();
         initializeOnlineAudio(displayCopy);
 		current = this;
-        // Online-only controls are added after ini(). If the window was already
-        // maximized, no resize event is guaranteed to follow, so force one once
-        // the page has actually been mounted.
-        SwingUtilities.invokeLater(this::fireDimensionChanged);
+        // A maximized window need not emit another resize event after mounting.
+        SwingUtilities.invokeLater(()->{if(!onlineClosed)fireDimensionChanged();});
 	}
 
     private static void styleOnlineLabel(JLabel label,Color foreground,float size){
@@ -256,10 +251,12 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
         onlineBattleEnding=true;online.interactive(false);online.setBattleUiHidden(true);getPress().clear();
         if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;heldUnitPoint=null;
         if(audioDialog!=null){audioDialog.dispose();audioDialog=null;}
-        PvpSoundBank.stopAll();BCMusic.stopAll();hideOnlineBattleChrome();
-        onlineBattleEndSoundDone=false;onlineResult.setVisible(false);
-        onlineBattleEnd.setVisible(true);setComponentZOrder(onlineBattleEnd,0);
-        revalidate();repaint();
+        PvpSoundBank.stopAll();BCMusic.stopAll();BCMusic.music=null;
+        Canvas canvas=(Canvas)bb;
+        onlineBackdrop.capture(bb,canvas.getWidth(),canvas.getHeight());
+        hideOnlineBattleChrome();canvas.setVisible(false);
+        onlineBackdrop.setBounds(canvas.getBounds());onlineBackdrop.setVisible(true);
+        onlineBattleEnd.setVisible(true);orderOnlineLayers();validateOnlineLayout();
         PvpSoundBank.play(PvpSoundBank.Sound.BATTLE_END,()->{
             if(onlineClosed)return;
             onlineBattleEndSoundDone=true;
@@ -275,37 +272,65 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
     }
 
     private void showQueuedOnlineResult(){
-        if(!onlineBattleEndSoundDone||pendingOnlineResultTitle==null||onlineClosed)return;
+        if(!onlineBattleEndSoundDone||pendingOnlineResultTitle==null||onlineClosed||onlineResultShown)return;
+        onlineResultShown=true;
         onlineBattleEnd.setVisible(false);
         onlineResultAck=pendingOnlineResultAck;onlineResultAcked=false;
         onlineResultTitle.setText(pendingOnlineResultTitle);onlineResultDetail.setText(pendingOnlineResultDetail);
-        onlineResultOk.setText("OK");onlineResultOk.setEnabled(true);
-        onlineResult.setVisible(true);setComponentZOrder(onlineResult,0);
+        onlineResultOk.setText("OK");onlineResultOk.setEnabled(true);onlineResult.setVisible(true);setComponentZOrder(onlineResult,0);onlineResult.repaint();
         BCMusic.stopAll();
         BCMusic.play(new Identifier<>(Identifier.DEF,Music.class,30));
-        revalidate();repaint();onlineResultOk.requestFocusInWindow();
+        validateOnlineLayout();onlineResultOk.requestFocusInWindow();
     }
 
     private void hideOnlineBattleChrome(){
-        Component[] hidden={back,jtb,paus,next,rply,row,audio,onlineSpecial,onlineTag,rouletteNotice,rouletteDebugMax,
-                unitAbilityOverlay,stream,ebase,ubase,timer,ecount,ucount,estat,ustat,eup,eusp,eep,eesp,ctp,utdsp,respawn,jsl};
-        for(Component component:hidden)if(component!=null)component.setVisible(false);
-        // BattleBox uses an AWT Canvas (heavyweight). Swing overlays over it are
-        // not reliable on all Windows/JRE combinations, which caused the blank
-        // white end box. Hide the canvas once the battle is over and use an
-        // opaque full-page end/result view.
-        ((Canvas)bb).setVisible(false);
+        for(Component component:getComponents())
+            if(component!=onlineBackdrop&&component!=onlineBattleEnd&&component!=onlineResult)
+                component.setVisible(false);
+    }
+
+    private void orderOnlineLayers(){
+        if(online==null)return;
+        setComponentZOrder((Canvas)bb,getComponentCount()-1);
+        setComponentZOrder(onlineBackdrop,getComponentCount()-2);
+        setComponentZOrder(unitAbilityOverlay,0);
+        setComponentZOrder(onlineResult,0);setComponentZOrder(onlineBattleEnd,0);
+    }
+
+    private void validateOnlineLayout(){
+        if(onlineClosed)return;
+        revalidate();
+        Window window=SwingUtilities.getWindowAncestor(this);
+        if(window!=null)window.validate();else validate();
+        repaint();
+    }
+
+    private void queueOnlineLayout(){
+        if(onlineLayoutPending)return;onlineLayoutPending=true;
+        SwingUtilities.invokeLater(()->{onlineLayoutPending=false;validateOnlineLayout();});
     }
 
     public void onlineResultWaiting(String text){if(onlineResult.isVisible()&&onlineResultAcked)onlineResultDetail.setText(text);}
 
+    /** Establish the baseline before the first tick or render. */
+    public void initializeOnlineAudio(PvpStageBasis world){
+        if(online==null||onlineClosed||onlineBattleEnding)return;
+        rouletteAudio.initialize(world,online.playerDirection());
+    }
+    /** Called after each canonical tick, before the next snapshot can overwrite an audio edge. */
+    public void observeOnlineAudioTick(PvpStageBasis world){observeOnlineTick(world);}
+
+    public void observeOnlineTick(PvpStageBasis world){
+        if(online!=null&&!onlineClosed&&!onlineBattleEnding)rouletteAudio.observe(world,online.playerDirection());
+    }
+
 	public void publishOnline(PvpStageBasis displayCopy) {
-		if (online != null && !onlineClosed) online.publish(displayCopy);
+		if (online != null && !onlineClosed) {observeOnlineTick(displayCopy);online.publish(displayCopy);}
 	}
 
 	public void onlineStatus(String text, boolean interactive) {
 		if (online == null || onlineClosed) return;
-		online.interactive(interactive);
+		online.interactive(interactive&&!onlineBattleEnding);
 		stream.setText(text);
 		stream.setToolTipText(text);
 	}
@@ -313,6 +338,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	/** Called on the EDT by the lobby's fixed-network-tick pump, at the configured render rate. */
 	public void renderOnlineFrame() {
 		if (online == null || onlineClosed) return;
+        if(onlineBattleEnding){repaint();return;}
 		online.update();
 		updateKey();
 		online.renderStep();
@@ -335,67 +361,6 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
         updateOpponentRouletteNotice();
 		if (((Canvas) bb).isDisplayable()) bb.paint();
 	}
-
-    public void initializeOnlineAudio(PvpStageBasis world){
-        if(online==null||world==null||world.specialMode()!=RoomRules.SpecialMode.ROULETTE){
-            rouletteAudioInitialized=false;audioGaugeSegment=-1;audioOwnPending=audioOpponentPending=-1;
-            audioOwnSpinning=audioOpponentSpinning=false;return;
-        }
-        StageBasis own=world.playerFor(online.playerDirection()),opponent=world.playerFor(-online.playerDirection());
-        PvpRouletteState a=own.pvpRoulette,b=opponent.pvpRoulette;
-        if(a==null||b==null){rouletteAudioInitialized=false;return;}
-        rouletteAudioInitialized=true;
-        audioGaugeSegment=Math.max(0,Math.min(10,a.gauge/100));
-        audioOwnSpinning=a.spinning;audioOpponentSpinning=b.spinning;
-        audioOwnPending=a.pendingResult;audioOpponentPending=b.pendingResult;
-        if(a.spinning)PvpSoundBank.startLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
-    }
-
-    /**
-     * Observe the canonical simulation after every resolved 30 TPS tick.
-     * Audio must be driven from logic ticks rather than rendered snapshots:
-     * render frames can skip several state transitions on a busy/networked client.
-     */
-    public void observeOnlineAudioTick(PvpStageBasis world){
-        if(online==null||onlineClosed||onlineBattleEnding||world==null)return;
-        if(world.specialMode()!=RoomRules.SpecialMode.ROULETTE){
-            if(audioOwnSpinning)PvpSoundBank.stopLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
-            rouletteAudioInitialized=false;audioGaugeSegment=-1;return;
-        }
-        StageBasis own=world.playerFor(online.playerDirection()),opponent=world.playerFor(-online.playerDirection());
-        PvpRouletteState a=own.pvpRoulette,b=opponent.pvpRoulette;
-        if(a==null||b==null)return;
-        if(!rouletteAudioInitialized){initializeOnlineAudio(world);return;}
-
-        int segment=Math.max(0,Math.min(10,a.gauge/100));
-        if(segment<audioGaugeSegment)audioGaugeSegment=segment;
-        if(segment>audioGaugeSegment){
-            // Every filled gauge segment gets the normal charge sound, including
-            // the final segment. Reaching 100% additionally gets the MAX sound.
-            for(int i=audioGaugeSegment+1;i<=segment;i++)
-                if(i>0)PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_CHARGE);
-            if(audioGaugeSegment<10&&segment>=10)
-                PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_MAX);
-        }
-
-        if(a.spinning&&!audioOwnSpinning){
-            PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_START);
-            PvpSoundBank.startLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
-        }else if(!a.spinning&&audioOwnSpinning){
-            PvpSoundBank.stopLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
-        }
-        if(a.pendingResult>=0&&audioOwnPending<0)
-            PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_CONFIRM);
-
-        if(b.spinning&&!audioOpponentSpinning)
-            PvpSoundBank.play(PvpSoundBank.Sound.OPPONENT_ROULETTE_START);
-        if(b.pendingResult>=0&&audioOpponentPending<0)
-            PvpSoundBank.play(PvpSoundBank.Sound.OPPONENT_ROULETTE_CONFIRM);
-
-        audioGaugeSegment=segment;
-        audioOwnSpinning=a.spinning;audioOpponentSpinning=b.spinning;
-        audioOwnPending=a.pendingResult;audioOpponentPending=b.pendingResult;
-    }
 
     private void updateOpponentRouletteNotice(){
         if(onlineBattleEnding){rouletteNotice.setVisible(false);return;}
@@ -426,7 +391,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		onlineClosed = true;
         if(audioDialog!=null){audioDialog.dispose();audioDialog=null;}
         if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;heldUnitPoint=null;
-        PvpSoundBank.stopAll();BCMusic.stopAll();
+        PvpSoundBank.stopAll();BCMusic.stopAll();BCMusic.music=null;onlineBackdrop.clear();
 		online.interactive(false);
 		getPress().clear();
 		if (current == this) current = null;
@@ -599,28 +564,28 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 			set(jsl, x, y, 700, 800, 800, 50);
 		}
         if(online!=null){
+            onlineBackdrop.setBounds(((Canvas)bb).getBounds());
+            orderOnlineLayers();queueOnlineLayout();
             audio.setBounds(paus.getBounds());
             if(onlineSpecial!=null){
                 if(jtb.isSelected())set(onlineSpecial,x,y,1100,0,390,50);
                 else set(onlineSpecial,x,y,1100,200,390,50);
             }
             if(jtb.isSelected()){
-                // Keep persistent controls outside the heavyweight battle Canvas.
-                // This is especially important when the page starts in large mode.
-                set(rouletteDebugMax,x,y,1500,0,250,50);
-                set(onlineTag,x,y,1760,10,250,30);
+                set(onlineTag,x,y,1760,60,250,30);
                 set(rouletteNotice,x,y,760,98,720,34);
+                set(rouletteDebugMax,x,y,210,134,300,46);
                 set(unitAbilityOverlay,x,y,500,95,1300,260);
+                set(onlineBattleEnd,x,y,650,430,1000,260);
+                set(onlineResult,x,y,650,430,1000,320);
             }else{
-                set(rouletteDebugMax,x,y,1500,200,150,50);
-                set(onlineTag,x,y,1500,255,150,30);
+                set(onlineTag,x,y,1330,310,250,30);
                 set(rouletteNotice,x,y,900,372,650,34);
+                set(rouletteDebugMax,x,y,710,372,300,46);
                 set(unitAbilityOverlay,x,y,760,320,680,230);
+                set(onlineBattleEnd,x,y,780,410,640,220);
+                set(onlineResult,x,y,750,390,700,320);
             }
-            // End-of-battle screens are full-page opaque views. The heavyweight
-            // battle Canvas is hidden before either becomes visible.
-            set(onlineBattleEnd,x,y,0,0,2300,1300);
-            set(onlineResult,x,y,0,0,2300,1300);
         }
 		ct.setRowHeight(size(x, y, 50));
 		et.setRowHeight(size(x, y, 50));

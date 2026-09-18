@@ -1,21 +1,15 @@
 package online.ui;
 
 import io.BCMusic;
-
 import javax.sound.sampled.*;
 import javax.swing.SwingUtilities;
-import java.io.BufferedInputStream;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.IdentityHashMap;
-import java.util.Map;
-import java.util.Set;
+import java.io.*;
+import java.util.*;
+import java.util.concurrent.*;
 
+/** Local presentation audio; device/decoder work never blocks Swing or the lockstep pump. */
 public final class PvpSoundBank {
     private static final String ROOT="/online/pvp/audio/";
-
     public enum Sound {
         ROULETTE_CHARGE("roulette_charge.ogg",330),
         ROULETTE_MAX("roulette_max.ogg",850),
@@ -25,148 +19,146 @@ public final class PvpSoundBank {
         OPPONENT_ROULETTE_START("roulette_opponent_start.ogg",590),
         OPPONENT_ROULETTE_CONFIRM("roulette_opponent_confirm.ogg",1230),
         BATTLE_END("battle_end.ogg",1100);
-
-        final String file;
-        final int fallbackMillis;
-        Sound(String file,int fallbackMillis){this.file=file;this.fallbackMillis=fallbackMillis;}
+        final String file;final int fallbackMillis;
+        Sound(String file,int millis){this.file=file;fallbackMillis=millis;}
     }
-
+    private static final ExecutorService AUDIO=Executors.newSingleThreadExecutor(r->{Thread t=new Thread(r,"pvp-audio");t.setDaemon(true);return t;});
+    private static final Map<Sound,Pcm> CACHE=new EnumMap<>(Sound.class); // audio worker only
     private static final Set<Managed> ACTIVE=Collections.newSetFromMap(new IdentityHashMap<Managed,Boolean>());
     private static final Map<Sound,Managed> LOOPS=new EnumMap<>(Sound.class);
-
+    private static long generation;
     private PvpSoundBank(){}
-
     public static String resourcePath(Sound sound){return ROOT+sound.file;}
     public static boolean resourceAvailable(Sound sound){return PvpSoundBank.class.getResource(resourcePath(sound))!=null;}
-
-    public static synchronized void play(Sound sound){play(sound,null);}
-
-    public static synchronized void play(Sound sound,Runnable after){
-        if(!BCMusic.play||BCMusic.VOL_SE<=0){
-            if(after!=null)SwingUtilities.invokeLater(after);
-            return;
-        }
-        try{
-            Managed managed=new Managed(open(sound),after,false);
-            ACTIVE.add(managed);managed.start(sound.fallbackMillis);
-        }catch(Exception e){
-            System.err.println("BCU PvP sound: "+sound+" / "+e.getMessage());
-            if(after!=null){
-                Managed managed=new Managed(null,after,false);
-                ACTIVE.add(managed);managed.startFallback(sound.fallbackMillis);
-            }
-        }
+    public static void preload(){AUDIO.execute(()->{for(Sound sound:Sound.values())try{decode(sound);}catch(Exception e){diagnostic(sound,e);}});}
+    public static void play(Sound sound){play(sound,null);}
+    public static void play(Sound sound,Runnable after){
+        Managed managed;
+        synchronized(PvpSoundBank.class){managed=new Managed(sound,after,false,generation);ACTIVE.add(managed);}
+        if(audible()){
+            // Also bounds startup failure: a broken audio device cannot strand the result UI.
+            managed.arm(sound.fallbackMillis+2000);managed.requestOpen();
+        }else managed.arm(sound.fallbackMillis); // preserve the ending even with sound disabled
     }
-
-    public static synchronized void startLoop(Sound sound){
-        Managed existing=LOOPS.get(sound);
-        if(existing!=null&&!existing.cancelled)return;
-        stopLoop(sound);
-        if(!BCMusic.play||BCMusic.VOL_SE<=0)return;
-        try{
-            Managed managed=new Managed(open(sound),null,true);
-            ACTIVE.add(managed);LOOPS.put(sound,managed);managed.start(sound.fallbackMillis);
-        }catch(Exception e){System.err.println("BCU PvP loop sound: "+sound+" / "+e.getMessage());}
+    public static void startLoop(Sound sound){
+        Managed managed;
+        synchronized(PvpSoundBank.class){
+            if(LOOPS.containsKey(sound))return;
+            managed=new Managed(sound,null,true,generation);ACTIVE.add(managed);LOOPS.put(sound,managed);
+        }
+        if(audible())managed.requestOpen();
     }
-
-    public static synchronized void stopLoop(Sound sound){
-        Managed managed=LOOPS.remove(sound);
+    public static void stopLoop(Sound sound){
+        Managed managed;synchronized(PvpSoundBank.class){managed=LOOPS.get(sound);}
         if(managed!=null)managed.cancel();
     }
-
-    public static synchronized void refreshVolume(){
-        for(Managed managed:new ArrayList<>(ACTIVE))managed.refreshVolume();
+    public static void refreshVolume(){
+        Managed[] all;synchronized(PvpSoundBank.class){all=ACTIVE.toArray(new Managed[0]);}
+        for(Managed m:all){
+            if(m.loop&&m.clip==null&&audible())m.requestOpen();
+            AUDIO.execute(()->{if(!m.cancelled&&!m.completed)setVolume(m.clip);});
+        }
     }
-
-    public static synchronized void stopAll(){
-        for(Managed managed:new ArrayList<>(ACTIVE))managed.cancel();
-        ACTIVE.clear();LOOPS.clear();
+    public static void stopAll(){
+        Managed[] all;
+        synchronized(PvpSoundBank.class){generation++;all=ACTIVE.toArray(new Managed[0]);}
+        for(Managed m:all)m.cancel();
     }
-
-    private static Clip open(Sound sound)throws Exception{
-        InputStream source=PvpSoundBank.class.getResourceAsStream(resourcePath(sound));
-        if(source==null)throw new IllegalStateException("Missing resource "+resourcePath(sound));
-        try(BufferedInputStream in=new BufferedInputStream(source);
-            AudioInputStream raw=AudioSystem.getAudioInputStream(in)){
-            AudioFormat rf=raw.getFormat();
-            int channels=rf.getChannels();float rate=rf.getSampleRate();
-            AudioFormat pcmFormat=new AudioFormat(AudioFormat.Encoding.PCM_SIGNED,rate,16,channels,channels*2,rate,false);
-            try(AudioInputStream pcm=AudioSystem.getAudioInputStream(pcmFormat,raw)){
-                Clip clip=(Clip)AudioSystem.getLine(new DataLine.Info(Clip.class,pcmFormat));
-                clip.open(pcm);setVolume(clip);return clip;
+    private static boolean audible(){return BCMusic.play&&BCMusic.VOL_SE>0;}
+    private static void diagnostic(Sound sound,Exception e){System.err.println("BCU PvP sound: "+sound+" / "+e.getMessage());}
+    private static Pcm decode(Sound sound)throws Exception{
+        Pcm cached=CACHE.get(sound);if(cached!=null)return cached;
+        InputStream resource=PvpSoundBank.class.getResourceAsStream(resourcePath(sound));
+        if(resource==null)throw new IOException("Missing resource "+resourcePath(sound));
+        try(BufferedInputStream in=new BufferedInputStream(resource);AudioInputStream raw=AudioSystem.getAudioInputStream(in)){
+            AudioFormat rf=raw.getFormat();int channels=rf.getChannels();float rate=rf.getSampleRate();
+            AudioFormat format=new AudioFormat(AudioFormat.Encoding.PCM_SIGNED,rate,16,channels,channels*2,rate,false);
+            try(AudioInputStream decoded=AudioSystem.getAudioInputStream(format,raw);ByteArrayOutputStream out=new ByteArrayOutputStream()){
+                byte[] buffer=new byte[8192];int n;
+                while((n=decoded.read(buffer))!=-1){if(n>0)out.write(buffer,0,n);}
+                byte[] data=out.toByteArray();if(data.length==0)throw new IOException("Empty decoded sound "+sound);
+                Pcm pcm=new Pcm(format,data);CACHE.put(sound,pcm);return pcm;
             }
         }
     }
-
+    private static final class Pcm {
+        final AudioFormat format;final byte[] data;final int millis;
+        Pcm(AudioFormat format,byte[] data){this.format=format;this.data=data;millis=Math.max(1,(int)Math.ceil(1000.0*data.length/(format.getFrameSize()*format.getFrameRate())));}
+    }
     private static void setVolume(Clip clip){
-        if(clip==null)return;
+        if(clip==null||!clip.isOpen())return;
         int value=BCMusic.play?Math.max(0,Math.min(100,BCMusic.VOL_SE)):0;
-        if(clip.isControlSupported(BooleanControl.Type.MUTE))
-            ((BooleanControl)clip.getControl(BooleanControl.Type.MUTE)).setValue(value==0);
+        if(clip.isControlSupported(BooleanControl.Type.MUTE))((BooleanControl)clip.getControl(BooleanControl.Type.MUTE)).setValue(value==0);
         if(clip.isControlSupported(FloatControl.Type.MASTER_GAIN)){
             FloatControl gain=(FloatControl)clip.getControl(FloatControl.Type.MASTER_GAIN);
-            float db=value==0?gain.getMinimum():20f*((float)Math.log10(value)-2f);
+            float db=value==0?gain.getMinimum():20f*(float)Math.log10(value/100.0);
             gain.setValue(Math.max(gain.getMinimum(),Math.min(gain.getMaximum(),db)));
         }
     }
-
-    private static final class Managed implements LineListener{
-        private Clip clip;
-        private final Runnable after;
-        private final boolean loop;
-        private javax.swing.Timer fallbackTimer;
-        private boolean cancelled,completed;
-
-        Managed(Clip clip,Runnable after,boolean loop){this.clip=clip;this.after=after;this.loop=loop;}
-
-        void start(int fallbackMillis){
-            if(clip==null){startFallback(fallbackMillis);return;}
-            setVolume(clip);clip.setFramePosition(0);clip.addLineListener(this);
-            if(loop){
-                clip.loop(Clip.LOOP_CONTINUOUSLY);
-            }else{
-                // Some Java Sound/Vorbis providers do not emit a natural STOP event
-                // consistently. Always keep an independent completion watchdog so
-                // battle-end sequencing can never wait forever on an audio callback.
-                long clipMillis=Math.max(1L,(clip.getMicrosecondLength()+999L)/1000L);
-                startFallback((int)Math.min(Integer.MAX_VALUE,Math.max((long)fallbackMillis,clipMillis+150L)));
-                clip.start();
-            }
+    private static void close(Clip clip){
+        if(clip==null)return;
+        try{clip.stop();}catch(Exception ignored){}
+        try{clip.close();}catch(Exception ignored){}
+    }
+    private static final class Managed implements LineListener {
+        final Sound sound;final Runnable after;final boolean loop;final long epoch;
+        volatile Clip clip;volatile boolean cancelled,completed;boolean opening;
+        volatile long startedNanos;volatile int durationMillis;
+        private javax.swing.Timer timer; // EDT only
+        Managed(Sound sound,Runnable after,boolean loop,long epoch){this.sound=sound;this.after=after;this.loop=loop;this.epoch=epoch;}
+        void requestOpen(){
+            synchronized(PvpSoundBank.class){if(cancelled||completed||opening||clip!=null)return;opening=true;}
+            AUDIO.execute(this::openAndStart);
         }
-
-        void startFallback(int millis){
-            if(fallbackTimer!=null)fallbackTimer.stop();
-            fallbackTimer=new javax.swing.Timer(Math.max(1,millis),e->complete());
-            fallbackTimer.setRepeats(false);fallbackTimer.start();
-        }
-
-        private void complete(){
-            Runnable callback;
-            synchronized(PvpSoundBank.class){
+        void openAndStart(){
+            Clip opened=null;
+            try{
                 if(cancelled||completed)return;
-                completed=true;
-                if(fallbackTimer!=null){fallbackTimer.stop();fallbackTimer=null;}
-                closeClip();ACTIVE.remove(this);LOOPS.values().remove(this);callback=after;
-            }
-            if(callback!=null)SwingUtilities.invokeLater(callback);
+                Pcm pcm=decode(sound);
+                if(cancelled||completed)return;
+                opened=(Clip)AudioSystem.getLine(new DataLine.Info(Clip.class,pcm.format));
+                opened.open(pcm.format,pcm.data,0,pcm.data.length);
+                if(cancelled||completed){close(opened);return;}
+                clip=opened;durationMillis=pcm.millis;setVolume(opened);opened.addLineListener(this);
+                startedNanos=System.nanoTime();
+                if(loop)opened.loop(Clip.LOOP_CONTINUOUSLY);else opened.start();
+                if(cancelled||completed){release();return;}
+                if(!loop)arm(pcm.millis+250); // natural STOP wins; this only recovers missing notifications
+            }catch(Exception e){
+                if(opened!=null){opened.removeLineListener(this);close(opened);}clip=null;
+                if(!cancelled&&!completed){diagnostic(sound,e);if(!loop)arm(sound.fallbackMillis);}
+            }finally{synchronized(PvpSoundBank.class){opening=false;}}
         }
-
-        void refreshVolume(){setVolume(clip);}
-
+        void arm(int millis){
+            SwingUtilities.invokeLater(()->{
+                if(cancelled||completed)return;
+                if(timer!=null)timer.stop();
+                timer=new javax.swing.Timer(Math.max(1,millis),e->complete());timer.setRepeats(false);timer.start();
+            });
+        }
+        private void forget(){
+            ACTIVE.remove(this);if(LOOPS.get(sound)==this)LOOPS.remove(sound);
+        }
+        private void complete(){
+            synchronized(PvpSoundBank.class){if(cancelled||completed)return;completed=true;forget();}
+            if(timer!=null){timer.stop();timer=null;}
+            AUDIO.execute(this::release);
+            if(after!=null)SwingUtilities.invokeLater(()->{
+                synchronized(PvpSoundBank.class){if(cancelled||epoch!=generation)return;}
+                after.run();
+            });
+        }
         void cancel(){
-            if(cancelled)return;cancelled=true;
-            if(fallbackTimer!=null){fallbackTimer.stop();fallbackTimer=null;}
-            closeClip();ACTIVE.remove(this);LOOPS.values().remove(this);
+            synchronized(PvpSoundBank.class){if(cancelled)return;cancelled=true;forget();}
+            SwingUtilities.invokeLater(()->{if(timer!=null){timer.stop();timer=null;}});
+            AUDIO.execute(this::release);
         }
-
-        private void closeClip(){
-            if(clip==null)return;
-            try{clip.removeLineListener(this);clip.stop();clip.close();}catch(Exception ignored){}
-            clip=null;
-        }
-
+        void release(){Clip current=clip;clip=null;if(current!=null){current.removeLineListener(this);close(current);}}
         @Override public void update(LineEvent event){
-            if(event.getType()==LineEvent.Type.STOP&&!loop&&!cancelled)complete();
+            if(event.getType()!=LineEvent.Type.STOP||loop||cancelled||completed)return;
+            // Ignore a queued STOP from opening/rewinding a device, before real playback.
+            if(event.getFramePosition()<=0&&System.nanoTime()-startedNanos<TimeUnit.MILLISECONDS.toNanos(durationMillis))return;
+            SwingUtilities.invokeLater(this::complete);
         }
     }
 }

@@ -84,6 +84,8 @@ public final class LobbyUiTests {
     private static void create() throws Exception { edt(() -> { button("create").doClick();return null; }); }
     private static void test(String mode) throws Exception {
         switch(mode) {
+            case "finish-host": case "finish-guest": case "timeout-host": case "timeout-guest":
+                finishDuel(mode);break;
             case "save":
                 edt(() -> {text("name").setText("友人テスト名");text("server").setText("wss://example.invalid:443/bcu");text("password").setText("never-save-this");text("room").setText("never-save-room");return null;});
                 disposePage();
@@ -254,25 +256,24 @@ public final class LobbyUiTests {
                 await(()->((PvpStageBasis)field(page,"battle")).time>=150,"GUI battle must run 150 ticks without desync");
                 Check.that(edt(()->((PvpStageBasis)field(page,"battle")).le.stream().anyMatch(e->e.dire==1)),"native host input spawned a left unit");
                 Check.that(edt(()->((PvpStageBasis)field(page,"battle")).le.stream().anyMatch(e->e.dire==-1)),"native guest input spawned a right unit");
-
-                // Exercise the actual end-screen sequencing on BOTH real Swing clients.
+                // Retain the branch's synthetic result regression, alongside the natural
+                // castle/timeout + real acknowledgement scenarios below.
                 edt(()->{
                     BattleInfoPage nativePage=(BattleInfoPage)field(page,"battlePage");
                     nativePage.showOnlineResult(host?"勝利！":"敗北","両者の戦闘結果が一致しました。OKを押してください。",()->{});
                     Check.that(((JPanel)field(nativePage,"onlineBattleEnd")).isVisible(),"battle-end message is shown immediately on both clients");
-                    Check.that(!((java.awt.Canvas)field(nativePage,"bb")).isVisible(),"heavyweight battle canvas is hidden behind end/result screens");
-                    return null;
+                    Check.that(!((java.awt.Canvas)field(nativePage,"bb")).isVisible(),"heavyweight battle canvas is hidden behind end/result screens");return null;
                 });
                 await(()->((JPanel)field(field(page,"battlePage"),"onlineResult")).isVisible(),"result screen appears after battle-end sound completion");
                 edt(()->{
                     BattleInfoPage nativePage=(BattleInfoPage)field(page,"battlePage");
                     JPanel result=(JPanel)field(nativePage,"onlineResult");
-                    JLabel title=(JLabel)field(nativePage,"onlineResultTitle"),detail=(JLabel)field(nativePage,"onlineResultDetail");
+                    JLabel title=(JLabel)field(nativePage,"onlineResultTitle");
+                    java.awt.Component detail=(java.awt.Component)field(nativePage,"onlineResultDetail");
                     JButton ok=(JButton)field(nativePage,"onlineResultOk");
                     Check.that(ok.isVisible()&&ok.isEnabled()&&ok.getWidth()>0&&ok.getHeight()>0,"OK button is visible and usable on both result screens");
                     Check.that(!title.getForeground().equals(result.getBackground()),"result title has readable foreground/background contrast");
-                    Check.that(!detail.getForeground().equals(result.getBackground()),"result detail has readable foreground/background contrast");
-                    return null;
+                    Check.that(!detail.getForeground().equals(result.getBackground()),"result detail has readable foreground/background contrast");return null;
                 });
 
                 Files.write(shared.resolve(host?"host-done":"guest-done"),new byte[]{1});
@@ -308,6 +309,118 @@ public final class LobbyUiTests {
             default:throw new AssertionError("Unknown test "+mode);
         }
     }
+    /** Natural engine result, real control/UDP clients, actual Swing OK buttons on BOTH peers. */
+    private static void finishDuel(String mode)throws Exception{
+        boolean host=mode.endsWith("-host"),timeout=mode.startsWith("timeout");
+        RecordingMixerProvider.enable();RecordingMixerProvider.dropStop=!host;
+        io.BCMusic.play=true;io.BCMusic.VOL_SE=60;MainBCU.loaded=false;
+        byte[] ogg;
+        try(java.io.InputStream in=PvpSoundBank.class.getResourceAsStream(PvpSoundBank.resourcePath(PvpSoundBank.Sound.ROULETTE_MAX));java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream()){
+            byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1)out.write(b,0,n);ogg=out.toByteArray();
+        }
+        for(int id:new int[]{3,30})common.pack.UserProfile.getBCData().musics.set(id,new common.util.stage.Music(
+                new common.pack.Identifier<>("000000",common.util.stage.Music.class,id),0,new common.system.files.FDByte(ogg)));
+        edt(()->{
+            BattleInfoPage.DEF_LARGE=true;
+            BasisLU b=(BasisLU)((JComboBox<?>)field(page,"lineup")).getSelectedItem();
+            CustomUnit u=(CustomUnit)b.lu.fs[0][0].du;
+            u.speed=1200;u.range=800;u.atks[0].atk=10000000;u.atks[0].pre=1;
+            return null;
+        });
+        if(host){
+            ServerHost h=startHost();setup("終了テスト・ホスト","");create();await(()->button("copyRoom").isEnabled(),"ending test room creation");
+            Properties p=new Properties();p.setProperty("url",h.localControlUrl());p.setProperty("room",edt(()->text("room").getText()));
+            Path tmp=shared.resolve("room.tmp");try(java.io.Writer out=Files.newBufferedWriter(tmp,StandardCharsets.UTF_8)){p.store(out,"");}
+            Files.move(tmp,shared.resolve("room.properties"));
+        }else{
+            barrier("room.properties");Properties p=new Properties();try(java.io.Reader in=Files.newBufferedReader(shared.resolve("room.properties"),StandardCharsets.UTF_8)){p.load(in);}
+            setup("終了テスト・ゲスト","");edt(()->{text("server").setText(p.getProperty("url"));text("room").setText(p.getProperty("room"));button("join").doClick();return null;});
+        }
+        await(()->field(page,"roomLobby")!=null&&field(field(page,"roomLobby"),"state")!=null&&((com.google.gson.JsonObject)field(field(page,"roomLobby"),"state")).getAsJsonArray("players").size()==2,"ending roster");
+        if(host)edt(()->{
+            RoomLobbyPage lobby=(RoomLobbyPage)field(page,"roomLobby");
+            ((JSpinner)field(lobby,"distance")).setValue(1000);((JSpinner)field(lobby,"timeLimit")).setValue(1);
+            ((JComboBox<?>)field(lobby,"special")).setSelectedItem(online.net.lobby.RoomRules.SpecialMode.ROULETTE);
+            ((JCheckBox)field(lobby,"debugMode")).doClick();((JButton)field(lobby,"apply")).doClick();return null;
+        });
+        await(()->((RoomClient)field(page,"client")).roomRules().castleDistance==1000,"ending rules synchronized");
+        await(()->button("ready").isEnabled(),"ending ready control");
+        edt(()->{button("ready").doClick();return null;});
+        await(()->field(page,"battlePage")!=null&&MainFrame.getPanel()==field(page,"battlePage"),"ending native page");
+        edt(()->{
+            BattleInfoPage nativePage=(BattleInfoPage)field(page,"battlePage");
+            Check.that(((AbstractButton)field(nativePage,"jtb")).isSelected(),"enters directly in large mode");
+            java.awt.Canvas canvas=(java.awt.Canvas)field(nativePage,"bb");
+            for(String name:new String[]{"rouletteDebugMax","rouletteNotice","onlineTag","stream"})
+                Check.that(nativePage.getComponentZOrder((java.awt.Component)field(nativePage,name))<nativePage.getComponentZOrder(canvas),"initial large layering: "+name);
+            io.BCMusic.play(new common.pack.Identifier<>("000000",common.util.stage.Music.class,3));return null;
+        });
+        Files.write(shared.resolve(host?"host-battle":"guest-battle"),new byte[]{1});barrier(host?"guest-battle":"host-battle");
+        if(!timeout){
+            edt(()->{((RoomClient)field(page,"client")).queueCommand(online.sync.InputFrame.DEBUG_ROULETTE_MAX);return null;});
+            await(()->{PvpStageBasis b=(PvpStageBasis)field(page,"battle");return b.left().pvpRoulette.gauge==1000&&b.right().pvpRoulette.gauge==1000;},"both debug MAX commands synchronized");
+            edt(()->{((RoomClient)field(page,"client")).queueCommand(online.sync.InputFrame.SPECIAL);return null;});
+            await(()->{PvpStageBasis b=(PvpStageBasis)field(page,"battle");return b.left().pvpRoulette.pendingResult>=0&&b.right().pvpRoulette.pendingResult>=0;},"both real roulette results");
+            await(()->RecordingMixerProvider.count(PvpSoundBank.Sound.ROULETTE_CONFIRM)==1&&RecordingMixerProvider.count(PvpSoundBank.Sound.OPPONENT_ROULETTE_CONFIRM)==1,"own and opponent confirmation PCM");
+            for(PvpSoundBank.Sound sound:new PvpSoundBank.Sound[]{PvpSoundBank.Sound.ROULETTE_START,PvpSoundBank.Sound.ROULETTE_SPIN,PvpSoundBank.Sound.OPPONENT_ROULETTE_START})
+                Check.equal(1L,RecordingMixerProvider.count(sound),"real duel plays "+sound);
+            Check.equal(10L,RecordingMixerProvider.count(PvpSoundBank.Sound.ROULETTE_CHARGE),"one charge per synchronized gauge segment");
+            Check.equal(1L,RecordingMixerProvider.count(PvpSoundBank.Sound.ROULETTE_MAX),"one synchronized MAX notification");
+            Files.write(shared.resolve(host?"host-spun":"guest-spun"),new byte[]{1});barrier(host?"guest-spun":"host-spun");
+            if(host)edt(()->{((RoomClient)field(page,"client")).queueCommand(1);return null;});
+        }
+        long endDeadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(85);
+        while(!edt(()->field(page,"battlePage")!=null&&((javax.swing.JPanel)field(field(page,"battlePage"),"onlineBattleEnd")).isVisible())){
+            if(uiFailure!=null)throw new AssertionError("EDT failed",uiFailure);
+            if(System.nanoTime()>endDeadline)throw new AssertionError("natural battle result did not start ending: "+mode+" / "+status());Thread.sleep(10);
+        }
+        edt(()->{
+            BattleInfoPage nativePage=(BattleInfoPage)field(page,"battlePage");
+            Check.that(!((java.awt.Canvas)field(nativePage,"bb")).isVisible(),"ending removes the native Canvas that could obscure result controls");
+            Check.that(!((JPanel)field(nativePage,"onlineResult")).isVisible(),"no result before ending sound finishes");
+            Check.equal(null,io.BCMusic.BG,"battle BGM stops at ending start");
+            for(String name:new String[]{"back","jtb","rouletteDebugMax","stream","onlineSpecial","onlineTag"})
+                Check.that(!((java.awt.Component)field(nativePage,name)).isVisible(),"ending hides "+name);
+            Check.that(((JLabel)field(nativePage,"onlineBattleEndLabel")).getFont().getSize()>=40,"large readable battle-end text");
+            screenshot(MainFrame.F.getRootPane(),mode+"-ending");return null;
+        });
+        await(()->((JPanel)field(field(page,"battlePage"),"onlineResult")).isVisible(),"both peers must show results, including missing STOP guest");
+        edt(()->{
+            BattleInfoPage nativePage=(BattleInfoPage)field(page,"battlePage");
+            Check.equal(timeout?"引き分け":host?"勝利！":"敗北",((JLabel)field(nativePage,"onlineResultTitle")).getText(),"correct per-peer result");
+            JButton ok=(JButton)field(nativePage,"onlineResultOk");Check.that(ok.isShowing()&&ok.isEnabled()&&ok.getHeight()>=40,"readable actionable OK on both clients");
+            Check.equal(30,io.BCMusic.music.id,"result BGM is standard 030.ogg");Check.that(io.BCMusic.BG!=null,"result BGM has a playing clip");
+            Check.equal(1L,RecordingMixerProvider.count(PvpSoundBank.Sound.BATTLE_END),"exactly one battle-end jingle");
+            screenshot(MainFrame.F.getRootPane(),mode+"-result");return null;
+        });
+        Files.write(shared.resolve(host?"host-result":"guest-result"),new byte[]{1});barrier(host?"guest-result":"host-result");
+        if(!host)barrier("host-acked");
+        edt(()->{
+            BattleInfoPage nativePage=(BattleInfoPage)field(page,"battlePage");
+            Check.that(MainFrame.getPanel()==nativePage,"one peer's OK cannot skip the other's result");
+            ((JButton)field(nativePage,"onlineResultOk")).doClick();
+            if(host){
+                Object bg=io.BCMusic.BG;
+                nativePage.showOnlineResult(timeout?"引き分け":"勝利！","duplicate result",()->{});
+                Check.that((Boolean)field(nativePage,"onlineResultAcked"),"duplicate result cannot reset acknowledged OK");
+                Check.that(io.BCMusic.BG==bg,"duplicate result cannot restart result BGM");
+            }return null;
+        });
+        if(host)Files.write(shared.resolve("host-acked"),new byte[]{1});
+        await(()->field(page,"battlePage")==null&&MainFrame.getPanel()==field(page,"roomLobby"),"both OK buttons restore existing room");
+        edt(()->{
+            Check.equal(null,io.BCMusic.BG,"result BGM stops on lobby return");Check.equal(null,io.BCMusic.music,"stopped result BGM has no resume request");
+            io.BCMusic.setSoundEnabled(false);io.BCMusic.setSoundEnabled(true);
+            Check.equal(null,io.BCMusic.BG,"muting/unmuting in lobby cannot resurrect result music");return null;
+        });
+        Files.write(shared.resolve(host?"host-returned":"guest-returned"),new byte[]{1});barrier(host?"guest-returned":"host-returned");
+        System.out.println("GUI_END_OK "+mode+" / full-size / jingle / 030.ogg / both OK / same lobby");
+    }
+    private static void barrier(String file)throws Exception{
+        long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(25);
+        while(!Files.exists(shared.resolve(file))){if(System.nanoTime()>until)throw new AssertionError("peer barrier: "+file);Thread.sleep(10);}
+    }
+
     public static void main(String[] args) throws Exception {
         if(GraphicsEnvironment.isHeadless())throw new AssertionError("Run LobbyUiTests under xvfb-run (actual Swing required)");
         if(args.length>0){
@@ -326,6 +439,15 @@ public final class LobbyUiTests {
         Process host=spawn("duel-host",root.resolve("host"),root,logs),guest=spawn("duel-guest",root.resolve("guest"),root,logs);
         try{finish(host,"duel-host",logs);finish(guest,"duel-guest",logs);}finally{host.destroyForcibly();guest.destroyForcibly();}
         for(String image:Arrays.asList("host","guest","battle-audio-host","battle-audio-guest"))Files.copy(root.resolve("room-"+image+".png"),logs.resolve("room-"+image+".png"),StandardCopyOption.REPLACE_EXISTING);
+        for(String scenario:Arrays.asList("finish","timeout")){
+            Path pair=Files.createDirectories(root.resolve(scenario));
+            Process a=spawn(scenario+"-host",pair.resolve("host"),pair,logs),b=spawn(scenario+"-guest",pair.resolve("guest"),pair,logs);
+            try{finish(a,scenario+"-host",logs);finish(b,scenario+"-guest",logs);}finally{a.destroyForcibly();b.destroyForcibly();}
+            for(String role:Arrays.asList("host","guest"))for(String phase:Arrays.asList("ending","result")){
+                String name="room-"+scenario+"-"+role+"-"+phase+".png";
+                Files.copy(pair.resolve(name),logs.resolve(name),StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
         System.out.println("Real Swing lobby regression tests passed; transcripts: "+logs);
     }
     private static Process spawn(String mode,Path user,Path shared,Path logs)throws Exception{
@@ -336,7 +458,7 @@ public final class LobbyUiTests {
                 .directory(cwd.toFile()).redirectErrorStream(true).redirectOutput(logs.resolve(mode+".log").toFile()).start();
     }
     private static void finish(Process p,String mode,Path logs)throws Exception{
-        if(!p.waitFor(40,TimeUnit.SECONDS)){p.destroyForcibly();throw new AssertionError("GUI timeout: "+mode);}
+        if(!p.waitFor(mode.startsWith("timeout")?110:40,TimeUnit.SECONDS)){p.destroyForcibly();throw new AssertionError("GUI timeout: "+mode);}
         String transcript=new String(Files.readAllBytes(logs.resolve(mode+".log")),StandardCharsets.UTF_8);System.out.print(transcript);
         if(p.exitValue()!=0)throw new AssertionError("GUI test failed: "+mode);
     }

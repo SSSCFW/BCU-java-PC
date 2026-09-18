@@ -21,7 +21,7 @@ public class BCMusic extends Data {
     /** Operation/notification gain is independent from battlefield effect gain. */
     static boolean isUiSound(int id){return id==8||id==9||id==10||id==11||id==SE_SPEND_FAIL||id==SE_SPEND_SUC||id==SE_SPEND_REF||id==SE_CANNON_CHARGE||id==SE_DELAY_COOLDOWN;}
     public static synchronized void setSoundEnabled(boolean enabled){
-        play=enabled;BCPlayer.refreshVolumes();
+        play=enabled;BCPlayer.refreshVolumes();online.ui.PvpSoundBank.refreshVolume();
         if(enabled&&BG==null&&music!=null)play(music);
     }
 	public static boolean play = true;
@@ -284,7 +284,7 @@ public class BCMusic extends Data {
 		}
 	}
 
-    public static synchronized void setSEVol(int vol) { VOL_SE=Math.max(0,Math.min(100,vol));BCPlayer.refreshVolumes(); }
+    public static synchronized void setSEVol(int vol) { VOL_SE=Math.max(0,Math.min(100,vol));BCPlayer.refreshVolumes();online.ui.PvpSoundBank.refreshVolume(); }
     public static synchronized void setUIVol(int vol) { VOL_UI=Math.max(0,Math.min(100,vol));BCPlayer.refreshVolumes(); }
 
 	public static synchronized void stopAll() {
