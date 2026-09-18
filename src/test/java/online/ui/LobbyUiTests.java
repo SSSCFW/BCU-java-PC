@@ -192,7 +192,7 @@ public final class LobbyUiTests {
                 Check.equal(online.net.lobby.RoomRules.SpecialMode.ROULETTE,((RoomClient)field(page,"client")).roomRules().specialMode,"host roulette rule reaches both clients");
                 Check.that(((RoomClient)field(page,"client")).roomRules().debugMode,"host debug mode reaches both clients");
                 Check.equal(1,((RoomClient)field(page,"client")).roomRules().timeLimitMinutes,"host time limit reaches both clients");
-                Check.equal(common.util.Data.TRAIT_RED,((RoomClient)field(page,"client")).roomRules().hostTraitChoice,"host selected attribute reaches both clients");
+                Check.equal((int)common.util.Data.TRAIT_RED,((RoomClient)field(page,"client")).roomRules().hostTraitChoice,"host selected attribute reaches both clients");
                 Check.equal(online.net.lobby.PvpTraitRules.RANDOM,((RoomClient)field(page,"client")).roomRules().guestTraitChoice,"guest random attribute reaches both clients");
                 edt(()->{Object audio=field(field(page,"roomLobby"),"audio");((JSlider)field(audio,"bg")).setValue(host?23:81);((JSlider)field(audio,"se")).setValue(host?45:11);((JSlider)field(audio,"ui")).setValue(host?67:9);return null;});
                 Files.write(shared.resolve(host?"host-lobby":"guest-lobby"),new byte[]{1});
@@ -213,8 +213,8 @@ public final class LobbyUiTests {
                     Check.equal(4,live.st.bg.id,"host background selected");Check.equal(7,live.st.mus0.id,"host BGM selected");
                     Check.equal(online.net.lobby.RoomRules.SpecialMode.ROULETTE,live.specialMode(),"battle uses synchronized roulette special mode");
                     Check.equal(1,live.st.timeLimit,"battle uses host one-minute time limit");
-                    Check.equal(common.util.Data.TRAIT_BLACK,live.leftTrait(),"guest random exclusions resolve left-side attribute to black");
-                    Check.equal(common.util.Data.TRAIT_RED,live.rightTrait(),"host fixed attribute resolves right-side attribute to red");
+                    Check.equal((int)common.util.Data.TRAIT_BLACK,live.leftTrait(),"guest random exclusions resolve left-side attribute to black");
+                    Check.equal((int)common.util.Data.TRAIT_RED,live.rightTrait(),"host fixed attribute resolves right-side attribute to red");
                     Check.that(((JLabel)field(nativePage,"eTraitIcon")).getIcon()!=null,"left castle HP has the selected attribute icon above it");
                     Check.that(((JLabel)field(nativePage,"uTraitIcon")).getIcon()!=null,"right castle HP has the selected attribute icon above it");
                     PvpRouletteHud rouletteHud=(PvpRouletteHud)field(nativePage,"onlineSpecial");Check.that(rouletteHud.isVisible(),"native roulette HUD is visible in roulette mode");Check.that(rouletteHud.has3dsAssets(),"native battle page uses decoded 3DS roulette assets: "+Pvp3dsAssets.diagnostic());
