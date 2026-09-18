@@ -391,7 +391,7 @@ public class EUnit extends Entity {
 		if ((atk.model instanceof AtkModelEnemy || basis.isPvp() && atk.attacker instanceof EUnit) && status[P_CURSE][0] == 0) {
 			List<Trait> sharedTraits = new ArrayList<>(incoming);
 			sharedTraits.retainAll(traits);
-			boolean isAntiTraited = Trait.isTargetTraited(traits);
+			boolean isAntiTraited = Trait.isTargetTraited(incoming);
 			for (Trait t : traits) {
 				if (t.id.pack.equals("000000") || sharedTraits.contains(t))
 					continue;
