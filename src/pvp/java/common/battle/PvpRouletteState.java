@@ -29,7 +29,8 @@ public final class PvpRouletteState extends BattleObj {
     private static final int[] WORKER={100,150,200,300,500};
 
     private final int[] reel=new int[SOURCE_REEL.length];
-    public int gauge, reelIndex, spinTicks, lastResult=-1, lastLevel;
+    /** Native roulette keeps a target gauge and lets the visible gauge chase it by 50. */
+    public int gauge, targetGauge, chargeClock, reelIndex, spinTicks, lastResult=-1, lastLevel;
     public boolean spinning;
     public int productionLevel, workerLevel, costLevel, attackLevel, hpLevel, moveLevel;
     public int babyRushTicks;
@@ -82,25 +83,40 @@ public final class PvpRouletteState extends BattleObj {
             reelIndex=(reelIndex+1)%reel.length;
             return;
         }
+
+        // The native state machine tests the displayed gauge before the catch-up step.
         if(gauge>=MAX_GAUGE) {
-            gauge=MAX_GAUGE;spinning=true;spinTicks=0;return;
+            gauge=targetGauge=MAX_GAUGE;spinning=true;spinTicks=0;return;
         }
-        float own=owner.ownBase().pos;
-        float enemy=world.getBase(owner.ownDirection()).pos;
-        float total=Math.max(1f,Math.abs(enemy-own));
-        float front=own;
-        for(Entity e:world.le) if(e instanceof EUnit && e.dire==owner.ownDirection() && !e.dead && !((EUnit)e).isSpirit) {
-            if((e.pos-front)*owner.ownDirection()>0)front=e.pos;
+
+        // 3DS accumulates roulette charge once per 60 native frames (one second).
+        // BCU PvP logic is fixed at 30 TPS, so one native charge step is 30 logic ticks.
+        if(++chargeClock>=PvpStageBasis.TPS) {
+            chargeClock-=PvpStageBasis.TPS;
+            int add=(int)(10.0 * castleHealthFactor(owner));
+            targetGauge=Math.min(MAX_GAUGE,targetGauge+Math.max(0,add));
         }
-        float progress=Math.max(0f,Math.min(1f,((front-own)*owner.ownDirection())/total));
-        gauge=Math.min(MAX_GAUGE,gauge+1+(int)(progress*4f));
+
+        if(gauge<targetGauge)gauge=Math.min(targetGauge,gauge+50);
+    }
+
+    /**
+     * Reverse engineered FUN_001954d0.
+     * At full castle HP the charge multiplier is 1x, at 50% it is 2x,
+     * and at 0% it is 5x, with linear interpolation on either side of 50%.
+     */
+    public static double castleHealthFactor(StageBasis owner) {
+        long max=Math.max(1L,owner.ownBase().maxH);
+        double ratio=Math.max(0.0,Math.min(1.0,(double)owner.ownBase().health/max));
+        if(ratio>=0.5)return 3.0-2.0*ratio; // 50% -> 2.0, 100% -> 1.0
+        return 5.0-6.0*ratio;               // 0% -> 5.0, 50% -> 2.0
     }
 
     /** The 3DS reel auto-starts at full gauge; the special button stops it after the intro frames. */
     public boolean press(PvpStageBasis world, StageBasis owner) {
         if(!spinning || spinTicks<10)return false;
         int result=reel[reelIndex];
-        spinning=false;spinTicks=0;gauge=0;lastResult=result;
+        spinning=false;spinTicks=0;gauge=targetGauge=0;chargeClock=0;lastResult=result;
         apply(world,owner,result);
         lastLevel=stockState(result);
         return true;
