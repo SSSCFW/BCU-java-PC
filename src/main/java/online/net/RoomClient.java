@@ -375,6 +375,7 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
     private void resetBattleState() {
         started=false;completed=false;manifestSeen=false;readyRequested=false;readySent=false;resultAckSent=false;
         roster.clear();hashes.clear();recipients.clear();manifestSizes.clear();delivered.clear();downloadQueue.clear();
+        cached.clear();for(Path path:cacheTemps)try{Files.deleteIfExists(path);}catch(IOException ignored){}cacheTemps.clear();
         frames.clear();commands.set(0);checkpoints.clear();frameBuffer=null;inputHistory=new InputHistory();
         ownHash=null;ownArchive=null;downloadingHash=null;serverExpected=0;serverRequest=-1;maxCheckpoint=0;
         lastFrameProgress=lastRescue=lastWsSend=0;expectedBytes=received=0;
