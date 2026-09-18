@@ -46,7 +46,7 @@ public final class RoomAudioTests {
             PvpStageBasis roulette=new PvpStageBasis(
                     Fixture.lineup(FixtureNativeUi.unit("audio_roulette_l",0xff111111)),
                     Fixture.lineup(FixtureNativeUi.unit("audio_roulette_r",0xff222222)),22,0,
-                    new online.net.lobby.RoomRules(4400,0,-1,false,online.net.lobby.RoomRules.SpecialMode.ROULETTE));
+                    new online.net.lobby.RoomRules(4400,0,3,false,online.net.lobby.RoomRules.SpecialMode.ROULETTE));
             heard(1,()->roulette.left().pvpRoulette.forceResult(roulette,roulette.left(),PvpRouletteState.KNOCKBACK));
             Check.that(heard.contains((int)Data.SE_BOSS),"roulette knockback activation reuses the native boss shock sound effect");
         } finally {CommonStatic.def=old;}
