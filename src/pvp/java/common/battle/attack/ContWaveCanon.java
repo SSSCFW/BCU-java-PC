@@ -16,7 +16,7 @@ public class ContWaveCanon extends ContWaveAb {
 
 	// used only by normal and zombie cannon
 	public ContWaveCanon(AttackWave a, float p, int id) {
-		super(a, p, (a.model.b.isPvp() && a.dire==1 && id==0 ? effas().A_E_WAVE.getEAnim(common.util.pack.EffAnim.DefEff.DEF) : CommonStatic.getBCAssets().atks[id].getEAnim(NyType.ATK)), 9, -3);
+		super(a, p, CommonStatic.getBCAssets().atks[id].getEAnim(NyType.ATK), 9, -3);
 		canid = id;
 		soundEffect = SE_CANNON[canid][1];
 
@@ -32,7 +32,7 @@ public class ContWaveCanon extends ContWaveAb {
 	}
 
 	public ContWaveCanon(AttackWave a, float p, int id, int maxTime, Set<ContWaveAb> waves) {
-		super(a, p, (a.model.b.isPvp() && a.dire==1 && id==0 ? effas().A_E_WAVE.getEAnim(common.util.pack.EffAnim.DefEff.DEF) : CommonStatic.getBCAssets().atks[id].getEAnim(NyType.ATK)), 9, 0);
+		super(a, p, CommonStatic.getBCAssets().atks[id].getEAnim(NyType.ATK), 9, 0);
 		canid = id;
 		soundEffect = SE_CANNON[canid][1];
 
