@@ -27,8 +27,8 @@ public final class PlayerTraitTests {
         battle.step(new InputFrame(0,1,1));
         EUnit leftSpawn=(EUnit)battle.le.stream().filter(e->e instanceof EUnit&&e.dire==1).findFirst().orElseThrow(AssertionError::new);
         EUnit rightSpawn=(EUnit)battle.le.stream().filter(e->e instanceof EUnit&&e.dire==-1).findFirst().orElseThrow(AssertionError::new);
-        Check.equal(Data.TRAIT_RED,leftSpawn.pvpAssignedTrait(),"left player's spawned unit receives selected red attribute");
-        Check.equal(Data.TRAIT_BLACK,rightSpawn.pvpAssignedTrait(),"right player's spawned unit receives selected black attribute");
+        Check.equal((int)Data.TRAIT_RED,leftSpawn.pvpAssignedTrait(),"left player's spawned unit receives selected red attribute");
+        Check.equal((int)Data.TRAIT_BLACK,rightSpawn.pvpAssignedTrait(),"right player's spawned unit receives selected black attribute");
         Trait red=common.pack.UserProfile.getBCData().traits.get(Data.TRAIT_RED);
         Trait black=common.pack.UserProfile.getBCData().traits.get(Data.TRAIT_BLACK);
         Check.that(leftSpawn.traitCompatible(Collections.singletonList(red),rightSpawn,true),"red-target-only attack can target a red-assigned PvP unit");
@@ -44,7 +44,7 @@ public final class PlayerTraitTests {
                 PvpTraitRules.RANDOM,PvpTraitRules.RANDOM,1<<PvpTraitRules.optionIndex(Data.TRAIT_RED),
                 PvpTraitRules.ALL_EXCLUSIONS^(1<<PvpTraitRules.optionIndex(Data.TRAIT_BLACK)),15);
         Check.that(randomRules.resolvedHostTrait(12345L)!=Data.TRAIT_RED,"random host trait honors exclusions");
-        Check.equal(Data.TRAIT_BLACK,randomRules.resolvedGuestTrait(12345L),"random guest trait can be constrained to one allowed attribute");
+        Check.equal((int)Data.TRAIT_BLACK,randomRules.resolvedGuestTrait(12345L),"random guest trait can be constrained to one allowed attribute");
 
         int limit=1*60*PvpStageBasis.TPS;
         PvpStageBasis timed=new PvpStageBasis(left,right,9983,0,rules,1.0,1.0);
