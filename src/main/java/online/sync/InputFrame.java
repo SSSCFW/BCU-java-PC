@@ -1,7 +1,7 @@
 package online.sync;
 
 public final class InputFrame {
-    public static final int WORKER=1<<10, CANNON=1<<11;
+    public static final int WORKER=1<<10, SPECIAL=1<<11, CANNON=SPECIAL;
     public static final int ALLOWED=(1<<22)-1;
     public final long tick;
     public final int left,right;
