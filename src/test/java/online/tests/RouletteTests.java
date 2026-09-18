@@ -98,8 +98,12 @@ public final class RouletteTests {
         Check.equal(10,chargeOwner.pvpRoulette.targetGauge,"full castle HP charges native base 10 points per second in the first half");
         Check.equal(10,chargeOwner.pvpRoulette.gauge,"visible gauge chases target by up to 50 points");
         chargeOwner.ownBase().health=chargeOwner.ownBase().maxH/2;
+        // This assertion isolates the passive 1-second cadence. Re-baseline the
+        // stored castle HP so the separate immediate castle-damage event is not
+        // intentionally added to the same measurement.
+        chargeOwner.pvpRoulette.initializeCharge(chargeOwner);
         for(int i=0;i<PvpStageBasis.TPS;i++)chargeOwner.pvpRoulette.advance(charge,chargeOwner);
-        Check.equal(30,chargeOwner.pvpRoulette.targetGauge,"half castle HP uses native 2x roulette charge");
+        Check.equal(30,chargeOwner.pvpRoulette.targetGauge,"half castle HP uses native 2x passive roulette charge");
         Check.equal(1.0,PvpRouletteState.castleHealthFactor(fullHealth(chargeOwner)),"full HP comeback factor is 1x");
         chargeOwner.ownBase().health=chargeOwner.ownBase().maxH/2;
         Check.equal(2.0,PvpRouletteState.castleHealthFactor(chargeOwner),"half HP comeback factor is 2x");
