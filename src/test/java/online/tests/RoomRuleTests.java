@@ -59,6 +59,15 @@ public final class RoomRuleTests {
             JsonObject msg=Protocol.message("rules");msg.add("rules",special.json());
             Check.equal(mode,RoomRules.read(msg).specialMode,"host special mode roundtrip: "+mode);
         }
+        common.util.pack.Background bg4=new common.util.pack.Background(new Identifier<>(Identifier.DEF,common.util.pack.Background.class,4),FixtureNativeUi.image(64,64,0xff556677));
+        UserProfile.getBCData().bgs.set(4,bg4);
+        UserProfile.getBCData().musics.set(3,new Music(new Identifier<>(Identifier.DEF,Music.class,3),0,new FDByte(new byte[]{4,5,6})));
+        RoomRules randomRules=new RoomRules(4400,RoomRules.RANDOM_BACKGROUND,RoomRules.RANDOM_MUSIC,false,RoomRules.SpecialMode.ROULETTE,true);
+        PvpStageBasis.validateRulesAssets(randomRules);
+        RoomRules resolvedA=PvpStageBasis.resolveRandomRules(randomRules,123456789L),resolvedB=PvpStageBasis.resolveRandomRules(randomRules,123456789L);
+        Check.equal(resolvedA,resolvedB,"random background/BGM resolve deterministically from the shared match seed");
+        Check.that(resolvedA.backgroundId>=0&&resolvedA.musicId>=0,"random rules resolve to concrete standard background and BGM IDs");
+
         JsonObject invalidMode=Protocol.message("rules");invalidMode.add("rules",RoomRules.DEFAULT.json());
         invalidMode.getAsJsonObject("rules").addProperty("specialMode","NOT_A_MODE");
         Check.rejects(()->RoomRules.read(invalidMode),"unknown special mode rejected");
