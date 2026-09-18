@@ -13,6 +13,7 @@ import main.MainBCU;
 import main.Opts;
 import online.ui.OnlineBattleField;
 import online.ui.AudioSettingsPanel;
+import online.ui.PvpRouletteHud;
 import java.util.function.IntConsumer;
 import page.*;
 import page.awt.BBBuilder;
@@ -73,7 +74,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 
 	private OnlineBattleField online;
     private final JButton audio=new JButton("音量");
-    private final JLabel onlineSpecial=new JLabel("",SwingConstants.CENTER);
+    private PvpRouletteHud onlineSpecial;
     private JDialog audioDialog;
 	private Runnable onlineExit;
 	private boolean onlineClosed;
@@ -167,7 +168,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		ini();
 		// These native single-player operations cannot be performed independently online.
 		paus.setEnabled(false);paus.setVisible(false);
-        add(audio);add(onlineSpecial);onlineSpecial.setText(online.specialStatus());audio.addActionListener(e->{getPress().clear();if(audioDialog!=null&&audioDialog.isDisplayable()){audioDialog.toFront();return;}audioDialog=AudioSettingsPanel.open(this);});
+        onlineSpecial=new PvpRouletteHud(online);add(audio);add(onlineSpecial);audio.addActionListener(e->{getPress().clear();if(audioDialog!=null&&audioDialog.isDisplayable()){audioDialog.toFront();return;}audioDialog=AudioSettingsPanel.open(this);});
         if(MainBCU.loaded){BCMusic.stopAll();BCMusic.play(basis.sb.st.mus0);}
 		next.setEnabled(false);
 		rply.setEnabled(false);
@@ -214,7 +215,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		ucount.setText(sb.entityCount(-1) + "/" + sb.playerFor(-1).maxNum);
 		if (bb.getPainter().dragging) bb.getPainter().dragFrame++;
 		if (MainBCU.loaded) BCMusic.flush(sb.ebase.health > 0 && sb.ubase.health > 0);
-        onlineSpecial.setText(online.specialStatus());
+        if(onlineSpecial!=null)onlineSpecial.refresh();
 		if (((Canvas) bb).isDisplayable()) bb.paint();
 	}
 
@@ -379,8 +380,10 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		}
         if(online!=null){
             audio.setBounds(paus.getBounds());
-            if(jtb.isSelected())set(onlineSpecial,x,y,1100,0,390,50);
-            else set(onlineSpecial,x,y,1100,200,390,50);
+            if(onlineSpecial!=null){
+                if(jtb.isSelected())set(onlineSpecial,x,y,1100,0,390,50);
+                else set(onlineSpecial,x,y,1100,200,390,50);
+            }
         }
 		ct.setRowHeight(size(x, y, 50));
 		et.setRowHeight(size(x, y, 50));
