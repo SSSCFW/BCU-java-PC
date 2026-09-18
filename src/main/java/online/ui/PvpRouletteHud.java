@@ -86,15 +86,18 @@ public final class PvpRouletteHud extends JComponent {
             }
 
             int result=state.spinning?state.currentResult():state.lastResult;
-            if(assetsReady&&result>=0&&result<ICON.length){
-                g.drawImage(Pvp3dsAssets.image("ui_battle_multi_icon",ICON[result]),4,5,null);
-                g.drawImage(Pvp3dsAssets.image("ui_battle_multi_reel",NAME[result]),48,5,null);
-
-                if(!state.spinning&&state.lastLevel>0){
-                    int lv=Math.min(4,state.lastLevel);
-                    g.drawImage(Pvp3dsAssets.image("ui_battle_multi_icon",LEVEL[lv]),226,14,null);
-                }
+            if(assetsReady){
                 boolean hi=((world.time/4)&1)==0;
+                // Before the first result there is no effect icon/name yet; this is a
+                // valid roulette state, not an asset-loading failure.
+                if(result>=0&&result<ICON.length){
+                    g.drawImage(Pvp3dsAssets.image("ui_battle_multi_icon",ICON[result]),4,5,null);
+                    g.drawImage(Pvp3dsAssets.image("ui_battle_multi_reel",NAME[result]),48,5,null);
+                    if(!state.spinning&&state.lastLevel>0){
+                        int lv=Math.min(4,state.lastLevel);
+                        g.drawImage(Pvp3dsAssets.image("ui_battle_multi_icon",LEVEL[lv]),226,14,null);
+                    }
+                }
                 if(state.spinning){
                     // The 3DS sheet contains an R shoulder-button glyph, but PC R is a
                     // unit hotkey. Do not show a misleading control hint; reuse the
@@ -105,8 +108,6 @@ public final class PvpRouletteHud extends JComponent {
                     g.drawImage(Pvp3dsAssets.image("ui_battle_multi_reel","ルーレットランプ：点灯"),294,10,null);
                 }
             }else{
-                // Resource failure must never make a network battle unplayable.
-                assetsReady=false;
                 g.setColor(Color.WHITE);
                 g.setFont(g.getFont().deriveFont(Font.BOLD,13f));
                 g.drawString(online.specialStatus(),8,30);
