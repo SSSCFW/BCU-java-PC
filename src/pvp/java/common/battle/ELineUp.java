@@ -67,6 +67,8 @@ public class ELineUp extends BattleObj {
 	 */
 	protected void get(int i, int j) {
 		cool[i][j] = maxC[i][j];
+		if (b.pvpRoulette != null && b.pvpRoulette.productionLevel > 0)
+			cool[i][j] = Math.max(0, cool[i][j] / b.pvpRoulette.productionDivisor());
 		if (cdDownOrb[i][j] > 0 && tick[i][j] == 0)
 			cool[i][j] -= cool[i][j] * cdDownOrb[i][j] / 100;
 		b.cdDelayVisual[i][j] = StageBasis.DELAY_BASE.clone();
