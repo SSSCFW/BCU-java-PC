@@ -1,0 +1,20 @@
+name: Roulette v5 TDD
+on:
+  push:
+    branches: [work/roulette-v5]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Full Maven verification
+        run: mvn -B -ntp clean verify
