@@ -446,6 +446,10 @@ public class GLGraphics implements GeoAuto {
 		if (mode == IMG) {
 			g.glEnable(GL_TEXTURE_2D);
 			g.glEnable(GL_BLEND);
+			// Java2D drawImage is independent of the current shape color. Match that
+			// behavior for the fixed-function JOGL fallback; otherwise an image drawn
+			// after a dark colRect can be multiplied by that color and appear black.
+			g.glColor4f(1f, 1f, 1f, 1f);
 			g.glUseProgram(tm.prog);
 		}
 	}
