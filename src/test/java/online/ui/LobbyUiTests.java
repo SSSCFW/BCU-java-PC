@@ -260,7 +260,7 @@ public final class LobbyUiTests {
                     BattleInfoPage nativePage=(BattleInfoPage)field(page,"battlePage");
                     nativePage.showOnlineResult(host?"勝利！":"敗北","両者の戦闘結果が一致しました。OKを押してください。",()->{});
                     Check.that(((JPanel)field(nativePage,"onlineBattleEnd")).isVisible(),"battle-end message is shown immediately on both clients");
-                    Check.that(!((Canvas)field(nativePage,"bb")).isVisible(),"heavyweight battle canvas is hidden behind end/result screens");
+                    Check.that(!((java.awt.Canvas)field(nativePage,"bb")).isVisible(),"heavyweight battle canvas is hidden behind end/result screens");
                     return null;
                 });
                 await(()->((JPanel)field(field(page,"battlePage"),"onlineResult")).isVisible(),"result screen appears after battle-end sound completion");
