@@ -17,6 +17,7 @@ public final class PvpStageBasis extends StageBasis {
     public static final double MIN_CASTLE_HEALTH_MULTIPLIER=0.1, MAX_CASTLE_HEALTH_MULTIPLIER=1000.0;
     public final int pvpSpecialMode;
     public final boolean pvpDebugMode;
+    private final int pvpLeftTrait,pvpRightTrait;
     private String matchScope;
     public static PvpStageBasis create(String match, BasisLU left, BasisLU right, long seed, int leftSeat) throws Exception {
         return create(match,left,right,seed,leftSeat,RoomRules.DEFAULT);
@@ -26,7 +27,12 @@ public final class PvpStageBasis extends StageBasis {
     }
     public static PvpStageBasis create(String match, BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules,
                                        double leftCastleMultiplier,double rightCastleMultiplier) throws Exception {
-        return PvpTiming.inMatch(match, () -> {PvpStageBasis b=new PvpStageBasis(left,right,seed,leftSeat,rules,leftCastleMultiplier,rightCastleMultiplier);b.matchScope=match;return b;});
+        return create(match,left,right,seed,leftSeat,rules,leftCastleMultiplier,rightCastleMultiplier,
+                online.net.lobby.PvpTraitRules.NONE,online.net.lobby.PvpTraitRules.NONE);
+    }
+    public static PvpStageBasis create(String match, BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules,
+                                       double leftCastleMultiplier,double rightCastleMultiplier,int leftTrait,int rightTrait) throws Exception {
+        return PvpTiming.inMatch(match, () -> {PvpStageBasis b=new PvpStageBasis(left,right,seed,leftSeat,rules,leftCastleMultiplier,rightCastleMultiplier,leftTrait,rightTrait);b.matchScope=match;return b;});
     }
     public static final int ARENA_LENGTH = 6000;
     public static final int MAX_UNITS = 50;
@@ -39,13 +45,23 @@ public final class PvpStageBasis extends StageBasis {
     }
     public PvpStageBasis(BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules,
                          double leftCastleMultiplier,double rightCastleMultiplier) {
-        this(arena(resolveRandomRules(rules,seed)),left,right,seed,leftSeat,resolveRandomRules(rules,seed),leftCastleMultiplier,rightCastleMultiplier);
+        this(left,right,seed,leftSeat,rules,leftCastleMultiplier,rightCastleMultiplier,
+                online.net.lobby.PvpTraitRules.NONE,online.net.lobby.PvpTraitRules.NONE);
+    }
+    public PvpStageBasis(BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules,
+                         double leftCastleMultiplier,double rightCastleMultiplier,int leftTrait,int rightTrait) {
+        this(arena(resolveRandomRules(rules,seed)),left,right,seed,leftSeat,resolveRandomRules(rules,seed),
+                leftCastleMultiplier,rightCastleMultiplier,leftTrait,rightTrait);
     }
     private PvpStageBasis(Stage arena, BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules,
-                          double leftCastleMultiplier,double rightCastleMultiplier) {
+                          double leftCastleMultiplier,double rightCastleMultiplier,int leftTrait,int rightTrait) {
         super(null, new EStage(arena, 0), right, new int[3], seed, false);
         this.pvpSpecialMode=rules.specialMode.ordinal();
         this.pvpDebugMode=rules.debugMode;
+        online.net.lobby.PvpTraitRules.validate(leftTrait,0);online.net.lobby.PvpTraitRules.validate(rightTrait,0);
+        if(leftTrait==online.net.lobby.PvpTraitRules.RANDOM||rightTrait==online.net.lobby.PvpTraitRules.RANDOM)
+            throw new IllegalArgumentException("戦闘開始時の属性は解決済みである必要があります");
+        this.pvpLeftTrait=leftTrait;this.pvpRightTrait=rightTrait;
         if (leftSeat != 0 && leftSeat != 1) throw new IllegalArgumentException("Invalid player seat");
         pvpRoot = this; pvpDirection = -1; pvpSeat = 1-leftSeat;
         StageBasis other = new StageBasis(null, new EStage(arena,0), left, new int[3], seed, false);
@@ -69,6 +85,9 @@ public final class PvpStageBasis extends StageBasis {
     }
     public RoomRules.SpecialMode specialMode() { return RoomRules.SpecialMode.values()[pvpSpecialMode]; }
     public boolean debugMode() { return pvpDebugMode; }
+    public int traitForDirection(int direction){return direction==1?pvpLeftTrait:direction==-1?pvpRightTrait:online.net.lobby.PvpTraitRules.NONE;}
+    public int leftTrait(){return pvpLeftTrait;}
+    public int rightTrait(){return pvpRightTrait;}
     public StageBasis left() { return pvpOther; }
     public StageBasis right() { return this; }
     /** tick starts at zero, time counts the number of COMPLETED simulation ticks. */
@@ -144,10 +163,19 @@ public final class PvpStageBasis extends StageBasis {
     }
     /** -2 ongoing; -1 draw; 0 physical left wins; 1 physical right wins. */
     public int winner() {
-        if(ebase.health>0 && ubase.health>0)return -2;
-        if(ebase.health<=0 && ubase.health<=0)return -1;
-        return ebase.health>0?0:1;
+        if(ebase.health<=0||ubase.health<=0){
+            if(ebase.health<=0&&ubase.health<=0)return -1;
+            return ebase.health>0?0:1;
+        }
+        int limit=timeLimitTicks();
+        if(limit>0&&time>=limit){
+            if(ebase.health==ubase.health)return -1;
+            return ebase.health>ubase.health?0:1;
+        }
+        return -2;
     }
+    public int timeLimitTicks(){return st.timeLimit<=0?0:st.timeLimit*60*TPS;}
+    public int remainingTimeTicks(){int limit=timeLimitTicks();return limit<=0?-1:Math.max(0,limit-time);}
     public PvpStageBasis displayCopy() { return (PvpStageBasis)clone(); }
     /** Only call on a displayCopy; never on the canonical battle state. */
     public void advanceDisplay() {
@@ -167,7 +195,8 @@ public final class PvpStageBasis extends StageBasis {
     public static RoomRules resolveRandomRules(RoomRules rules,long seed) {
         int background=rules.backgroundId==RoomRules.RANDOM_BACKGROUND?randomBackgroundId(seed):rules.backgroundId;
         int music=rules.musicId==RoomRules.RANDOM_MUSIC?randomMusicId(seed):rules.musicId;
-        RoomRules resolved=new RoomRules(rules.castleDistance,background,music,rules.force60Fps,rules.specialMode,rules.debugMode);
+        RoomRules resolved=new RoomRules(rules.castleDistance,background,music,rules.force60Fps,rules.specialMode,rules.debugMode,
+                rules.hostTraitChoice,rules.guestTraitChoice,rules.hostTraitExclusions,rules.guestTraitExclusions,rules.timeLimitMinutes);
         validateRulesAssets(resolved);
         return resolved;
     }
@@ -201,7 +230,7 @@ public final class PvpStageBasis extends StageBasis {
         validateRulesAssets(rules);
         ArenaMap map=new ArenaMap(); ArenaStage stage=new ArenaStage(map);
         stage.names.put("Online PvP");stage.len=rules.castleDistance+1600;stage.max=MAX_UNITS;
-        stage.non_con=true;stage.drop=false;stage.health=60000;stage.data=new SCDef(0);
+        stage.non_con=true;stage.drop=false;stage.health=60000;stage.timeLimit=rules.timeLimitMinutes;stage.data=new SCDef(0);
         stage.bg=new Identifier<>(Identifier.DEF,Background.class,rules.backgroundId);
         stage.mus0=stage.mus1=rules.musicId<0?null:new Identifier<>(Identifier.DEF,Music.class,rules.musicId);
         stage.castle=CastleList.defset().stream().sorted(Comparator.comparing(CastleList::getSID))
