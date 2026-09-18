@@ -1080,8 +1080,10 @@ public interface BattleBox {
 					gra.drawImage(none,x-w/2f,healthY-h-3f,w,h);
 					return;
 				}
-				common.util.unit.Trait t=common.pack.UserProfile.getBCData().traits.get(trait);
-				FakeImage icon=t!=null&&t.icon!=null?t.icon.getImg():(aux.dummyTrait==null?null:aux.dummyTrait.getImg());
+				FakeImage icon=null;
+				if(aux.icon!=null&&aux.icon.length>3&&aux.icon[3]!=null&&trait>=0&&trait<aux.icon[3].length&&aux.icon[3][trait]!=null)
+					icon=aux.icon[3][trait].getImg();
+				if(icon==null&&aux.dummyTrait!=null)icon=aux.dummyTrait.getImg();
 				if(icon==null)return;
 				float size=Math.max(22f,Math.min(36f,box.getHeight()*0.052f));
 				gra.colRect(x-size/2f-2f,healthY-size-5f,size+4f,size+4f,18,20,24,230);
