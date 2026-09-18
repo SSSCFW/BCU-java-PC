@@ -121,7 +121,7 @@ public final class PvpRouletteState extends BattleObj {
             case HEAL:
                 for(Entity e:world.le) if(e instanceof EUnit&&e.dire==owner.ownDirection()&&!e.dead) {
                     e.health=Math.min(e.maxH,e.health+e.maxH/2);
-                    e.anim.getEff(HEAL);
+                    e.anim.getEff(common.util.Data.HEAL);
                 }
                 break;
             case PRODUCTION_RECOVERY: clearCooldowns(owner); break;
