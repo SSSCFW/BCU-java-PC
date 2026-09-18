@@ -51,6 +51,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private final FriendServerPanel friendServer=new FriendServerPanel(server::setText);
     private final Path preferencesPath=CommonStatic.ctx.getUserFile("online-client.properties").toPath();
     private final javax.swing.Timer saveTimer=new javax.swing.Timer(400,e->savePreferences());
+    private LobbyPreferences preferences;
     private boolean preferencesDirty,roomProtected;
     private volatile int generation;
     private boolean creating,uploaded,prepared,resultSent,busy;
@@ -273,8 +274,8 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         if(!disposed)status.setText((playerId>0?"部屋ID: "+room.getText()+" / "+(roomProtected?"パスワードあり":"パスワードなし")+"\n":"")+text);
     }else{int attempt=generation;message(attempt,text);}}
     private void loadPreferences(){
-        try{LobbyPreferences saved=LobbyPreferences.load(preferencesPath,MainBCU.author);server.setText(saved.serverAddress);name.setText(saved.displayName);}
-        catch(java.io.IOException e){System.err.println("BCU online preferences: "+e.getMessage());}
+        try{preferences=LobbyPreferences.load(preferencesPath,MainBCU.author);server.setText(preferences.serverAddress);name.setText(preferences.displayName);}
+        catch(java.io.IOException e){System.err.println("BCU online preferences: "+e.getMessage());preferences=new LobbyPreferences(LobbyPreferences.DEFAULT_SERVER,MainBCU.author);server.setText(preferences.serverAddress);name.setText(preferences.displayName);}
     }
     private void bindPreferences(){
         saveTimer.setRepeats(false);
@@ -288,8 +289,22 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     }
     private void savePreferences(){
         saveTimer.stop();if(!preferencesDirty)return;
-        try{new LobbyPreferences(server.getText(),name.getText()).save(preferencesPath);preferencesDirty=false;}
-        catch(java.io.IOException e){System.err.println("BCU online preferences: "+e.getMessage());if(!disposed)status.append("\n表示名・サーバーの保存に失敗しました: "+e.getMessage());}
+        try{
+            if(preferences==null)preferences=new LobbyPreferences(server.getText(),name.getText());
+            else preferences=preferences.withConnection(server.getText(),name.getText());
+            preferences.save(preferencesPath);preferencesDirty=false;
+        }
+        catch(java.io.IOException e){System.err.println("BCU online preferences: "+e.getMessage());if(!disposed)status.append("\n設定の保存に失敗しました: "+e.getMessage());}
+    }
+    boolean creatingRoom(){return creating;}
+    LobbyPreferences preferences(){return preferences==null?new LobbyPreferences(server.getText(),name.getText()):preferences;}
+    online.net.lobby.RoomRules savedHostRules(online.net.lobby.RoomRules base){
+        LobbyPreferences p=preferences();
+        return new online.net.lobby.RoomRules(base.castleDistance,base.backgroundId,base.musicId,base.force60Fps,base.specialMode,base.debugMode,
+                p.hostTraitChoice,p.guestTraitChoice,p.hostTraitExclusions,p.guestTraitExclusions,p.timeLimitMinutes);
+    }
+    void rememberHostRules(online.net.lobby.RoomRules rules){
+        preferences=preferences().withHostRules(rules);preferencesDirty=true;saveTimer.restart();
     }
     /** Leave/cancel a match, not the embedded server. Stale socket/asset callbacks are fenced out. */
     private boolean isSessionChild(){Page p=MainFrame.getPanel();if(p==this)return false;while(p!=null){if(p==this)return true;p=p.getFront();}return false;}
