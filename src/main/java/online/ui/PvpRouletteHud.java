@@ -36,8 +36,10 @@ public final class PvpRouletteHud extends JComponent {
     };
     private static final String[] LEVEL={"","レベル１","レベル２","レベル３","レベルマックス"};
 
+    private static final int CUTIN_TICKS=45;
     private final OnlineBattleField online;
-    private boolean assetsReady;
+    private boolean assetsReady,wasSpinning;
+    private int seenResult=-1,cutinUntilTick=-1;
 
     public PvpRouletteHud(OnlineBattleField online){
         this.online=online;
@@ -50,6 +52,14 @@ public final class PvpRouletteHud extends JComponent {
         PvpStageBasis world=(PvpStageBasis)online.sb;
         boolean roulette=world.specialMode()==RoomRules.SpecialMode.ROULETTE;
         setVisible(roulette);
+        StageBasis own=online.playerState();
+        PvpRouletteState state=own.pvpRoulette;
+        if(state!=null){
+            if(state.lastResult>=0 && (state.lastResult!=seenResult || (wasSpinning&&!state.spinning)))
+                cutinUntilTick=world.time+CUTIN_TICKS;
+            seenResult=state.lastResult;
+            wasSpinning=state.spinning;
+        }
         setToolTipText(online.specialStatus());
         repaint();
     }
@@ -79,7 +89,7 @@ public final class PvpRouletteHud extends JComponent {
             g.scale(scale,scale);
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
 
-            if(assetsReady&&state.lastResult>=0&&state.cutinTicks>0){
+            if(assetsReady&&state.lastResult>=0&&world.time<cutinUntilTick){
                 BufferedImage cut=Pvp3dsAssets.image("ui_battle_multi_cutin",CUTIN[state.lastResult]);
                 g.drawImage(cut,(390-cut.getWidth())/2,(50-cut.getHeight())/2,null);
                 return;
