@@ -817,7 +817,7 @@ public class StageBasis extends BattleObj {
 				}
 			}
 
-			boolean cannonMode = !isPvp() || ((PvpStageBasis)world()).rules.specialMode == online.net.lobby.RoomRules.SpecialMode.CANNON;
+			boolean cannonMode = !isPvp() || ((PvpStageBasis)world()).specialMode() == online.net.lobby.RoomRules.SpecialMode.CANNON;
 			if(cannonMode && cannon == maxCannon -1) {
 				PvpAudio.notification(this, SE_CANNON_CHARGE);
 			}
