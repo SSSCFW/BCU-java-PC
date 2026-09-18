@@ -14,6 +14,7 @@ import main.Opts;
 import online.ui.OnlineBattleField;
 import online.ui.AudioSettingsPanel;
 import online.ui.PvpRouletteHud;
+import online.ui.PvpUnitAbilityOverlay;
 import online.net.lobby.PvpTraitRules;
 import utilpc.UtilPC;
 import java.util.function.IntConsumer;
@@ -77,6 +78,11 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	private OnlineBattleField online;
     private final JButton audio=new JButton("音量"),rouletteDebugMax=new JButton("ルーレットMAX");
     private final JLabel onlineTag=new JLabel("Online"),rouletteNotice=new JLabel();
+    private final PvpUnitAbilityOverlay unitAbilityOverlay=new PvpUnitAbilityOverlay();
+    private javax.swing.Timer unitHoldTimer;
+    private Form heldUnitForm;
+    private Point heldUnitPoint;
+    private boolean suppressHeldUnitClick;
     private PvpRouletteHud onlineSpecial;
     private JDialog audioDialog;
     private final JPanel onlineResult=new JPanel(new BorderLayout(10,10));
@@ -177,7 +183,14 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		ini();
 		// These native single-player operations cannot be performed independently online.
 		paus.setEnabled(false);paus.setVisible(false);
-        onlineSpecial=new PvpRouletteHud(online);add(audio);add(onlineSpecial);add(onlineTag);add(rouletteNotice);add(rouletteDebugMax);
+        onlineSpecial=new PvpRouletteHud(online);add(audio);add(onlineSpecial);add(onlineTag);add(rouletteNotice);add(rouletteDebugMax);add(unitAbilityOverlay);
+        unitAbilityOverlay.setVisible(false);setComponentZOrder(unitAbilityOverlay,0);
+        unitHoldTimer=new javax.swing.Timer(450,e->{
+            if(heldUnitForm!=null&&!onlineClosed){
+                unitAbilityOverlay.show(heldUnitForm,online.playerState());
+                suppressHeldUnitClick=true;
+            }
+        });unitHoldTimer.setRepeats(false);
         styleOnlineLabel(onlineTag,Color.WHITE,14f);
         styleOnlineLabel(rouletteNotice,new Color(255,245,180),13f);rouletteNotice.setVisible(false);
         styleOnlineLabel(stream,Color.WHITE,12f);
@@ -285,6 +298,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		if (online == null || onlineClosed) return;
 		onlineClosed = true;
         if(audioDialog!=null){audioDialog.dispose();audioDialog=null;}
+        if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;heldUnitPoint=null;
         BCMusic.stopAll();
 		online.interactive(false);
 		getPress().clear();
@@ -336,26 +350,45 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 
 	@Override
 	protected void mouseClicked(MouseEvent e) {
-		if (e.getSource() == bb)
+		if (e.getSource() == bb) {
+            if(suppressHeldUnitClick){suppressHeldUnitClick=false;return;}
 			bb.click(e.getPoint(), e.getButton());
+        }
 	}
 
 	@Override
 	protected void mouseDragged(MouseEvent e) {
-		if (e.getSource() == bb)
+		if (e.getSource() == bb) {
+            if(heldUnitForm!=null&&heldUnitPoint!=null&&heldUnitPoint.distance(e.getPoint())>8){
+                if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;
+                bb.press(heldUnitPoint);bb.drag(e.getPoint(),e.getButton());return;
+            }
 			bb.drag(e.getPoint(), e.getButton());
+        }
 	}
 
 	@Override
 	protected void mousePressed(MouseEvent e) {
-		if (e.getSource() == bb)
+		if (e.getSource() == bb) {
+            if(online!=null&&e.getButton()==MouseEvent.BUTTON1&&bb.getPainter() instanceof BBCtrl){
+                Form form=((BBCtrl)bb.getPainter()).formAt(e.getPoint());
+                if(form!=null){
+                    heldUnitForm=form;heldUnitPoint=e.getPoint();suppressHeldUnitClick=false;
+                    if(unitHoldTimer!=null)unitHoldTimer.restart();return;
+                }
+            }
 			bb.press(e.getPoint());
+        }
 	}
 
 	@Override
 	protected void mouseReleased(MouseEvent e) {
-		if (e.getSource() == bb)
+		if (e.getSource() == bb) {
+            if(heldUnitForm!=null){
+                if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;heldUnitPoint=null;return;
+            }
 			bb.release();
+        }
 	}
 
 	@Override
@@ -448,11 +481,13 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
                 set(onlineTag,x,y,1760,60,250,30);
                 set(rouletteNotice,x,y,760,98,720,34);
                 set(rouletteDebugMax,x,y,210,134,300,46);
+                set(unitAbilityOverlay,x,y,500,95,1300,260);
                 set(onlineResult,x,y,650,430,1000,320);
             }else{
                 set(onlineTag,x,y,1330,310,250,30);
                 set(rouletteNotice,x,y,900,372,650,34);
                 set(rouletteDebugMax,x,y,710,372,300,46);
+                set(unitAbilityOverlay,x,y,760,320,680,230);
                 set(onlineResult,x,y,750,390,700,320);
             }
         }
