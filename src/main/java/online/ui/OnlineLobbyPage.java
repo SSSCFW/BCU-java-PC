@@ -185,7 +185,9 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     }
     private void updateReady(){if(uploaded&&prepared&&mounted[0]!=null&&mounted[1]!=null&&!client.realtimeTransport().equals("PROBING")){client.ready();message("両者のキャラクターを同期しました。対戦を開始しています…");}}
     private void showBattle(){
-        battlePage=new BattleInfoPage(this,battle.displayCopy(),slot==leftSlot?1:-1,
+        // The native battle page is a direct child of the room lobby so Back/result
+        // navigation returns to the room instead of unwinding the whole online session.
+        battlePage=new BattleInfoPage(roomLobby,battle.displayCopy(),slot==leftSlot?1:-1,
                 this::command,this::requestBattleReturn,
                 leftSlot==0?hostName:guestName,leftSlot==0?guestName:hostName);
         battlePage.force60Fps(client.roomRules().force60Fps);
