@@ -353,7 +353,9 @@ public final class RoomServerCore implements AutoCloseable {
         room.resetMatch();broadcast(room,roster(room,"room_state"));
     }
     private void abortBattle(RoomSession room,Participant p)throws IOException{
-        if(!room.prepared&&!room.started&&!room.resultReady)throw new IOException("No active battle to abort");
+        // Both peers can press Back nearly simultaneously. The second abort is stale,
+        // not a protocol violation: just re-send the already-restored lobby state.
+        if(!room.prepared&&!room.started&&!room.resultReady){p.control.send(roster(room,"room_state"));return;}
         JsonObject cancelled=Protocol.message("battle_cancelled");cancelled.addProperty("playerId",p.id);broadcast(room,cancelled);
         room.resetMatch();broadcast(room,roster(room,"room_state"));
     }
@@ -362,7 +364,7 @@ public final class RoomServerCore implements AutoCloseable {
         for (RoomSession room : new ArrayList<>(rooms.values())) {
             try {
                 if ((!room.prepared && now - room.progressed > config.roomIdleMinutes * 60L * SECOND) ||
-                        (room.prepared && now - room.progressed > (room.started ? 30 : 120) * SECOND) ||
+                        (room.prepared && !room.resultReady && now - room.progressed > (room.started ? 30 : 120) * SECOND) ||
                         (room.resultReady && now - room.progressed > config.roomIdleMinutes * 60L * SECOND)) {
                     closeRoom(room, "TIMEOUT", "Room timed out"); continue;
                 }
