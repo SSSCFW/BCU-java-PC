@@ -236,6 +236,15 @@ public final class LobbyUiTests {
                     Check.that(((JComboBox<?>)field(page,"lineup")).getActionListeners().length>0,"room lineup listener stays attached while remaining in the room");
                     return null;
                 });
+                // Keep both real clients connected until both independently observed the restored
+                // room. Without this barrier the faster JVM may dispose its page and send LEAVE,
+                // racing the slower peer's assertion even though battle-abort itself succeeded.
+                Files.write(shared.resolve(host?"host-returned":"guest-returned"),new byte[]{1});
+                long returnEnd=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);
+                while(!Files.exists(shared.resolve(host?"guest-returned":"host-returned"))){
+                    if(System.nanoTime()>returnEnd)throw new AssertionError("other peer did not observe restored room");
+                    Thread.sleep(20);
+                }
                 System.out.println("GUI_DUEL_OK "+mode+" editable lobby / original editor / rules / live audio / forced60 / native BattleInfoPage / Back-to-room / 150 ticks");break;
             }
             default:throw new AssertionError("Unknown test "+mode);
