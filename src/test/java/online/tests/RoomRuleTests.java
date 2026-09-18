@@ -28,12 +28,14 @@ public final class RoomRuleTests {
             Check.equal(RoomRules.SpecialMode.ROULETTE,RoomRules.read(message).specialMode,"special mode is synchronized in room rules");
             BasisLU l=Fixture.lineup(FixtureNativeUi.unit("rule_l"+distance,0xff0055aa));
             BasisLU r=Fixture.lineup(FixtureNativeUi.unit("rule_r"+distance,0xffaa5500));
+            PvpStageBasis baseline=new PvpStageBasis(l,r,133,0,rule,1.0,1.0);
+            long leftBase=baseline.left().ownBase().maxH,rightBase=baseline.right().ownBase().maxH;
             PvpStageBasis a=new PvpStageBasis(l,r,134,0,rule),b=new PvpStageBasis(l,r,134,0,rule);
-            Check.equal(1200000L,a.left().ownBase().maxH,"default left castle HP is 20x");
-            Check.equal(1200000L,a.right().ownBase().maxH,"default right castle HP is 20x");
+            Check.equal(Math.round(leftBase*20.0),a.left().ownBase().maxH,"default left castle HP is 20x its native battle value");
+            Check.equal(Math.round(rightBase*20.0),a.right().ownBase().maxH,"default right castle HP is 20x its native battle value");
             PvpStageBasis scaled=new PvpStageBasis(l,r,135,0,rule,2.5,7.25);
-            Check.equal(150000L,scaled.left().ownBase().maxH,"left player controls its own double castle HP multiplier");
-            Check.equal(435000L,scaled.right().ownBase().maxH,"right player controls its own double castle HP multiplier");
+            Check.equal(Math.round(leftBase*2.5),scaled.left().ownBase().maxH,"left player controls its own double castle HP multiplier");
+            Check.equal(Math.round(rightBase*7.25),scaled.right().ownBase().maxH,"right player controls its own double castle HP multiplier");
             Check.equal((float)distance,a.ubase.pos-a.ebase.pos,"configured distance is exact castle separation");
             Check.equal(distance+1600,a.st.len,"stage includes consistent castle margins");
             Check.equal(null,a.st.mus0,"no-BGM option contains no music identifier");
