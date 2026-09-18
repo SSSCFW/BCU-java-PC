@@ -67,6 +67,11 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     }
 
     public void interactive(boolean value) { interactive = value; if (!value) action.clear(); }
+    public boolean debugMode(){return ((PvpStageBasis)sb).debugMode();}
+    public boolean rouletteMode(){return ((PvpStageBasis)sb).specialMode()==online.net.lobby.RoomRules.SpecialMode.ROULETTE;}
+    public void debugRouletteMax(){
+        if(interactive&&debugMode()&&rouletteMode())send.accept(InputFrame.DEBUG_ROULETTE_MAX);
+    }
 
     @Override public void update() { actions(); }
 

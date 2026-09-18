@@ -167,10 +167,11 @@ public final class LobbyUiTests {
                 edt(()->{JComboBox<?> choices=(JComboBox<?>)field(page,"lineup");choices.setSelectedIndex(choices.getItemCount()-1);return null;});
                 await(()->!((Boolean)field(field(page,"roomLobby"),"pending")),"changed lineup acknowledged");
                 if(host){
-                    edt(()->{RoomLobbyPage lobby=(RoomLobbyPage)field(page,"roomLobby");((JSpinner)field(lobby,"distance")).setValue(8000);((JComboBox<?>)field(lobby,"background")).setSelectedIndex(1);((JComboBox<?>)field(lobby,"music")).setSelectedIndex(1);((JComboBox<?>)field(lobby,"special")).setSelectedItem(online.net.lobby.RoomRules.SpecialMode.ROULETTE);((JCheckBox)field(lobby,"force60")).doClick();((JButton)field(lobby,"apply")).doClick();return null;});
+                    edt(()->{RoomLobbyPage lobby=(RoomLobbyPage)field(page,"roomLobby");((JSpinner)field(lobby,"distance")).setValue(8000);((JComboBox<?>)field(lobby,"background")).setSelectedIndex(1);((JComboBox<?>)field(lobby,"music")).setSelectedIndex(1);((JComboBox<?>)field(lobby,"special")).setSelectedItem(online.net.lobby.RoomRules.SpecialMode.ROULETTE);((JCheckBox)field(lobby,"force60")).doClick();((JCheckBox)field(lobby,"debugMode")).doClick();((JButton)field(lobby,"apply")).doClick();return null;});
                 }
                 await(()->((RoomClient)field(page,"client")).roomRules().castleDistance==8000,"host rules reach both room clients");
                 Check.equal(online.net.lobby.RoomRules.SpecialMode.ROULETTE,((RoomClient)field(page,"client")).roomRules().specialMode,"host roulette rule reaches both clients");
+                Check.that(((RoomClient)field(page,"client")).roomRules().debugMode,"host debug mode reaches both clients");
                 edt(()->{Object audio=field(field(page,"roomLobby"),"audio");((JSlider)field(audio,"bg")).setValue(host?23:81);((JSlider)field(audio,"se")).setValue(host?45:11);((JSlider)field(audio,"ui")).setValue(host?67:9);return null;});
                 Files.write(shared.resolve(host?"host-lobby":"guest-lobby"),new byte[]{1});
                 long readyDeadline=System.nanoTime()+10_000_000_000L;
@@ -190,6 +191,7 @@ public final class LobbyUiTests {
                     Check.equal(4,live.st.bg.id,"host background selected");Check.equal(7,live.st.mus0.id,"host BGM selected");
                     Check.equal(online.net.lobby.RoomRules.SpecialMode.ROULETTE,live.specialMode(),"battle uses synchronized roulette special mode");
                     PvpRouletteHud rouletteHud=(PvpRouletteHud)field(nativePage,"onlineSpecial");Check.that(rouletteHud.isVisible(),"native roulette HUD is visible in roulette mode");Check.that(rouletteHud.has3dsAssets(),"native battle page uses decoded 3DS roulette assets: "+Pvp3dsAssets.diagnostic());
+                    Check.that(((JButton)field(nativePage,"rouletteDebugMax")).isVisible(),"host-enabled debug mode exposes roulette MAX button to both participants");
                     Check.that(live.b.lu.fs[0][0].unit.id.pack.contains("pvp"),"edited lineup remains isolated by match");
                     Check.equal(host?23:81,io.BCMusic.VOL_BG,"individual lobby BGM gain retained");
                     ((JButton)field(nativePage,"audio")).doClick();JDialog dialog=(JDialog)field(nativePage,"audioDialog");

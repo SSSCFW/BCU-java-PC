@@ -15,6 +15,7 @@ public final class PvpStageBasis extends StageBasis {
     public static final double DEFAULT_CASTLE_HEALTH_MULTIPLIER=20.0;
     public static final double MIN_CASTLE_HEALTH_MULTIPLIER=0.1, MAX_CASTLE_HEALTH_MULTIPLIER=1000.0;
     public final int pvpSpecialMode;
+    public final boolean pvpDebugMode;
     private String matchScope;
     public static PvpStageBasis create(String match, BasisLU left, BasisLU right, long seed, int leftSeat) throws Exception {
         return create(match,left,right,seed,leftSeat,RoomRules.DEFAULT);
@@ -43,6 +44,7 @@ public final class PvpStageBasis extends StageBasis {
                           double leftCastleMultiplier,double rightCastleMultiplier) {
         super(null, new EStage(arena, 0), right, new int[3], seed, false);
         this.pvpSpecialMode=rules.specialMode.ordinal();
+        this.pvpDebugMode=rules.debugMode;
         if (leftSeat != 0 && leftSeat != 1) throw new IllegalArgumentException("Invalid player seat");
         pvpRoot = this; pvpDirection = -1; pvpSeat = 1-leftSeat;
         StageBasis other = new StageBasis(null, new EStage(arena,0), left, new int[3], seed, false);
@@ -65,6 +67,7 @@ public final class PvpStageBasis extends StageBasis {
         other.maxMoney = other.b.t().getMaxMon(other.work_lv, false);
     }
     public RoomRules.SpecialMode specialMode() { return RoomRules.SpecialMode.values()[pvpSpecialMode]; }
+    public boolean debugMode() { return pvpDebugMode; }
     public StageBasis left() { return pvpOther; }
     public StageBasis right() { return this; }
     /** tick starts at zero, time counts the number of COMPLETED simulation ticks. */
@@ -86,9 +89,16 @@ public final class PvpStageBasis extends StageBasis {
         }); return null; }); } catch(RuntimeException e){throw e;} catch(Exception e){throw new IllegalStateException(e);}
     }
     private static void input(StageBasis player, int mask) {
+        PvpStageBasis world=(PvpStageBasis)player.world();
         if ((mask & InputFrame.WORKER) != 0) player.act_mon();
+        if ((mask & InputFrame.DEBUG_ROULETTE_MAX) != 0
+                && world.debugMode() && world.specialMode()==RoomRules.SpecialMode.ROULETTE
+                && player.pvpRoulette!=null && !player.pvpRoulette.spinning) {
+            player.pvpRoulette.gauge=PvpRouletteState.MAX_GAUGE;
+            player.pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;
+            player.pvpRoulette.chargeClock=0;
+        }
         if ((mask & InputFrame.SPECIAL) != 0) {
-            PvpStageBasis world=(PvpStageBasis)player.world();
             if(world.specialMode()==RoomRules.SpecialMode.CANNON) player.act_can();
             else if(world.specialMode()==RoomRules.SpecialMode.ROULETTE) player.pvpRoulette.press(world,player);
         }

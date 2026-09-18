@@ -22,10 +22,11 @@ public final class RoomRuleTests {
         Check.rejects(()->PvpStageBasis.validateCastleHealthMultiplier(Double.NaN),"NaN castle multiplier rejected");
         Check.rejects(()->PvpStageBasis.validateCastleHealthMultiplier(0.0),"non-positive castle multiplier rejected");
         for(int distance:new int[]{1000,4400,24000}) {
-            RoomRules rule=new RoomRules(distance,0,-1,true,RoomRules.SpecialMode.ROULETTE);
+            RoomRules rule=new RoomRules(distance,0,-1,true,RoomRules.SpecialMode.ROULETTE,true);
             JsonObject message=Protocol.message("rules");message.add("rules",rule.json());
             Check.equal(rule,RoomRules.read(message),"all rules roundtrip without client-local settings");
             Check.equal(RoomRules.SpecialMode.ROULETTE,RoomRules.read(message).specialMode,"special mode is synchronized in room rules");
+            Check.that(RoomRules.read(message).debugMode,"host debug mode is synchronized in room rules");
             BasisLU l=Fixture.lineup(FixtureNativeUi.unit("rule_l"+distance,0xff0055aa));
             BasisLU r=Fixture.lineup(FixtureNativeUi.unit("rule_r"+distance,0xffaa5500));
             PvpStageBasis baseline=new PvpStageBasis(l,r,133,0,rule,1.0,1.0);

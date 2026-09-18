@@ -28,7 +28,7 @@ public final class RoomLobbyPage extends Page {
     private final JButton back=new JButton("部屋から退出"),edit=new JButton("編成を編集"),apply=new JButton("ルールを適用"),
             applyPlayer=new JButton("自分設定を適用"),ready;
     private final JComboBox<BasisLU> lineup;
-    private final JCheckBox force60=new JCheckBox("全員の表示を60FPSに揃える（戦闘処理は30TPS）");
+    private final JCheckBox force60=new JCheckBox("全員の表示を60FPSに揃える（戦闘処理は30TPS）"),debugMode=new JCheckBox("デバッグモード（全員にルーレットMAXボタンを表示）");
     private final JComboBox<RoomRules.SpecialMode> special=new JComboBox<>(RoomRules.SpecialMode.values());
     private final JSpinner castleHealthMultiplier=new JSpinner(new SpinnerNumberModel(PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER,
             PvpStageBasis.MIN_CASTLE_HEALTH_MULTIPLIER,PvpStageBasis.MAX_CASTLE_HEALTH_MULTIPLIER,0.5));
@@ -59,13 +59,13 @@ public final class RoomLobbyPage extends Page {
         JPanel rules=new JPanel(new GridBagLayout());rules.setBorder(BorderFactory.createTitledBorder("対戦ルール（ホストのみ変更可能）"));
         for(Background b:UserProfile.getBCData().bgs.getList())if(b!=null)background.addItem(b);
         music.addItem(new MusicChoice(null));for(Music m:UserProfile.getBCData().musics.getList())if(m!=null&&m.data!=null)music.addItem(new MusicChoice(m));
-        row(rules,0,"城と城の距離",distance);row(rules,1,"背景（標準データ）",background);row(rules,2,"BGM（標準データ）",music);row(rules,3,"戦闘特殊機能",special);row(rules,4,"",force60);row(rules,5,"",apply);row(rules,6,"",ruleNote);sections.add(rules);sections.add(audio);
+        row(rules,0,"城と城の距離",distance);row(rules,1,"背景（標準データ）",background);row(rules,2,"BGM（標準データ）",music);row(rules,3,"戦闘特殊機能",special);row(rules,4,"",force60);row(rules,5,"",debugMode);row(rules,6,"",apply);row(rules,7,"",ruleNote);sections.add(rules);sections.add(audio);
         content.add(new JScrollPane(sections),BorderLayout.CENTER);
         JPanel footer=new JPanel(new BorderLayout(8,8));footer.add(ready,BorderLayout.EAST);status.setEditable(false);status.setLineWrap(true);status.setWrapStyleWord(true);footer.add(new JScrollPane(status),BorderLayout.CENTER);content.add(footer,BorderLayout.SOUTH);
         back.addActionListener(e->owner.returnToConnection());edit.addActionListener(e->editLineup());apply.addActionListener(e->applyRules());applyPlayer.addActionListener(e->applyPlayerRules());
         lineupListener=e->{if(!loading&&!closed&&!editing){preview();pending=true;client.setLineupName(summary());refreshControls();}};
         lineup.addActionListener(lineupListener);
-        distance.addChangeListener(e->rulesChanged());background.addActionListener(e->rulesChanged());music.addActionListener(e->rulesChanged());special.addActionListener(e->rulesChanged());force60.addActionListener(e->rulesChanged());
+        distance.addChangeListener(e->rulesChanged());background.addActionListener(e->rulesChanged());music.addActionListener(e->rulesChanged());special.addActionListener(e->rulesChanged());force60.addActionListener(e->rulesChanged());debugMode.addActionListener(e->rulesChanged());
         castleHealthMultiplier.addChangeListener(e->{if(!loading&&!closed){playerDirty=true;refreshControls();}});
         preview();refreshControls();message("編成とルールを確認してください。全員が準備完了するとキャラを自動共有し、対戦を開始します。");
     }
@@ -78,7 +78,7 @@ public final class RoomLobbyPage extends Page {
         RoomRules rules=RoomRules.read(value);loading=true;
         try{
             if(!dirty||!host()||!editable()){
-                distance.setValue(rules.castleDistance);force60.setSelected(rules.force60Fps);special.setSelectedItem(rules.specialMode);
+                distance.setValue(rules.castleDistance);force60.setSelected(rules.force60Fps);special.setSelectedItem(rules.specialMode);debugMode.setSelected(rules.debugMode);
                 for(int i=0;i<background.getItemCount();i++)if(background.getItemAt(i).id.id==rules.backgroundId)background.setSelectedIndex(i);
                 for(int i=0;i<music.getItemCount();i++)if(music.getItemAt(i).id()==rules.musicId)music.setSelectedIndex(i);
                 dirty=false;
@@ -96,12 +96,12 @@ public final class RoomLobbyPage extends Page {
     private void refreshControls(){
         boolean can=editable()&&!ownReady()&&!pending&&!closed;
         lineup.setEnabled(can);edit.setEnabled(can);castleHealthMultiplier.setEnabled(can);applyPlayer.setEnabled(can&&playerDirty);
-        distance.setEnabled(can&&host());background.setEnabled(can&&host());music.setEnabled(can&&host());special.setEnabled(can&&host());force60.setEnabled(can&&host());apply.setEnabled(can&&host()&&dirty);
+        distance.setEnabled(can&&host());background.setEnabled(can&&host());music.setEnabled(can&&host());special.setEnabled(can&&host());force60.setEnabled(can&&host());debugMode.setEnabled(can&&host());apply.setEnabled(can&&host()&&dirty);
         ready.setText(ownReady()?"準備を解除":"準備完了");ready.setEnabled(editable()&&!pending&&!closed&&(ownReady()||(!dirty&&!playerDirty&&lineup.getSelectedItem()!=null)));
         if(!editable()&&state!=null){ready.setText("共有・開始待ち…");edit.setEnabled(false);}
     }
     private void rulesChanged(){if(loading||closed)return;dirty=true;refreshControls();}
-    private void applyRules(){try{distance.commitEdit();Background b=(Background)background.getSelectedItem();MusicChoice m=(MusicChoice)music.getSelectedItem();if(b==null||m==null)throw new IllegalArgumentException("背景とBGMを選択してください");RoomRules r=new RoomRules((Integer)distance.getValue(),b.id.id,m.id(),force60.isSelected(),(RoomRules.SpecialMode)special.getSelectedItem());PvpStageBasis.validateRulesAssets(r);pending=true;dirty=false;client.setRoomRules(r,state.get("revision").getAsLong());refreshControls();}catch(Exception e){message(e.getMessage());}}
+    private void applyRules(){try{distance.commitEdit();Background b=(Background)background.getSelectedItem();MusicChoice m=(MusicChoice)music.getSelectedItem();if(b==null||m==null)throw new IllegalArgumentException("背景とBGMを選択してください");RoomRules r=new RoomRules((Integer)distance.getValue(),b.id.id,m.id(),force60.isSelected(),(RoomRules.SpecialMode)special.getSelectedItem(),debugMode.isSelected());PvpStageBasis.validateRulesAssets(r);pending=true;dirty=false;client.setRoomRules(r,state.get("revision").getAsLong());refreshControls();}catch(Exception e){message(e.getMessage());}}
     private void applyPlayerRules(){try{castleHealthMultiplier.commitEdit();double value=((Number)castleHealthMultiplier.getValue()).doubleValue();PvpStageBasis.validateCastleHealthMultiplier(value);pending=true;playerDirty=false;client.setCastleHealthMultiplier(value,state.get("revision").getAsLong());refreshControls();}catch(Exception e){message(e.getMessage());}}
     void toggleReady(){
         if(closed||!editable()||pending)return;

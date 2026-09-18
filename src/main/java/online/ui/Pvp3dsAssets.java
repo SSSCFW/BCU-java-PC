@@ -56,23 +56,53 @@ public final class Pvp3dsAssets {
         return s.image.getSubimage(r.x,r.y,r.width,r.height);
     }
 
+    /** Small generated label used above the full roulette gauge. */
+    public static synchronized FakeImage tapImage(){
+        String key="#generated/TAP";
+        FakeImage cached=FAKE_IMAGES.get(key);
+        if(cached!=null)return cached;
+        BufferedImage image=new BufferedImage(160,64,BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g=image.createGraphics();
+        try{
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+            Font font=new Font(Font.SANS_SERIF,Font.BOLD,46);
+            g.setFont(font);
+            FontMetrics fm=g.getFontMetrics();
+            String text="TAP!";
+            int x=(image.getWidth()-fm.stringWidth(text))/2;
+            int y=(image.getHeight()-fm.getHeight())/2+fm.getAscent();
+            g.setStroke(new BasicStroke(7f,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));
+            java.awt.font.GlyphVector gv=font.createGlyphVector(g.getFontRenderContext(),text);
+            Shape outline=gv.getOutline(x,y);
+            g.setColor(Color.BLACK);g.draw(outline);
+            g.setColor(Color.WHITE);g.fill(outline);
+        }finally{g.dispose();}
+        cached=buildFake(image,key);
+        return cached;
+    }
+
     /** Cached renderer-native view of an imgcut part for BattleBox/FakeGraphics. */
     public static synchronized FakeImage fakeImage(String sheet,String label){
         String key=sheet+"\n"+label;
         FakeImage result=FAKE_IMAGES.get(key);
         if(result!=null)return result;
         if(ImageBuilder.builder==null)throw new IllegalStateException("ImageBuilder is not initialized");
+        result=buildFake(image(sheet,label),key);
+        return result;
+    }
+
+    private static FakeImage buildFake(BufferedImage image,String key){
+        if(ImageBuilder.builder==null)throw new IllegalStateException("ImageBuilder is not initialized");
         try{
             ByteArrayOutputStream out=new ByteArrayOutputStream();
-            if(!ImageIO.write(image(sheet,label),"png",out))
-                throw new IOException("PNG writer is unavailable");
+            if(!ImageIO.write(image,"png",out))throw new IOException("PNG writer is unavailable");
             byte[] png=out.toByteArray();
-            result=ImageBuilder.builder.build(() -> new ByteArrayInputStream(png));
+            FakeImage result=ImageBuilder.builder.build(() -> new ByteArrayInputStream(png));
+            FAKE_IMAGES.put(key,result);
+            return result;
         }catch(IOException e){
-            throw new IllegalStateException("Cannot build PvP 3DS render image: "+sheet+" / "+label,e);
+            throw new IllegalStateException("Cannot build PvP render image: "+key,e);
         }
-        FAKE_IMAGES.put(key,result);
-        return result;
     }
 
     static synchronized void clearForTests(){SHEETS.clear();FAKE_IMAGES.clear();}

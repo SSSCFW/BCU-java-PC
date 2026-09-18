@@ -155,6 +155,18 @@ public final class NativeBattleUiTests {
         Check.that(pixelDifference(emptyMeter,halfMeter,700,430,1100,680)>100,
                 "roulette bottom-right gauge visibly changes between 0% and 50%");
 
+        meter.left().pvpRoulette.gauge=meter.left().pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;
+        meter.left().pvpRoulette.attackLevel=2;meter.left().pvpRoulette.hpLevel=1;meter.left().pvpRoulette.moveLevel=3;
+        meterField.publish(meter.displayCopy());
+        BufferedImage fullMeter=new BufferedImage(meterBox.getWidth(),meterBox.getHeight(),BufferedImage.TYPE_INT_ARGB);
+        Graphics2D fg=fullMeter.createGraphics();Trace fullTrace=new Trace(fg);
+        try{meterBox.painter.draw(fullTrace);}finally{fg.dispose();}
+        Check.that(fullTrace.images.containsKey(Pvp3dsAssets.tapImage()),"full roulette gauge renders TAP above the gauge");
+        Check.that(fullTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_icon","アイコン：攻撃力アップ"))
+                        && fullTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_icon","アイコン：体力アップ"))
+                        && fullTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_icon","アイコン：移動アップ")),
+                "permanent roulette effects render as a horizontal icon row under the money HUD");
+
         PvpStageBasis live=new PvpStageBasis(leftLu,rightLu,782,0,rules);
         StageBasis own=live.left();
         own.pvpRoulette.gauge=own.pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;

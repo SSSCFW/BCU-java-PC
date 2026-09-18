@@ -73,7 +73,8 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	private final BattleField basis;
 
 	private OnlineBattleField online;
-    private final JButton audio=new JButton("音量");
+    private final JButton audio=new JButton("音量"),rouletteDebugMax=new JButton("ルーレットMAX");
+    private final JLabel onlineTag=new JLabel("Online"),babyRushStatus=new JLabel();
     private PvpRouletteHud onlineSpecial;
     private JDialog audioDialog;
     private final JPanel onlineResult=new JPanel(new BorderLayout(10,10));
@@ -173,7 +174,12 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		ini();
 		// These native single-player operations cannot be performed independently online.
 		paus.setEnabled(false);paus.setVisible(false);
-        onlineSpecial=new PvpRouletteHud(online);add(audio);add(onlineSpecial);audio.addActionListener(e->{getPress().clear();if(audioDialog!=null&&audioDialog.isDisplayable()){audioDialog.toFront();return;}audioDialog=AudioSettingsPanel.open(this);});
+        onlineSpecial=new PvpRouletteHud(online);add(audio);add(onlineSpecial);add(onlineTag);add(babyRushStatus);add(rouletteDebugMax);
+        onlineTag.setForeground(Color.WHITE);onlineTag.setFont(onlineTag.getFont().deriveFont(Font.BOLD,18f));
+        babyRushStatus.setForeground(new Color(255,225,80));babyRushStatus.setFont(babyRushStatus.getFont().deriveFont(Font.BOLD,16f));babyRushStatus.setVisible(false);
+        rouletteDebugMax.setVisible(online.debugMode()&&online.rouletteMode());
+        rouletteDebugMax.addActionListener(e->{getPress().clear();online.debugRouletteMax();});
+        audio.addActionListener(e->{getPress().clear();if(audioDialog!=null&&audioDialog.isDisplayable()){audioDialog.toFront();return;}audioDialog=AudioSettingsPanel.open(this);});
         onlineResult.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(Color.WHITE,2),BorderFactory.createEmptyBorder(18,24,18,24)));
         onlineResult.setBackground(new Color(20,20,20));onlineResultTitle.setForeground(Color.WHITE);onlineResultDetail.setForeground(Color.WHITE);
         onlineResultTitle.setFont(onlineResultTitle.getFont().deriveFont(Font.BOLD,30f));
@@ -234,6 +240,13 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		if (bb.getPainter().dragging) bb.getPainter().dragFrame++;
 		if (MainBCU.loaded) BCMusic.flush(sb.ebase.health > 0 && sb.ubase.health > 0);
         if(onlineSpecial!=null)onlineSpecial.refresh();
+        StageBasis own=online.playerState();
+        int rush=own.pvpRoulette==null?0:own.pvpRoulette.babyRushTicks;
+        if(rush>0){
+            babyRushStatus.setText(String.format(java.util.Locale.ROOT,"ぷちベビーラッシュ  残り %.1f秒",rush/(double)PvpStageBasis.TPS));
+            babyRushStatus.setVisible(true);
+        }else babyRushStatus.setVisible(false);
+        rouletteDebugMax.setVisible(online.debugMode()&&online.rouletteMode());
 		if (((Canvas) bb).isDisplayable()) bb.paint();
 	}
 
@@ -402,8 +415,17 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
                 if(jtb.isSelected())set(onlineSpecial,x,y,1100,0,390,50);
                 else set(onlineSpecial,x,y,1100,200,390,50);
             }
-            if(jtb.isSelected())set(onlineResult,x,y,650,430,1000,320);
-            else set(onlineResult,x,y,750,390,700,320);
+            if(jtb.isSelected()){
+                set(onlineTag,x,y,220,60,300,34);
+                set(babyRushStatus,x,y,220,92,520,38);
+                set(rouletteDebugMax,x,y,220,134,300,50);
+                set(onlineResult,x,y,650,430,1000,320);
+            }else{
+                set(onlineTag,x,y,720,310,300,34);
+                set(babyRushStatus,x,y,720,342,520,38);
+                set(rouletteDebugMax,x,y,720,384,300,50);
+                set(onlineResult,x,y,750,390,700,320);
+            }
         }
 		ct.setRowHeight(size(x, y, 50));
 		et.setRowHeight(size(x, y, 50));

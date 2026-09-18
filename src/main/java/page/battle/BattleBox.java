@@ -245,6 +245,7 @@ public interface BattleBox {
 			try {
 				drawBtm(g);
 				drawTop(g);
+				drawPermanentRouletteEffects(g, player);
 				drawRoulettePresentation(g, player);
 			} finally { sb = bf.sb; }
 		}
@@ -457,7 +458,40 @@ public interface BattleBox {
 				float sy = gaugeY + gaugeH * i / 10f;
 				g.colRect(gaugeX, sy, gaugeW, Math.max(1f, hr * 0.65f), 0, 0, 0, 145);
 			}
+			if(state.gauge>=PvpRouletteState.MAX_GAUGE&&!state.spinning){
+				try{
+					FakeImage tap=Pvp3dsAssets.tapImage();
+					float tw=Math.max(gaugeW*1.8f,52f*hr),th=tw*tap.getHeight()/Math.max(1f,tap.getWidth());
+					g.drawImage(tap,gaugeX+(gaugeW-tw)/2f,gaugeY-th-Math.max(3f,3f*hr),tw,th);
+				}catch(RuntimeException ignored){}
+			}
 		}
+
+		private void drawPermanentRouletteEffects(FakeGraphics g,StageBasis player){
+			if(!player.isPvp()||((PvpStageBasis)player.world()).specialMode()!=online.net.lobby.RoomRules.SpecialMode.ROULETTE||player.pvpRoulette==null)return;
+			PvpRouletteState r=player.pvpRoulette;
+			int[] effects={PvpRouletteState.PRODUCTION_SHORTEN,PvpRouletteState.WORKER_UP,PvpRouletteState.COST_DOWN,
+					PvpRouletteState.ATTACK_UP,PvpRouletteState.HP_UP,PvpRouletteState.MOVE_UP};
+			int[] levels={r.productionLevel,r.workerLevel,r.costLevel,r.attackLevel,r.hpLevel,r.moveLevel};
+			int count=0;for(int level:levels)if(level>0)count++;
+			if(count==0)return;
+			float size=Math.max(28f,Math.min(42f,box.getHeight()*0.062f));
+			float gap=Math.max(3f,size*0.10f);
+			float x=box.getWidth()-10f-count*size-(count-1)*gap;
+			float y=Math.max(34f,box.getHeight()*0.070f);
+			for(int i=0;i<effects.length;i++){
+				int level=levels[i];if(level<=0)continue;
+				try{
+					FakeImage icon=Pvp3dsAssets.fakeImage("ui_battle_multi_icon",ROULETTE_ICON[effects[i]]);
+					g.drawImage(icon,x,y,size,size);
+					FakeImage lv=Pvp3dsAssets.fakeImage("ui_battle_multi_icon",ROULETTE_LEVEL[Math.min(4,level)]);
+					float lw=size*0.72f,lh=lw*lv.getHeight()/Math.max(1f,lv.getWidth());
+					g.drawImage(lv,x+size-lw,y+size-lh,lw,lh);
+				}catch(RuntimeException ignored){}
+				x+=size+gap;
+			}
+		}
+
 		private void drawRoulettePresentation(FakeGraphics g, StageBasis player) {
 			if (!player.isPvp()
 					|| ((PvpStageBasis) player.world()).specialMode() != online.net.lobby.RoomRules.SpecialMode.ROULETTE
