@@ -164,10 +164,9 @@ public final class PvpRouletteState extends BattleObj {
             case HP_UP:
                 if(hpLevel<4) {
                     double old=hpMultiplier();hpLevel++;double now=hpMultiplier(),ratio=now/old;
-                    for(Entity e:world.le)if(e instanceof EUnit&&e.dire==owner.ownDirection()&&!((EUnit)e).isSpirit) {
+                    // Native FUN_00233ce0 rewrites max HP for deployed units but leaves current HP unchanged.
+                    for(Entity e:world.le)if(e instanceof EUnit&&e.dire==owner.ownDirection()&&!((EUnit)e).isSpirit)
                         e.maxH=Math.max(1,Math.round(e.maxH*ratio));
-                        e.health=Math.min(e.maxH,Math.max(1,Math.round(e.health*ratio)));
-                    }
                 }
                 break;
             case MOVE_UP: if(moveLevel<4)moveLevel++;break;
