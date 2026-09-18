@@ -88,7 +88,10 @@ public final class NativeBattleUiTests {
                 Check.that(trace.images.containsKey(own)&&!trace.images.containsKey(other),"HUD renders only the local lineup, including left-side players");
                 Check.equal(live.playerFor(dir).money,field.playerState().money,"HUD owns local money");
                 Rectangle target=trace.images.get(own).get(twoRows?0:1);
-                box.click(new Point(target.x+target.width/2,target.y+target.height/2),java.awt.event.MouseEvent.BUTTON1);
+                Point targetCenter=new Point(target.x+target.width/2,target.y+target.height/2);
+                Check.equal(field.playerState().b.lu.fs[twoRows?0:field.playerState().frontLineup][0],box.painter.formAt(targetCenter),
+                        "native lineup hit-test returns the held local form for ability inspection");
+                box.click(targetCenter,java.awt.event.MouseEvent.BUTTON1);
                 field.update();Check.that(sent.contains(1),"native icon click queues local slot zero");sent.clear();
                 box.click(new Point(target.x+target.width/2,target.y+target.height/2),java.awt.event.MouseEvent.BUTTON3);
                 field.update();Check.that(sent.contains(1<<12)&&!sent.contains(1),"native right click queues auto-production, not a spawn");sent.clear();
