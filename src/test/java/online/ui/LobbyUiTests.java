@@ -153,6 +153,11 @@ public final class LobbyUiTests {
                     RoomLobbyPage lobby=(RoomLobbyPage)field(page,"roomLobby");
                     Check.that(MainFrame.getPanel()==lobby,"joining opens dedicated RoomLobbyPage");
                     Check.equal(null,field(page,"localArchive"),"no character export before every player confirms lobby");
+                    JComboBox<?> lineupChoices=(JComboBox<?>)field(page,"lineup");
+                    Check.equal("ランダム",String.valueOf(lineupChoices.getItemAt(0)),"random lineup is the first lineup choice");
+                    Check.equal("ランダム(バニラ)",String.valueOf(lineupChoices.getItemAt(1)),"vanilla random lineup is the second lineup choice");
+                    Check.equal("ランダム",String.valueOf(((JComboBox<?>)field(lobby,"background")).getItemAt(0)),"random background option is first");
+                    Check.equal("ランダム",String.valueOf(((JComboBox<?>)field(lobby,"music")).getItemAt(0)),"random BGM option is first");
                     Check.that(((JSpinner)field(lobby,"distance")).isEnabled()==host,"only host can edit distance");
                     Check.that(((JComboBox<?>)field(lobby,"special")).isEnabled()==host,"only host can edit cannon/roulette/none");
                     if(host){
@@ -167,7 +172,7 @@ public final class LobbyUiTests {
                 edt(()->{JComboBox<?> choices=(JComboBox<?>)field(page,"lineup");choices.setSelectedIndex(choices.getItemCount()-1);return null;});
                 await(()->!((Boolean)field(field(page,"roomLobby"),"pending")),"changed lineup acknowledged");
                 if(host){
-                    edt(()->{RoomLobbyPage lobby=(RoomLobbyPage)field(page,"roomLobby");((JSpinner)field(lobby,"distance")).setValue(8000);((JComboBox<?>)field(lobby,"background")).setSelectedIndex(1);((JComboBox<?>)field(lobby,"music")).setSelectedIndex(1);((JComboBox<?>)field(lobby,"special")).setSelectedItem(online.net.lobby.RoomRules.SpecialMode.ROULETTE);((JCheckBox)field(lobby,"force60")).doClick();((JCheckBox)field(lobby,"debugMode")).doClick();((JButton)field(lobby,"apply")).doClick();return null;});
+                    edt(()->{RoomLobbyPage lobby=(RoomLobbyPage)field(page,"roomLobby");((JSpinner)field(lobby,"distance")).setValue(8000);((JComboBox<?>)field(lobby,"background")).setSelectedIndex(2);((JComboBox<?>)field(lobby,"music")).setSelectedIndex(2);((JComboBox<?>)field(lobby,"special")).setSelectedItem(online.net.lobby.RoomRules.SpecialMode.ROULETTE);((JCheckBox)field(lobby,"force60")).doClick();((JCheckBox)field(lobby,"debugMode")).doClick();((JButton)field(lobby,"apply")).doClick();return null;});
                 }
                 await(()->((RoomClient)field(page,"client")).roomRules().castleDistance==8000,"host rules reach both room clients");
                 Check.equal(online.net.lobby.RoomRules.SpecialMode.ROULETTE,((RoomClient)field(page,"client")).roomRules().specialMode,"host roulette rule reaches both clients");
