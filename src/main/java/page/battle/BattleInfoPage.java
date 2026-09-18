@@ -76,7 +76,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 
 	private OnlineBattleField online;
     private final JButton audio=new JButton("音量"),rouletteDebugMax=new JButton("ルーレットMAX");
-    private final JLabel onlineTag=new JLabel("Online"),babyRushStatus=new JLabel(),rouletteNotice=new JLabel();
+    private final JLabel onlineTag=new JLabel("Online"),rouletteNotice=new JLabel();
     private PvpRouletteHud onlineSpecial;
     private JDialog audioDialog;
     private final JPanel onlineResult=new JPanel(new BorderLayout(10,10));
@@ -177,9 +177,8 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		ini();
 		// These native single-player operations cannot be performed independently online.
 		paus.setEnabled(false);paus.setVisible(false);
-        onlineSpecial=new PvpRouletteHud(online);add(audio);add(onlineSpecial);add(onlineTag);add(babyRushStatus);add(rouletteNotice);add(rouletteDebugMax);
+        onlineSpecial=new PvpRouletteHud(online);add(audio);add(onlineSpecial);add(onlineTag);add(rouletteNotice);add(rouletteDebugMax);
         styleOnlineLabel(onlineTag,Color.WHITE,14f);
-        styleOnlineLabel(babyRushStatus,new Color(255,225,80),12f);babyRushStatus.setVisible(false);
         styleOnlineLabel(rouletteNotice,new Color(255,245,180),13f);rouletteNotice.setVisible(false);
         styleOnlineLabel(stream,Color.WHITE,12f);
         timer.setVisible(false);
@@ -254,12 +253,6 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		if (bb.getPainter().dragging) bb.getPainter().dragFrame++;
 		if (MainBCU.loaded) BCMusic.flush(sb.ebase.health > 0 && sb.ubase.health > 0);
         if(onlineSpecial!=null)onlineSpecial.refresh();
-        StageBasis own=online.playerState();
-        int rush=own.pvpRoulette==null?0:own.pvpRoulette.babyRushTicks;
-        if(rush>0){
-            babyRushStatus.setText(String.format(java.util.Locale.ROOT,"ぷちベビーラッシュ  残り %.1f秒",rush/(double)PvpStageBasis.TPS));
-            babyRushStatus.setVisible(true);
-        }else babyRushStatus.setVisible(false);
         rouletteDebugMax.setVisible(online.debugMode()&&online.rouletteMode());
         updateOpponentRouletteNotice();
 		if (((Canvas) bb).isDisplayable()) bb.paint();
@@ -453,13 +446,11 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
             }
             if(jtb.isSelected()){
                 set(onlineTag,x,y,1760,60,250,30);
-                set(babyRushStatus,x,y,210,98,520,30);
                 set(rouletteNotice,x,y,760,98,720,34);
                 set(rouletteDebugMax,x,y,210,134,300,46);
                 set(onlineResult,x,y,650,430,1000,320);
             }else{
                 set(onlineTag,x,y,1330,310,250,30);
-                set(babyRushStatus,x,y,710,336,520,30);
                 set(rouletteNotice,x,y,900,372,650,34);
                 set(rouletteDebugMax,x,y,710,372,300,46);
                 set(onlineResult,x,y,750,390,700,320);
