@@ -51,6 +51,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
             if (changeFrame == 0) changeFrame = -1;
         }
         sb = displayCopy;
+        syncSpecialHud();
         syncRow();
         published = System.nanoTime();
         halfAdvanced = false;
@@ -75,8 +76,17 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
         if (action.contains(-1) || (keys.pressed(-1, 0) && own.work_lv < 8 && own.money > own.upgradeCost)) {
             send.accept(InputFrame.WORKER); keys.remove(-1, 0);
         }
-        if (action.contains(-2) || (keys.pressed(-1, 1) && own.cannon == own.maxCannon)) {
-            send.accept(InputFrame.CANNON); keys.remove(-1, 1);
+        boolean specialPressed=keys.pressed(-1,1);
+        boolean specialReady=false;
+        PvpStageBasis world=(PvpStageBasis)sb;
+        switch(world.rules.specialMode) {
+            case CANNON: specialReady=own.cannon==own.maxCannon; break;
+            case ROULETTE: specialReady=own.pvpRoulette!=null&&own.pvpRoulette.spinning; break;
+            default: break;
+        }
+        if ((action.contains(-2) || specialPressed) && world.rules.specialMode!=online.net.lobby.RoomRules.SpecialMode.NONE) {
+            if(action.contains(-2)||specialReady)send.accept(InputFrame.SPECIAL);
+            if(specialPressed)keys.remove(-1, 1);
         }
         boolean twoRows = CommonStatic.getConfig().twoRow;
         if (!twoRows && !own.isOneLineup && changeFrame < 0) {
@@ -99,6 +109,27 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
 
     private void changeRow(boolean up) {
         changeFrame = Data.LINEUP_CHANGE_TIME; goingUp = up; syncRow();
+    }
+    public String specialStatus() {
+        PvpStageBasis world=(PvpStageBasis)sb;
+        StageBasis own=playerState();
+        switch(world.rules.specialMode) {
+            case NONE:return "特殊機能: なし";
+            case CANNON:return "にゃんこ砲 "+Math.min(100,own.cannon*100/Math.max(1,own.maxCannon))+"%";
+            case ROULETTE:
+                if(own.pvpRoulette==null)return "対戦ルーレット";
+                if(own.pvpRoulette.spinning)return "対戦ルーレット 回転中 / "+PvpRouletteState.NAMES[own.pvpRoulette.currentResult()];
+                String last=own.pvpRoulette.lastResult<0?"":(" / 前回: "+PvpRouletteState.NAMES[own.pvpRoulette.lastResult]);
+                return "対戦ルーレット "+own.pvpRoulette.gauge/10+"%"+last;
+            default:return "";
+        }
+    }
+    private void syncSpecialHud() {
+        PvpStageBasis world=(PvpStageBasis)sb;
+        StageBasis own=playerState();
+        if(world.rules.specialMode==online.net.lobby.RoomRules.SpecialMode.ROULETTE && own.pvpRoulette!=null)
+            own.cannon=Math.min(own.maxCannon,(int)((long)own.maxCannon*own.pvpRoulette.gauge/PvpRouletteState.MAX_GAUGE));
+        else if(world.rules.specialMode==online.net.lobby.RoomRules.SpecialMode.NONE)own.cannon=0;
     }
     private void syncRow() {
         StageBasis own = playerState();
