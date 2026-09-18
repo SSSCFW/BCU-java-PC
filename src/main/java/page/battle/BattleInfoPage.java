@@ -19,6 +19,7 @@ import online.ui.PvpRouletteHud;
 import online.ui.PvpSoundBank;
 import online.ui.PvpUnitAbilityOverlay;
 import online.net.lobby.PvpTraitRules;
+import online.net.lobby.RoomRules;
 import utilpc.UtilPC;
 import java.util.function.IntConsumer;
 import page.*;
@@ -336,7 +337,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	}
 
     public void initializeOnlineAudio(PvpStageBasis world){
-        if(online==null||world==null||world.specialMode()!=online.net.lobby.RoomRules.SpecialMode.ROULETTE){
+        if(online==null||world==null||world.specialMode()!=RoomRules.SpecialMode.ROULETTE){
             rouletteAudioInitialized=false;audioGaugeSegment=-1;audioOwnPending=audioOpponentPending=-1;
             audioOwnSpinning=audioOpponentSpinning=false;return;
         }
@@ -357,7 +358,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
      */
     public void observeOnlineAudioTick(PvpStageBasis world){
         if(online==null||onlineClosed||onlineBattleEnding||world==null)return;
-        if(world.specialMode()!=online.net.lobby.RoomRules.SpecialMode.ROULETTE){
+        if(world.specialMode()!=RoomRules.SpecialMode.ROULETTE){
             if(audioOwnSpinning)PvpSoundBank.stopLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
             rouletteAudioInitialized=false;audioGaugeSegment=-1;return;
         }
