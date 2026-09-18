@@ -12,7 +12,7 @@ import java.util.*;
  * (Level 1/2/3/MAX); together with the base state this is five states.
  */
 public final class PvpRouletteState extends BattleObj {
-    public static final int MAX_GAUGE=1000, TEMP_TICKS=150, BABY_RUSH_TICKS=10*PvpStageBasis.TPS;
+    public static final int MAX_GAUGE=1000, TEMP_TICKS=150, BABY_RUSH_TICKS=10*PvpStageBasis.TPS, CUTIN_TICKS=45;
     public static final int KNOCKBACK=0, HEAL=1, PRODUCTION_RECOVERY=2, CANNON=3,
             PRODUCTION_SHORTEN=4, WORKER_UP=5, COST_DOWN=6, MONEY_MAX=7,
             SLOW=8, STOP=9, ATTACK_UP=10, HP_UP=11, MOVE_UP=12, BABY_RUSH=13;
@@ -30,7 +30,7 @@ public final class PvpRouletteState extends BattleObj {
 
     private final int[] reel=new int[SOURCE_REEL.length];
     /** Native roulette keeps a target gauge and lets the visible gauge chase it by 50. */
-    public int gauge, targetGauge, chargeClock, reelIndex, spinTicks, lastResult=-1, lastLevel;
+    public int gauge, targetGauge, chargeClock, reelIndex, spinTicks, lastResult=-1, lastLevel, cutinTicks;
     public boolean spinning;
     public int productionLevel, workerLevel, costLevel, attackLevel, hpLevel, moveLevel;
     public int babyRushTicks;
@@ -88,6 +88,7 @@ public final class PvpRouletteState extends BattleObj {
     }
 
     public void advance(PvpStageBasis world, StageBasis owner) {
+        if(cutinTicks>0)cutinTicks--;
         if(babyRushTicks>0) {
             babyRushTicks--;
             clearCooldowns(owner);
@@ -130,7 +131,7 @@ public final class PvpRouletteState extends BattleObj {
     public boolean press(PvpStageBasis world, StageBasis owner) {
         if(!spinning || spinTicks<10)return false;
         int result=reel[reelIndex];
-        spinning=false;spinTicks=0;gauge=targetGauge=0;chargeClock=0;lastResult=result;
+        spinning=false;spinTicks=0;gauge=targetGauge=0;chargeClock=0;lastResult=result;cutinTicks=CUTIN_TICKS;
         apply(world,owner,result);
         lastLevel=stockState(result);
         return true;
@@ -138,7 +139,7 @@ public final class PvpRouletteState extends BattleObj {
 
     public void forceResult(PvpStageBasis world,StageBasis owner,int result) {
         if(result<0||result>=NAMES.length)throw new IllegalArgumentException("Invalid roulette result");
-        lastResult=result;apply(world,owner,result);lastLevel=stockState(result);
+        lastResult=result;cutinTicks=CUTIN_TICKS;apply(world,owner,result);lastLevel=stockState(result);
     }
 
     private void apply(PvpStageBasis world, StageBasis owner, int result) {
