@@ -602,20 +602,22 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
                 else set(onlineSpecial,x,y,1100,200,390,50);
             }
             if(jtb.isSelected()){
-                set(onlineTag,x,y,1760,60,250,30);
+                // Keep persistent controls outside the heavyweight battle Canvas.
+                // This is especially important when the page starts in large mode.
+                set(rouletteDebugMax,x,y,1500,0,250,50);
+                set(onlineTag,x,y,1760,10,250,30);
                 set(rouletteNotice,x,y,760,98,720,34);
-                set(rouletteDebugMax,x,y,210,134,300,46);
                 set(unitAbilityOverlay,x,y,500,95,1300,260);
-                set(onlineBattleEnd,x,y,650,430,1000,260);
-                set(onlineResult,x,y,650,430,1000,320);
             }else{
-                set(onlineTag,x,y,1330,310,250,30);
+                set(rouletteDebugMax,x,y,1500,200,150,50);
+                set(onlineTag,x,y,1500,255,150,30);
                 set(rouletteNotice,x,y,900,372,650,34);
-                set(rouletteDebugMax,x,y,710,372,300,46);
                 set(unitAbilityOverlay,x,y,760,320,680,230);
-                set(onlineBattleEnd,x,y,780,410,640,220);
-                set(onlineResult,x,y,750,390,700,320);
             }
+            // End-of-battle screens are full-page opaque views. The heavyweight
+            // battle Canvas is hidden before either becomes visible.
+            set(onlineBattleEnd,x,y,0,0,2300,1300);
+            set(onlineResult,x,y,0,0,2300,1300);
         }
 		ct.setRowHeight(size(x, y, 50));
 		et.setRowHeight(size(x, y, 50));
