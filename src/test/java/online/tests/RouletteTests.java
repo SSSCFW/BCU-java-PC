@@ -81,6 +81,8 @@ public final class RouletteTests {
         // Native charge: once per second, full HP=1x, half HP=2x, near-zero HP approaches 5x.
         PvpStageBasis charge=duel(RoomRules.SpecialMode.ROULETTE);
         StageBasis chargeOwner=charge.right();
+        // duel() advances one setup tick; isolate this timing assertion from that setup.
+        chargeOwner.pvpRoulette.gauge=chargeOwner.pvpRoulette.targetGauge=chargeOwner.pvpRoulette.chargeClock=0;
         for(int i=0;i<PvpStageBasis.TPS-1;i++)chargeOwner.pvpRoulette.advance(charge,chargeOwner);
         Check.equal(0,chargeOwner.pvpRoulette.targetGauge,"roulette target does not charge before one second");
         chargeOwner.pvpRoulette.advance(charge,chargeOwner);
