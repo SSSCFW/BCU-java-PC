@@ -22,8 +22,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     private final IntConsumer send;
     private final int direction;
     private int frontRow, changeFrame = -1;
-    private boolean goingUp, interactive = true, halfAdvanced, battleUiHidden;
-    private long published;
+    private boolean goingUp, interactive = true, halfAdvanced, renderedSincePublish, battleUiHidden;
     private boolean force60;
     public void force60Fps(boolean value){force60=value;}
     public int renderFps(){return force60||CommonStatic.getConfig().performanceModeBattle?60:30;}
@@ -36,7 +35,6 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
         this.keys = keys;
         this.direction = direction;
         this.send = send;
-        published = System.nanoTime();
     }
 
     @Override public StageBasis playerState() { return sb.playerFor(direction); }
@@ -56,13 +54,21 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
         sb = displayCopy;
         syncSpecialHud();
         syncRow();
-        published = System.nanoTime();
         halfAdvanced = false;
+        renderedSincePublish = false;
     }
 
     public void renderStep() {
-        if (renderFps()==60 && !halfAdvanced
-                && System.nanoTime() - published >= 16_666_667L) {
+        if (renderFps()!=60) return;
+        // A publication is the authoritative 30 TPS frame. Draw it once unchanged,
+        // then draw exactly one visual half-step on the next 60 FPS presentation.
+        // Wall-clock thresholds made this half-step disappear whenever EDT/network
+        // jitter moved a render just below 16.7 ms.
+        if (!renderedSincePublish) {
+            renderedSincePublish = true;
+            return;
+        }
+        if (!halfAdvanced) {
             ((PvpStageBasis) sb).advanceDisplay();
             halfAdvanced = true;
         }
