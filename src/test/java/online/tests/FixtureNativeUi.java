@@ -30,6 +30,8 @@ public final class FixtureNativeUi {
             a.battle[row][i] = image(190, row == 1 && i >= 2 && i <= 11 ? 20 : 210,
                     row == 0 ? 0xff7777aa : 0xff99aa77);
         for (VImg[] signs : a.moneySign) Arrays.fill(signs, image(18, 20, 0xffeedd66));
+        if(a.icon[3]==null||a.icon[3].length<common.util.Data.TRAIT_TOT)a.icon[3]=new VImg[common.util.Data.TRAIT_TOT];
+        for(int i=0;i<common.util.Data.TRAIT_TOT;i++)if(a.icon[3][i]==null)a.icon[3][i]=image(32,32,0xffcc8844+i*31);
         Arrays.fill(a.slot, image(120, 90, 0xff777777));
         Arrays.fill(a.spiritSummon, image(90, 24, 0xff55ffff));
         for (VImg[] parts : a.main) Arrays.fill(parts, image(110, 130, 0xffaaaaee));
