@@ -65,6 +65,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         content.add(header,BorderLayout.NORTH);content.add(setup,BorderLayout.CENTER);
         status.setEditable(false);status.setLineWrap(true);status.setWrapStyleWord(true);content.add(new JScrollPane(status),BorderLayout.SOUTH);
         populateLineupChoices(lineup,BasisSet.current()==null?null:BasisSet.current().sele);
+        restoreLocalSetup();
         row(0,"サーバー",server);row(1,"表示名",name);row(3,"城の位置（作成者）",side);row(4,"部屋ID（参加時）",room);row(5,"パスワード（任意・設定時8文字以上）",password);
         row(7,"",development);
         JPanel actions=new JPanel(new FlowLayout(FlowLayout.LEADING));actions.add(create);actions.add(join);row(8,"",actions);row(9,"友人用サーバー",friendServer);
@@ -287,25 +288,54 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
             public void changedUpdate(DocumentEvent e){changed();}
         };
         server.getDocument().addDocumentListener(listener);name.getDocument().addDocumentListener(listener);
+        side.addActionListener(e->{preferencesDirty=true;saveTimer.restart();});
+        lineup.addActionListener(e->{preferencesDirty=true;saveTimer.restart();});
     }
     private void savePreferences(){
         saveTimer.stop();if(!preferencesDirty)return;
         try{
             if(preferences==null)preferences=new LobbyPreferences(server.getText(),name.getText());
             else preferences=preferences.withConnection(server.getText(),name.getText());
+            preferences=preferences.withLocalSetup(side.getSelectedIndex(),selectedLineupKind(),selectedLineupSet(),selectedLineupIndex());
             preferences.save(preferencesPath);preferencesDirty=false;
         }
         catch(java.io.IOException e){System.err.println("BCU online preferences: "+e.getMessage());if(!disposed)status.append("\n設定の保存に失敗しました: "+e.getMessage());}
     }
     boolean creatingRoom(){return creating;}
     LobbyPreferences preferences(){return preferences==null?new LobbyPreferences(server.getText(),name.getText()):preferences;}
-    online.net.lobby.RoomRules savedHostRules(online.net.lobby.RoomRules base){
-        LobbyPreferences p=preferences();
-        return new online.net.lobby.RoomRules(base.castleDistance,base.backgroundId,base.musicId,base.force60Fps,base.specialMode,base.debugMode,
-                p.hostTraitChoice,p.guestTraitChoice,p.hostTraitExclusions,p.guestTraitExclusions,p.timeLimitMinutes);
-    }
+    online.net.lobby.RoomRules savedHostRules(online.net.lobby.RoomRules base){return preferences().hostRules();}
+    double savedCastleHealthMultiplier(){return preferences().castleHealthMultiplier;}
     void rememberHostRules(online.net.lobby.RoomRules rules){
         preferences=preferences().withHostRules(rules);preferencesDirty=true;saveTimer.restart();
+    }
+    void rememberCastleHealthMultiplier(double value){
+        preferences=preferences().withCastleHealth(value);preferencesDirty=true;saveTimer.restart();
+    }
+    private int selectedLineupKind(){
+        Object value=lineup.getSelectedItem();
+        if(value==randomLineup)return LobbyPreferences.LINEUP_RANDOM;
+        if(value==randomVanillaLineup)return LobbyPreferences.LINEUP_RANDOM_VANILLA;
+        return LobbyPreferences.LINEUP_SAVED;
+    }
+    private int selectedLineupSet(){
+        Object value=lineup.getSelectedItem();if(!(value instanceof BasisLU)||isRandomLineupChoice((BasisLU)value))return -1;
+        java.util.List<BasisSet> sets=BasisSet.list();
+        for(int i=0;i<sets.size();i++)if(sets.get(i).lb.contains(value))return i;
+        return -1;
+    }
+    private int selectedLineupIndex(){
+        Object value=lineup.getSelectedItem();if(!(value instanceof BasisLU)||isRandomLineupChoice((BasisLU)value))return -1;
+        for(BasisSet set:BasisSet.list()){int i=set.lb.indexOf(value);if(i>=0)return i;}return -1;
+    }
+    private void restoreLocalSetup(){
+        LobbyPreferences p=preferences();side.setSelectedIndex(Math.max(0,Math.min(1,p.creatorSideIndex)));
+        if(p.lineupKind==LobbyPreferences.LINEUP_RANDOM){lineup.setSelectedItem(randomLineup);return;}
+        if(p.lineupKind==LobbyPreferences.LINEUP_RANDOM_VANILLA){lineup.setSelectedItem(randomVanillaLineup);return;}
+        java.util.List<BasisSet> sets=BasisSet.list();
+        if(p.lineupSetIndex>=0&&p.lineupSetIndex<sets.size()){
+            BasisSet set=sets.get(p.lineupSetIndex);
+            if(p.lineupIndex>=0&&p.lineupIndex<set.lb.size())lineup.setSelectedItem(set.lb.get(p.lineupIndex));
+        }
     }
     /** Leave/cancel a match, not the embedded server. Stale socket/asset callbacks are fenced out. */
     private boolean isSessionChild(){Page p=MainFrame.getPanel();if(p==this)return false;while(p!=null){if(p==this)return true;p=p.getFront();}return false;}

@@ -50,7 +50,7 @@ public final class RoomLobbyPage extends Page {
     private final JLabel[] icons=new JLabel[10];
     private final AudioSettingsPanel audio=new AudioSettingsPanel();
     private JsonObject state;
-    private boolean loading,editing,dirty,playerDirty,pending,closed,restoredHostPreferences;
+    private boolean loading,editing,dirty,playerDirty,pending,closed,restoredHostPreferences,restoredPlayerPreferences;
     private final ActionListener lineupListener;
 
     RoomLobbyPage(OnlineLobbyPage owner,RoomClient client,int id,String room,boolean protectedRoom,JComboBox<BasisLU> lineup,JButton ready){
@@ -128,6 +128,18 @@ public final class RoomLobbyPage extends Page {
     void state(JsonObject value)throws java.io.IOException{
         state=value;pending=false;
         RoomRules rules=RoomRules.read(value);
+        if(!restoredPlayerPreferences&&editable()){
+            restoredPlayerPreferences=true;
+            double current=PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER;
+            for(JsonElement e:value.getAsJsonArray("players")){
+                JsonObject p=e.getAsJsonObject();if(p.get("id").getAsInt()==playerId){current=p.get("castleHealthMultiplier").getAsDouble();break;}
+            }
+            double saved=owner.savedCastleHealthMultiplier();
+            if(Math.abs(saved-current)>1e-9){
+                pending=true;client.setCastleHealthMultiplier(saved,value.get("revision").getAsLong());
+                message("保存済みの城体力倍率を復元しています…");refreshControls();return;
+            }
+        }
         if(!restoredHostPreferences&&host()&&editable()&&owner.creatingRoom()){
             restoredHostPreferences=true;
             RoomRules saved=owner.savedHostRules(rules);
@@ -189,7 +201,7 @@ public final class RoomLobbyPage extends Page {
         }catch(Exception e){message(e.getMessage());}
     }
 
-    private void applyPlayerRules(){try{castleHealthMultiplier.commitEdit();double value=((Number)castleHealthMultiplier.getValue()).doubleValue();PvpStageBasis.validateCastleHealthMultiplier(value);pending=true;playerDirty=false;client.setCastleHealthMultiplier(value,state.get("revision").getAsLong());refreshControls();}catch(Exception e){message(e.getMessage());}}
+    private void applyPlayerRules(){try{castleHealthMultiplier.commitEdit();double value=((Number)castleHealthMultiplier.getValue()).doubleValue();PvpStageBasis.validateCastleHealthMultiplier(value);owner.rememberCastleHealthMultiplier(value);pending=true;playerDirty=false;client.setCastleHealthMultiplier(value,state.get("revision").getAsLong());refreshControls();}catch(Exception e){message(e.getMessage());}}
 
     void toggleReady(){
         if(closed||!editable()||pending)return;
