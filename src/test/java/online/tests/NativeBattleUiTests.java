@@ -132,8 +132,8 @@ public final class NativeBattleUiTests {
         PvpStageBasis live=new PvpStageBasis(leftLu,rightLu,782,0,rules);
         StageBasis own=live.left();
         own.pvpRoulette.gauge=own.pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;
-        live.step(new InputFrame(live.time,0,0));
-        Check.that(own.pvpRoulette.spinning,"roulette presentation fixture starts spinning");
+        live.step(new InputFrame(live.time,InputFrame.SPECIAL,0));
+        Check.that(own.pvpRoulette.spinning,"roulette presentation fixture starts from explicit SPECIAL input");
 
         OnlineBattleField field=new OnlineBattleField(new Keys(),live.displayCopy(),1,value->{});
         Box box=new Box(field);
