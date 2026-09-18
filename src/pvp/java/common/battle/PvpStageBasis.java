@@ -12,7 +12,7 @@ import java.util.*;
 /** Two independently owned player states, a single simulation world, no native CPU spawner. */
 public final class PvpStageBasis extends StageBasis {
     public static final int TPS = 30;
-    public final RoomRules rules;
+    public final int pvpSpecialMode;
     private String matchScope;
     public static PvpStageBasis create(String match, BasisLU left, BasisLU right, long seed, int leftSeat) throws Exception {
         return create(match,left,right,seed,leftSeat,RoomRules.DEFAULT);
@@ -31,7 +31,7 @@ public final class PvpStageBasis extends StageBasis {
     }
     private PvpStageBasis(Stage arena, BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules) {
         super(null, new EStage(arena, 0), right, new int[3], seed, false);
-        this.rules=rules;
+        this.pvpSpecialMode=specialMode().ordinal();
         if (leftSeat != 0 && leftSeat != 1) throw new IllegalArgumentException("Invalid player seat");
         pvpRoot = this; pvpDirection = -1; pvpSeat = 1-leftSeat;
         StageBasis other = new StageBasis(null, new EStage(arena,0), left, new int[3], seed, false);
@@ -49,6 +49,7 @@ public final class PvpStageBasis extends StageBasis {
         maxMoney = b.t().getMaxMon(work_lv, false);
         other.maxMoney = other.b.t().getMaxMon(other.work_lv, false);
     }
+    public RoomRules.SpecialMode specialMode() { return RoomRules.SpecialMode.values()[pvpSpecialMode]; }
     public StageBasis left() { return pvpOther; }
     public StageBasis right() { return this; }
     /** tick starts at zero, time counts the number of COMPLETED simulation ticks. */
@@ -61,7 +62,7 @@ public final class PvpStageBasis extends StageBasis {
             if (pvpSeat == 0) { input(this,frame.right); input(pvpOther,frame.left); }
             else { input(pvpOther,frame.left); input(this,frame.right); }
             update();
-            if(rules.specialMode==RoomRules.SpecialMode.ROULETTE) {
+            if(specialMode()==RoomRules.SpecialMode.ROULETTE) {
                 left().pvpRoulette.advance(this,left());
                 right().pvpRoulette.advance(this,right());
             }
@@ -73,8 +74,8 @@ public final class PvpStageBasis extends StageBasis {
         if ((mask & InputFrame.WORKER) != 0) player.act_mon();
         if ((mask & InputFrame.SPECIAL) != 0) {
             PvpStageBasis world=(PvpStageBasis)player.world();
-            if(world.rules.specialMode==RoomRules.SpecialMode.CANNON) player.act_can();
-            else if(world.rules.specialMode==RoomRules.SpecialMode.ROULETTE) player.pvpRoulette.press(world,player);
+            if(world.specialMode()==RoomRules.SpecialMode.CANNON) player.act_can();
+            else if(world.specialMode()==RoomRules.SpecialMode.ROULETTE) player.pvpRoulette.press(world,player);
         }
         for (int i=0;i<10;i++) {
             if ((mask & (1<<(12+i))) != 0) player.act_lock(i/5,i%5);
@@ -93,7 +94,7 @@ public final class PvpStageBasis extends StageBasis {
                 p.spiritEmphasizeStartTime[i][j]=time; p.spiritEmphasizeCount[i][j]=10;
             }
         }
-        boolean cannonMode=rules.specialMode==RoomRules.SpecialMode.CANNON;
+        boolean cannonMode=specialMode()==RoomRules.SpecialMode.CANNON;
         if(cannonMode && p.cannon==p.maxCannon-1)PvpAudio.notification(p,SE_CANNON_CHARGE);
         if (active) {
             if(cannonMode)p.cannon++;
