@@ -97,7 +97,10 @@ public final class PvpRouletteHud extends JComponent {
                 }
                 boolean hi=((world.time/4)&1)==0;
                 if(state.spinning){
-                    g.drawImage(Pvp3dsAssets.image("ui_battle_multi",hi?"Rボタン(白)":"Rボタン"),264,13,null);
+                    // The 3DS sheet contains an R shoulder-button glyph, but PC R is a
+                    // unit hotkey. Do not show a misleading control hint; reuse the
+                    // authentic multiplayer roulette lamp instead.
+                    g.drawImage(Pvp3dsAssets.image("ui_battle_multi","ルーレット点灯中ランプ"),264,13,null);
                     g.drawImage(Pvp3dsAssets.image("ui_battle_multi_reel",hi?"ルーレットランプ：ハイライト":"ルーレットランプ：点灯"),294,10,null);
                 }else{
                     g.drawImage(Pvp3dsAssets.image("ui_battle_multi_reel","ルーレットランプ：点灯"),294,10,null);
