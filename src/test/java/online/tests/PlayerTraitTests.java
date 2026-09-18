@@ -20,7 +20,7 @@ public final class PlayerTraitTests {
         ((common.battle.data.CustomUnit)rightUnit.forms[0].du).price=1;
         BasisLU left=Fixture.lineup(leftUnit),right=Fixture.lineup(rightUnit);
 
-        RoomRules rules=new RoomRules(4400,0,-1,false,RoomRules.SpecialMode.ROULETTE,false,
+        RoomRules rules=new RoomRules(4400,0,3,false,RoomRules.SpecialMode.ROULETTE,false,
                 PvpTraitRules.NONE,PvpTraitRules.NONE,0,0,1);
         PvpStageBasis battle=new PvpStageBasis(left,right,9981,0,rules,1.0,1.0,Data.TRAIT_RED,Data.TRAIT_BLACK);
         battle.left().money=battle.right().money=999999;
@@ -40,7 +40,7 @@ public final class PlayerTraitTests {
         Check.equal(PvpTraitRules.NONE,neutral.pvpAssignedTrait(),"default PvP unit attribute is none");
         Check.that(!neutral.traitCompatible(Collections.singletonList(red),rightSpawn,true),"attribute-less unit is not treated as red");
 
-        RoomRules randomRules=new RoomRules(4400,0,-1,false,RoomRules.SpecialMode.NONE,false,
+        RoomRules randomRules=new RoomRules(4400,0,3,false,RoomRules.SpecialMode.NONE,false,
                 PvpTraitRules.RANDOM,PvpTraitRules.RANDOM,1<<PvpTraitRules.optionIndex(Data.TRAIT_RED),
                 PvpTraitRules.ALL_EXCLUSIONS^(1<<PvpTraitRules.optionIndex(Data.TRAIT_BLACK)),15);
         Check.that(randomRules.resolvedHostTrait(12345L)!=Data.TRAIT_RED,"random host trait honors exclusions");
@@ -56,7 +56,7 @@ public final class PlayerTraitTests {
         timed.ebase.health=4000;timed.ubase.health=4000;
         Check.equal(-1,timed.winner(),"equal castle HP at time limit is a draw");
 
-        RoomRules unlimitedRules=new RoomRules(4400,0,-1,false,RoomRules.SpecialMode.NONE,false,
+        RoomRules unlimitedRules=new RoomRules(4400,0,3,false,RoomRules.SpecialMode.NONE,false,
                 PvpTraitRules.NONE,PvpTraitRules.NONE,0,0,RoomRules.UNLIMITED_TIME);
         PvpStageBasis unlimited=new PvpStageBasis(left,right,9984,0,unlimitedRules,1.0,1.0);
         unlimited.time=99*60*PvpStageBasis.TPS;
