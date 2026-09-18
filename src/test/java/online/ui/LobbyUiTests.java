@@ -230,7 +230,7 @@ public final class LobbyUiTests {
                 await(()->field(page,"battlePage")==null&&MainFrame.getPanel()==field(page,"roomLobby"),"both peers restore the editable room lobby after battle abort");
                 edt(()->{
                     RoomLobbyPage lobby=(RoomLobbyPage)field(page,"roomLobby");
-                    JsonObject lobbyState=(JsonObject)field(lobby,"state");
+                    com.google.gson.JsonObject lobbyState=(com.google.gson.JsonObject)field(lobby,"state");
                     Check.equal("EDITING",lobbyState.get("phase").getAsString(),"returned room is editable for a rematch");
                     Check.that(((JButton)field(page,"ready")).isEnabled(),"returned room can ready for another battle");
                     Check.that(((JComboBox<?>)field(page,"lineup")).getActionListeners().length>0,"room lineup listener stays attached while remaining in the room");
