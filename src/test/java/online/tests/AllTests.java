@@ -20,6 +20,7 @@ public final class AllTests {
         ClientTests.run();
         CoreTests.run();
         CombatTests.run();
+        RouletteTests.run();
         UiTests.run();
         RoomAudioTests.run();
         RoomRuleTests.run();
