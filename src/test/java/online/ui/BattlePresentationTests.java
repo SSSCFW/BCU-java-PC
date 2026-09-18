@@ -36,7 +36,13 @@ public final class BattlePresentationTests {
             page=new BattleInfoPage(null,world.displayCopy(),1,i->{},()->{},"ホスト","参加者");
             MainFrame.changePanel(page);
             page.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());
-            MainFrame.F.validate();page.renderOnlineFrame();return null;
+            MainFrame.F.validate();page.renderOnlineFrame();
+            for(String name:new String[]{"onlineBattleEndLabel","onlineResultTitle","onlineResultDetail"}){
+                Component label=(Component)field(page,name);
+                Check.that(label.getFont().canDisplayUpTo("戦闘終了 勝利！ 敗北 引き分け 両者の結果が一致しました。")<0,
+                        "Japanese result glyphs must render, not missing-font boxes: "+name);
+            }
+            return null;
         });
     }
     private static void screenshot(String name)throws Exception{
