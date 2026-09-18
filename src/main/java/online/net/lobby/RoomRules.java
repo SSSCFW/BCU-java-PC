@@ -19,7 +19,7 @@ public final class RoomRules {
     }
     public static final int MIN_DISTANCE=1000, MAX_DISTANCE=24000, RANDOM_BACKGROUND=-1, RANDOM_MUSIC=-2;
     public static final int DEFAULT_TIME_LIMIT_MINUTES=15, MIN_TIME_LIMIT_MINUTES=1, MAX_TIME_LIMIT_MINUTES=99, UNLIMITED_TIME=0;
-    public static final RoomRules DEFAULT=new RoomRules(4400,0,-1,false,SpecialMode.CANNON,false,
+    public static final RoomRules DEFAULT=new RoomRules(4400,0,PvpBattleMusic.DEFAULT_ID,false,SpecialMode.CANNON,false,
             PvpTraitRules.NONE,PvpTraitRules.NONE,0,0,DEFAULT_TIME_LIMIT_MINUTES);
     public final int castleDistance, backgroundId, musicId;
     public final boolean force60Fps, debugMode;
@@ -38,11 +38,11 @@ public final class RoomRules {
     public RoomRules(int distance,int background,int music,boolean force60,SpecialMode special,boolean debug,
                      int hostTrait,int guestTrait,int hostExclusions,int guestExclusions,int timeLimit) {
         boolean backgroundValid=background==RANDOM_BACKGROUND||(background>=0&&background<=65535);
-        boolean musicValid=music==RANDOM_MUSIC||(music>=-1&&music<=65535);
+        boolean musicValid=PvpBattleMusic.isAllowed(music);
         boolean timeValid=timeLimit==UNLIMITED_TIME||(timeLimit>=MIN_TIME_LIMIT_MINUTES&&timeLimit<=MAX_TIME_LIMIT_MINUTES);
         PvpTraitRules.validate(hostTrait,hostExclusions);PvpTraitRules.validate(guestTrait,guestExclusions);
         if(distance<MIN_DISTANCE||distance>MAX_DISTANCE||!backgroundValid||!musicValid||special==null||!timeValid)
-            throw new IllegalArgumentException("城間距離・背景/BGM・特殊機能・時間制限の設定が無効です");
+            throw new IllegalArgumentException("城間距離・背景/対戦BGM・特殊機能・時間制限の設定が無効です");
         castleDistance=distance;backgroundId=background;musicId=music;force60Fps=force60;specialMode=special;debugMode=debug;
         hostTraitChoice=hostTrait;guestTraitChoice=guestTrait;hostTraitExclusions=hostExclusions;guestTraitExclusions=guestExclusions;
         timeLimitMinutes=timeLimit;
