@@ -223,13 +223,20 @@ public final class LobbyUiTests {
                 edt(()->{
                     BattleInfoPage nativePage=(BattleInfoPage)field(page,"battlePage");
                     if(nativePage!=null)((JButton)field(nativePage,"back")).doClick();
-                    Check.that(MainFrame.getPanel()==page,"native Back or peer disconnect returns to the reusable lobby");
-                    Check.that(button("create").isEnabled(),"native page exit resets room state");
-                    Check.equal(0,((JComboBox<?>)field(page,"lineup")).getActionListeners().length,"closed room must detach its lineup listener before the next room");
+                    Check.that(MainFrame.getPanel()==field(page,"roomLobby"),"native Back returns to the existing room lobby, not connection setup");
                     if(host)Check.that(field(field(page,"friendServer"),"host")!=null,"native Back must not stop embedded friend server");
                     return null;
                 });
-                System.out.println("GUI_DUEL_OK "+mode+" editable lobby / original editor / rules / live audio / forced60 / native BattleInfoPage / 150 ticks");break;
+                await(()->field(page,"battlePage")==null&&MainFrame.getPanel()==field(page,"roomLobby"),"both peers restore the editable room lobby after battle abort");
+                edt(()->{
+                    RoomLobbyPage lobby=(RoomLobbyPage)field(page,"roomLobby");
+                    JsonObject lobbyState=(JsonObject)field(lobby,"state");
+                    Check.equal("EDITING",lobbyState.get("phase").getAsString(),"returned room is editable for a rematch");
+                    Check.that(((JButton)field(page,"ready")).isEnabled(),"returned room can ready for another battle");
+                    Check.that(((JComboBox<?>)field(page,"lineup")).getActionListeners().length>0,"room lineup listener stays attached while remaining in the room");
+                    return null;
+                });
+                System.out.println("GUI_DUEL_OK "+mode+" editable lobby / original editor / rules / live audio / forced60 / native BattleInfoPage / Back-to-room / 150 ticks");break;
             }
             default:throw new AssertionError("Unknown test "+mode);
         }
