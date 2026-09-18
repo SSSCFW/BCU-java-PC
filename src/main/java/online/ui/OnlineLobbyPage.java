@@ -132,7 +132,10 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 roomLobby=new RoomLobbyPage(this,client,playerId,room.getText(),roomProtected,lineup,ready);
                 changePanel(roomLobby);roomLobby.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());
                 message("入室しました。対戦ロビーで編成とルールを設定できます。");break;
-            case "room_state":if(roomLobby!=null)roomLobby.state(e);break;
+            case "room_state":
+                if(roomLobby!=null)roomLobby.state(e);
+                if("EDITING".equals(Protocol.string(e,"phase",16))&&battlePage!=null)finishBattleToLobby("対戦ロビーに戻りました。");
+                break;
             case "notice":if(roomLobby!=null)roomLobby.notice(Protocol.string(e,"message",1024));break;
             case "prepare":
                 if(playerId<=0)throw new java.io.IOException("No identity assignment");
@@ -149,11 +152,19 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 DuelRoster startedRoster=DuelRoster.read(e);
                 if(startedRoster.playerId(0)!=roster.playerId(0)||startedRoster.playerId(1)!=roster.playerId(1)||startedRoster.leftIndex()!=leftSlot)
                     throw new java.io.IOException("Duel roster changed at start");
-                battle=PvpStageBasis.create(match,mounted[leftSlot].lineup,mounted[1-leftSlot].lineup,Protocol.number(e,"seed"),leftSlot,client.roomRules());
+                battle=PvpStageBasis.create(match,mounted[leftSlot].lineup,mounted[1-leftSlot].lineup,Protocol.number(e,"seed"),leftSlot,client.roomRules(),
+                        startedRoster.castleHealthMultiplier(startedRoster.leftIndex()),startedRoster.castleHealthMultiplier(startedRoster.rightIndex()));
                 showBattle();break;
             case "result":
                 resultSent=true;int winner=Protocol.integer(e,"winner");
-                message(winner==-1?"引き分けです。両者の結果が一致しました。":(winner==(slot==leftSlot?0:1)?"勝利！":"敗北")+" 両者の結果が一致しました。");break;
+                String title=winner==-1?"引き分け":(winner==(slot==leftSlot?0:1)?"勝利！":"敗北");
+                message(title+" 両者の結果が一致しました。");
+                if(battlePage!=null)battlePage.showOnlineResult(title,"両者の戦闘結果が一致しました。OKを押してください。",client::resultAck);
+                break;
+            case "result_ack_state":
+                if(battlePage!=null)battlePage.onlineResultWaiting("相手のOKを待っています…");break;
+            case "battle_cancelled":
+                message("対戦が中断されました。ロビーへ戻ります…");break;
             default:break;
         }
     }
@@ -175,7 +186,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private void updateReady(){if(uploaded&&prepared&&mounted[0]!=null&&mounted[1]!=null&&!client.realtimeTransport().equals("PROBING")){client.ready();message("両者のキャラクターを同期しました。対戦を開始しています…");}}
     private void showBattle(){
         battlePage=new BattleInfoPage(this,battle.displayCopy(),slot==leftSlot?1:-1,
-                this::command,()->{resetMatch();message("部屋から退出しました。友人用サーバーは維持しています。");},
+                this::command,this::requestBattleReturn,
                 leftSlot==0?hostName:guestName,leftSlot==0?guestName:hostName);
         battlePage.force60Fps(client.roomRules().force60Fps);
         battlePage.onlineStatus(transportLabel(),true);
@@ -201,6 +212,20 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 nextPaint=now+1_000_000_000L/battlePage.onlineFps();
             }
         }catch(Exception e){failed("同期処理を停止しました: "+e.getMessage());}
+    }
+    private void requestBattleReturn(){
+        if(client==null||roomLobby==null)return;
+        client.abortBattle();roomLobby.message("対戦を中断してロビーへ戻っています…");
+        if(MainFrame.getPanel()!=roomLobby){changePanel(roomLobby);roomLobby.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());}
+    }
+    private void finishBattleToLobby(String text){
+        pulse.stop();
+        if(battlePage!=null){battlePage.detachOnline();battlePage=null;}
+        battle=null;
+        for(MatchBundle.Mounted m:mounted)if(m!=null)m.close();Arrays.fill(mounted,null);Arrays.fill(hashes,null);
+        for(Path p:temporary)delete(p);temporary.clear();localBundle=null;localArchive=null;roster=null;
+        hostName=null;guestName=null;slot=-1;leftSlot=-1;uploaded=false;prepared=false;resultSent=false;
+        if(roomLobby!=null){roomLobby.notice(text);if(MainFrame.getPanel()!=roomLobby){changePanel(roomLobby);roomLobby.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());}}
     }
     private String transportLabel(){
         online.net.realtime.ReliabilityWindow.Metrics m=client.udpMetrics();

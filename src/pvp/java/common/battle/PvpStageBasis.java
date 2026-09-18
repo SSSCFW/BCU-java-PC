@@ -12,13 +12,19 @@ import java.util.*;
 /** Two independently owned player states, a single simulation world, no native CPU spawner. */
 public final class PvpStageBasis extends StageBasis {
     public static final int TPS = 30;
+    public static final double DEFAULT_CASTLE_HEALTH_MULTIPLIER=20.0;
+    public static final double MIN_CASTLE_HEALTH_MULTIPLIER=0.1, MAX_CASTLE_HEALTH_MULTIPLIER=1000.0;
     public final int pvpSpecialMode;
     private String matchScope;
     public static PvpStageBasis create(String match, BasisLU left, BasisLU right, long seed, int leftSeat) throws Exception {
         return create(match,left,right,seed,leftSeat,RoomRules.DEFAULT);
     }
     public static PvpStageBasis create(String match, BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules) throws Exception {
-        return PvpTiming.inMatch(match, () -> {PvpStageBasis b=new PvpStageBasis(left,right,seed,leftSeat,rules);b.matchScope=match;return b;});
+        return create(match,left,right,seed,leftSeat,rules,DEFAULT_CASTLE_HEALTH_MULTIPLIER,DEFAULT_CASTLE_HEALTH_MULTIPLIER);
+    }
+    public static PvpStageBasis create(String match, BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules,
+                                       double leftCastleMultiplier,double rightCastleMultiplier) throws Exception {
+        return PvpTiming.inMatch(match, () -> {PvpStageBasis b=new PvpStageBasis(left,right,seed,leftSeat,rules,leftCastleMultiplier,rightCastleMultiplier);b.matchScope=match;return b;});
     }
     public static final int ARENA_LENGTH = 6000;
     public static final int MAX_UNITS = 50;
@@ -27,9 +33,14 @@ public final class PvpStageBasis extends StageBasis {
         this(left,right,seed,leftSeat,RoomRules.DEFAULT);
     }
     public PvpStageBasis(BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules) {
-        this(arena(rules),left,right,seed,leftSeat,rules);
+        this(left,right,seed,leftSeat,rules,DEFAULT_CASTLE_HEALTH_MULTIPLIER,DEFAULT_CASTLE_HEALTH_MULTIPLIER);
     }
-    private PvpStageBasis(Stage arena, BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules) {
+    public PvpStageBasis(BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules,
+                         double leftCastleMultiplier,double rightCastleMultiplier) {
+        this(arena(rules),left,right,seed,leftSeat,rules,leftCastleMultiplier,rightCastleMultiplier);
+    }
+    private PvpStageBasis(Stage arena, BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules,
+                          double leftCastleMultiplier,double rightCastleMultiplier) {
         super(null, new EStage(arena, 0), right, new int[3], seed, false);
         this.pvpSpecialMode=rules.specialMode.ordinal();
         if (leftSeat != 0 && leftSeat != 1) throw new IllegalArgumentException("Invalid player seat");
@@ -44,6 +55,8 @@ public final class PvpStageBasis extends StageBasis {
         other.ebaseSmoke = ebaseSmoke; other.ubaseSmoke = ubaseSmoke;
         ebase = new ECastle(other, left); ebase.added(1,800);
         other.ebase = ebase; other.ubase = ubase;
+        applyCastleHealthMultiplier(other,leftCastleMultiplier);
+        applyCastleHealthMultiplier(this,rightCastleMultiplier);
         bgEffect = other.bgEffect = null;
         maxNum = other.maxNum = MAX_UNITS;
         maxMoney = b.t().getMaxMon(work_lv, false);
@@ -126,6 +139,17 @@ public final class PvpStageBasis extends StageBasis {
     /** Only call on a displayCopy; never on the canonical battle state. */
     public void advanceDisplay() {
         PvpTiming.halfStep(() -> {updateAnimation();pvpOther.canon.updateAnimation();});
+    }
+    public static double validateCastleHealthMultiplier(double value) {
+        if(!Double.isFinite(value)||value<MIN_CASTLE_HEALTH_MULTIPLIER||value>MAX_CASTLE_HEALTH_MULTIPLIER)
+            throw new IllegalArgumentException("城体力倍率は0.1〜1000の有限値にしてください");
+        return value;
+    }
+    private static void applyCastleHealthMultiplier(StageBasis player,double multiplier) {
+        multiplier=validateCastleHealthMultiplier(multiplier);
+        long base=Math.max(1L,player.ownBase().maxH);
+        long scaled=Math.max(1L,Math.round(base*multiplier));
+        player.ownBase().maxH=scaled;player.ownBase().health=scaled;
     }
     public static void validateRulesAssets(RoomRules rules) {
         if(Identifier.get(new Identifier<>(Identifier.DEF,Background.class,rules.backgroundId))==null)

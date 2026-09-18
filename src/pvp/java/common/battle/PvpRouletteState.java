@@ -100,9 +100,10 @@ public final class PvpRouletteState extends BattleObj {
             return;
         }
 
-        // The native state machine tests the displayed gauge before the catch-up step.
+        // Full gauge stays armed until the player explicitly presses SPECIAL.
+        // Charging is the reverse-engineered 3DS roulette cadence, not cannon charge.
         if(gauge>=MAX_GAUGE) {
-            gauge=targetGauge=MAX_GAUGE;spinning=true;spinTicks=0;return;
+            gauge=targetGauge=MAX_GAUGE;return;
         }
 
         // 3DS accumulates roulette charge once per 60 native frames (one second).
@@ -129,13 +130,12 @@ public final class PvpRouletteState extends BattleObj {
     }
 
     /**
-     * The reel now resolves automatically after roughly two seconds so the
-     * complete animation is visible on both peers. A late SPECIAL input may
-     * still resolve it at the same threshold, but can never skip the animation.
+     * SPECIAL starts a full roulette gauge. The reel cannot be manually skipped;
+     * it resolves deterministically after roughly two seconds on both peers.
      */
     public boolean press(PvpStageBasis world, StageBasis owner) {
-        if(!spinning || spinTicks<AUTO_SPIN_TICKS)return false;
-        resolve(world,owner);
+        if(spinning || gauge<MAX_GAUGE)return false;
+        gauge=targetGauge=MAX_GAUGE;spinning=true;spinTicks=0;
         return true;
     }
 

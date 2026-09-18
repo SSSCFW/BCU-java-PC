@@ -25,10 +25,13 @@ public final class RoomLobbyPage extends Page {
     private final RoomClient client;
     private final int playerId;
     private final JPanel content=new JPanel(new BorderLayout(12,12));
-    private final JButton back=new JButton("部屋から退出"),edit=new JButton("編成を編集"),apply=new JButton("ルールを適用"),ready;
+    private final JButton back=new JButton("部屋から退出"),edit=new JButton("編成を編集"),apply=new JButton("ルールを適用"),
+            applyPlayer=new JButton("自分設定を適用"),ready;
     private final JComboBox<BasisLU> lineup;
     private final JCheckBox force60=new JCheckBox("全員の表示を60FPSに揃える（戦闘処理は30TPS）");
     private final JComboBox<RoomRules.SpecialMode> special=new JComboBox<>(RoomRules.SpecialMode.values());
+    private final JSpinner castleHealthMultiplier=new JSpinner(new SpinnerNumberModel(PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER,
+            PvpStageBasis.MIN_CASTLE_HEALTH_MULTIPLIER,PvpStageBasis.MAX_CASTLE_HEALTH_MULTIPLIER,0.5));
     private final JSpinner distance=new JSpinner(new SpinnerNumberModel(4400,RoomRules.MIN_DISTANCE,RoomRules.MAX_DISTANCE,100));
     private final JComboBox<Background> background=new JComboBox<>();
     private final JComboBox<MusicChoice> music=new JComboBox<>();
@@ -37,7 +40,7 @@ public final class RoomLobbyPage extends Page {
     private final JLabel[] icons=new JLabel[10];
     private final AudioSettingsPanel audio=new AudioSettingsPanel();
     private JsonObject state;
-    private boolean loading,editing,dirty,pending,closed;
+    private boolean loading,editing,dirty,playerDirty,pending,closed;
     private final ActionListener lineupListener;
 
     RoomLobbyPage(OnlineLobbyPage owner,RoomClient client,int id,String room,boolean protectedRoom,JComboBox<BasisLU> lineup,JButton ready){
@@ -47,7 +50,11 @@ public final class RoomLobbyPage extends Page {
         JButton copy=new JButton("部屋IDをコピー");copy.addActionListener(e->Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(room),null));header.add(copy);content.add(header,BorderLayout.NORTH);
         JPanel sections=new JPanel();sections.setLayout(new BoxLayout(sections,BoxLayout.Y_AXIS));
         participants.setEditable(false);participants.setBorder(BorderFactory.createTitledBorder("参加者・準備状態"));sections.add(participants);
-        JPanel own=new JPanel(new BorderLayout(6,6));own.setBorder(BorderFactory.createTitledBorder("自分の編成"));JPanel choose=new JPanel(new BorderLayout(8,0));choose.add(lineup,BorderLayout.CENTER);choose.add(edit,BorderLayout.EAST);own.add(choose,BorderLayout.NORTH);
+        JPanel own=new JPanel(new BorderLayout(6,6));own.setBorder(BorderFactory.createTitledBorder("自分の編成・設定"));
+        JPanel ownTop=new JPanel();ownTop.setLayout(new BoxLayout(ownTop,BoxLayout.Y_AXIS));
+        JPanel choose=new JPanel(new BorderLayout(8,0));choose.add(lineup,BorderLayout.CENTER);choose.add(edit,BorderLayout.EAST);ownTop.add(choose);
+        JPanel castleRow=new JPanel(new FlowLayout(FlowLayout.LEADING));castleRow.add(new JLabel("自分の城体力倍率"));castleRow.add(castleHealthMultiplier);castleRow.add(new JLabel("倍"));castleRow.add(applyPlayer);ownTop.add(castleRow);
+        own.add(ownTop,BorderLayout.NORTH);
         JPanel slots=new JPanel(new GridLayout(2,5,6,6));for(int i=0;i<10;i++){icons[i]=new JLabel("—",SwingConstants.CENTER);icons[i].setVerticalTextPosition(SwingConstants.BOTTOM);icons[i].setHorizontalTextPosition(SwingConstants.CENTER);slots.add(icons[i]);}own.add(slots,BorderLayout.CENTER);sections.add(own);
         JPanel rules=new JPanel(new GridBagLayout());rules.setBorder(BorderFactory.createTitledBorder("対戦ルール（ホストのみ変更可能）"));
         for(Background b:UserProfile.getBCData().bgs.getList())if(b!=null)background.addItem(b);
@@ -55,10 +62,11 @@ public final class RoomLobbyPage extends Page {
         row(rules,0,"城と城の距離",distance);row(rules,1,"背景（標準データ）",background);row(rules,2,"BGM（標準データ）",music);row(rules,3,"戦闘特殊機能",special);row(rules,4,"",force60);row(rules,5,"",apply);row(rules,6,"",ruleNote);sections.add(rules);sections.add(audio);
         content.add(new JScrollPane(sections),BorderLayout.CENTER);
         JPanel footer=new JPanel(new BorderLayout(8,8));footer.add(ready,BorderLayout.EAST);status.setEditable(false);status.setLineWrap(true);status.setWrapStyleWord(true);footer.add(new JScrollPane(status),BorderLayout.CENTER);content.add(footer,BorderLayout.SOUTH);
-        back.addActionListener(e->owner.returnToConnection());edit.addActionListener(e->editLineup());apply.addActionListener(e->applyRules());
+        back.addActionListener(e->owner.returnToConnection());edit.addActionListener(e->editLineup());apply.addActionListener(e->applyRules());applyPlayer.addActionListener(e->applyPlayerRules());
         lineupListener=e->{if(!loading&&!closed&&!editing){preview();pending=true;client.setLineupName(summary());refreshControls();}};
         lineup.addActionListener(lineupListener);
         distance.addChangeListener(e->rulesChanged());background.addActionListener(e->rulesChanged());music.addActionListener(e->rulesChanged());special.addActionListener(e->rulesChanged());force60.addActionListener(e->rulesChanged());
+        castleHealthMultiplier.addChangeListener(e->{if(!loading&&!closed){playerDirty=true;refreshControls();}});
         preview();refreshControls();message("編成とルールを確認してください。全員が準備完了するとキャラを自動共有し、対戦を開始します。");
     }
     private static void row(JPanel panel,int y,String title,Component component){GridBagConstraints c=new GridBagConstraints();c.gridy=y;c.gridx=0;c.anchor=GridBagConstraints.WEST;c.insets=new Insets(4,8,4,8);panel.add(new JLabel(title),c);c.gridx=1;c.weightx=1;c.fill=GridBagConstraints.HORIZONTAL;panel.add(component,c);}
@@ -76,21 +84,24 @@ public final class RoomLobbyPage extends Page {
                 dirty=false;
             }
         }finally{loading=false;}
-        StringBuilder names=new StringBuilder();for(JsonElement e:value.getAsJsonArray("players")){JsonObject p=e.getAsJsonObject();names.append(p.get("id").getAsInt()==value.get("hostId").getAsInt()?"[ホスト] ":"[参加者] ").append(p.get("name").getAsString()).append("  /  ").append(p.get("seat").getAsString().equals("left")?"左・青":"右・ピンク").append("  /  ").append(p.get("lobbyReady").getAsBoolean()?"準備完了":"編集中");String label=p.get("lineupName").getAsString();if(!label.isEmpty())names.append("  /  ").append(label);names.append('\n');}participants.setText(names.toString());
+        StringBuilder names=new StringBuilder();for(JsonElement e:value.getAsJsonArray("players")){JsonObject p=e.getAsJsonObject();
+            if(p.get("id").getAsInt()==playerId&&!playerDirty)castleHealthMultiplier.setValue(p.get("castleHealthMultiplier").getAsDouble());
+            names.append(p.get("id").getAsInt()==value.get("hostId").getAsInt()?"[ホスト] ":"[参加者] ").append(p.get("name").getAsString()).append("  /  ").append(p.get("seat").getAsString().equals("left")?"左・青":"右・ピンク").append("  / 城HP x").append(String.format(java.util.Locale.ROOT,"%.2f",p.get("castleHealthMultiplier").getAsDouble())).append("  /  ").append(p.get("lobbyReady").getAsBoolean()?"準備完了":"編集中");String label=p.get("lineupName").getAsString();if(!label.isEmpty())names.append("  /  ").append(label);names.append('\n');}participants.setText(names.toString());
         ruleNote.setText("設定バージョン "+value.get("revision").getAsLong()+"。変更すると全員の準備完了を解除します。");refreshControls();
     }
     private void refreshControls(){
         boolean can=editable()&&!ownReady()&&!pending&&!closed;
-        lineup.setEnabled(can);edit.setEnabled(can);
+        lineup.setEnabled(can);edit.setEnabled(can);castleHealthMultiplier.setEnabled(can);applyPlayer.setEnabled(can&&playerDirty);
         distance.setEnabled(can&&host());background.setEnabled(can&&host());music.setEnabled(can&&host());special.setEnabled(can&&host());force60.setEnabled(can&&host());apply.setEnabled(can&&host()&&dirty);
-        ready.setText(ownReady()?"準備を解除":"準備完了");ready.setEnabled(editable()&&!pending&&!closed&&(ownReady()||(!dirty&&lineup.getSelectedItem()!=null)));
+        ready.setText(ownReady()?"準備を解除":"準備完了");ready.setEnabled(editable()&&!pending&&!closed&&(ownReady()||(!dirty&&!playerDirty&&lineup.getSelectedItem()!=null)));
         if(!editable()&&state!=null){ready.setText("共有・開始待ち…");edit.setEnabled(false);}
     }
     private void rulesChanged(){if(loading||closed)return;dirty=true;refreshControls();}
     private void applyRules(){try{distance.commitEdit();Background b=(Background)background.getSelectedItem();MusicChoice m=(MusicChoice)music.getSelectedItem();if(b==null||m==null)throw new IllegalArgumentException("背景とBGMを選択してください");RoomRules r=new RoomRules((Integer)distance.getValue(),b.id.id,m.id(),force60.isSelected(),(RoomRules.SpecialMode)special.getSelectedItem());PvpStageBasis.validateRulesAssets(r);pending=true;dirty=false;client.setRoomRules(r,state.get("revision").getAsLong());refreshControls();}catch(Exception e){message(e.getMessage());}}
+    private void applyPlayerRules(){try{castleHealthMultiplier.commitEdit();double value=((Number)castleHealthMultiplier.getValue()).doubleValue();PvpStageBasis.validateCastleHealthMultiplier(value);pending=true;playerDirty=false;client.setCastleHealthMultiplier(value,state.get("revision").getAsLong());refreshControls();}catch(Exception e){message(e.getMessage());}}
     void toggleReady(){
         if(closed||!editable()||pending)return;
-        if(!ownReady())try{distance.commitEdit();if(dirty)throw new IllegalArgumentException("変更したルールを先に適用してください");if(lineup.getSelectedItem()==null)throw new IllegalArgumentException("編成を選択してください");PvpStageBasis.validateRulesAssets(client.roomRules());}catch(Exception e){message(e.getMessage());return;}
+        if(!ownReady())try{distance.commitEdit();if(dirty)throw new IllegalArgumentException("変更したルールを先に適用してください");if(playerDirty)throw new IllegalArgumentException("城体力倍率を先に適用してください");if(lineup.getSelectedItem()==null)throw new IllegalArgumentException("編成を選択してください");PvpStageBasis.validateRulesAssets(client.roomRules());}catch(Exception e){message(e.getMessage());return;}
         pending=true;client.lobbyReady(!ownReady(),state.get("revision").getAsLong());refreshControls();
     }
     private String summary(){String s=String.valueOf(lineup.getSelectedItem());return s.length()>120?s.substring(0,120):s;}

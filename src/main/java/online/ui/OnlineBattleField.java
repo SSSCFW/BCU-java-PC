@@ -82,7 +82,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
         PvpStageBasis world=(PvpStageBasis)sb;
         switch(world.specialMode()) {
             case CANNON: specialReady=own.cannon==own.maxCannon; break;
-            case ROULETTE: specialReady=own.pvpRoulette!=null&&own.pvpRoulette.spinning; break;
+            case ROULETTE: specialReady=own.pvpRoulette!=null&&!own.pvpRoulette.spinning&&own.pvpRoulette.gauge>=PvpRouletteState.MAX_GAUGE; break;
             default: break;
         }
         if ((action.contains(-2) || specialPressed) && world.specialMode()!=online.net.lobby.RoomRules.SpecialMode.NONE) {
@@ -125,6 +125,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
                     return String.format(java.util.Locale.ROOT,"対戦ルーレット 回転中 / %.1f秒 / %s",seconds,
                             PvpRouletteState.NAMES[own.pvpRoulette.currentResult()]);
                 }
+                if(own.pvpRoulette.gauge>=PvpRouletteState.MAX_GAUGE)return "対戦ルーレット 100% / 発動可能";
                 String last="";
                 if(own.pvpRoulette.lastResult>=0) {
                     int lv=own.pvpRoulette.lastLevel;
@@ -138,9 +139,8 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     private void syncSpecialHud() {
         PvpStageBasis world=(PvpStageBasis)sb;
         StageBasis own=playerState();
-        if(world.specialMode()==online.net.lobby.RoomRules.SpecialMode.ROULETTE && own.pvpRoulette!=null)
-            own.cannon=Math.min(own.maxCannon,(int)((long)own.maxCannon*own.pvpRoulette.gauge/PvpRouletteState.MAX_GAUGE));
-        else if(world.specialMode()==online.net.lobby.RoomRules.SpecialMode.NONE)own.cannon=0;
+        // Roulette owns a separate gauge; never reuse the native cannon charge meter.
+        if(world.specialMode()!=online.net.lobby.RoomRules.SpecialMode.CANNON)own.cannon=0;
     }
     private void syncRow() {
         StageBasis own = playerState();

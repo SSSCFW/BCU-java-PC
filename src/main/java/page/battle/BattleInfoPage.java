@@ -76,6 +76,11 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
     private final JButton audio=new JButton("音量");
     private PvpRouletteHud onlineSpecial;
     private JDialog audioDialog;
+    private final JPanel onlineResult=new JPanel(new BorderLayout(10,10));
+    private final JLabel onlineResultTitle=new JLabel("",SwingConstants.CENTER),onlineResultDetail=new JLabel("",SwingConstants.CENTER);
+    private final JButton onlineResultOk=new JButton("OK");
+    private Runnable onlineResultAck;
+    private boolean onlineResultAcked;
 	private Runnable onlineExit;
 	private boolean onlineClosed;
 	private String onlineLeftName, onlineRightName;
@@ -169,6 +174,12 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		// These native single-player operations cannot be performed independently online.
 		paus.setEnabled(false);paus.setVisible(false);
         onlineSpecial=new PvpRouletteHud(online);add(audio);add(onlineSpecial);audio.addActionListener(e->{getPress().clear();if(audioDialog!=null&&audioDialog.isDisplayable()){audioDialog.toFront();return;}audioDialog=AudioSettingsPanel.open(this);});
+        onlineResult.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(Color.WHITE,2),BorderFactory.createEmptyBorder(18,24,18,24)));
+        onlineResult.setBackground(new Color(20,20,20));onlineResultTitle.setForeground(Color.WHITE);onlineResultDetail.setForeground(Color.WHITE);
+        onlineResultTitle.setFont(onlineResultTitle.getFont().deriveFont(Font.BOLD,30f));
+        JPanel resultCenter=new JPanel(new GridLayout(2,1,4,4));resultCenter.setOpaque(false);resultCenter.add(onlineResultTitle);resultCenter.add(onlineResultDetail);
+        onlineResult.add(resultCenter,BorderLayout.CENTER);onlineResult.add(onlineResultOk,BorderLayout.SOUTH);onlineResult.setVisible(false);add(onlineResult);setComponentZOrder(onlineResult,0);
+        onlineResultOk.addActionListener(e->{if(onlineResultAcked||onlineResultAck==null)return;onlineResultAcked=true;onlineResultOk.setEnabled(false);onlineResultDetail.setText("相手のOKを待っています…");onlineResultAck.run();});
         if(MainBCU.loaded){BCMusic.stopAll();BCMusic.play(basis.sb.st.mus0);}
 		next.setEnabled(false);
 		rply.setEnabled(false);
@@ -182,6 +193,13 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 
     public void force60Fps(boolean value){if(online!=null)online.force60Fps(value);}
     public int onlineFps(){return online==null?30:online.renderFps();}
+
+    public void showOnlineResult(String title,String detail,Runnable acknowledge){
+        if(online==null||onlineClosed)return;
+        online.interactive(false);getPress().clear();onlineResultAck=acknowledge;onlineResultAcked=false;
+        onlineResultTitle.setText(title);onlineResultDetail.setText(detail);onlineResultOk.setText("OK");onlineResultOk.setEnabled(true);onlineResult.setVisible(true);onlineResult.repaint();
+    }
+    public void onlineResultWaiting(String text){if(onlineResult.isVisible()&&onlineResultAcked)onlineResultDetail.setText(text);}
 
 	public void publishOnline(PvpStageBasis displayCopy) {
 		if (online != null && !onlineClosed) online.publish(displayCopy);
@@ -384,6 +402,8 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
                 if(jtb.isSelected())set(onlineSpecial,x,y,1100,0,390,50);
                 else set(onlineSpecial,x,y,1100,200,390,50);
             }
+            if(jtb.isSelected())set(onlineResult,x,y,650,430,1000,320);
+            else set(onlineResult,x,y,750,390,700,320);
         }
 		ct.setRowHeight(size(x, y, 50));
 		et.setRowHeight(size(x, y, 50));
@@ -581,7 +601,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		});
 
 		back.setLnr(x -> {
-			if (online != null) { closeOnline(); changePanel(getFront()); return; }
+			if (online != null) { closeOnline(); return; }
 			backClicked = true;
 			BCMusic.stopAll();
 			if (bb instanceof BBRecd) {
