@@ -42,7 +42,6 @@ public final class PvpRouletteHud extends JComponent {
     public PvpRouletteHud(OnlineBattleField online){
         this.online=online;
         setOpaque(false);
-        getAccessibleContext().setAccessibleName("対戦ルーレット");
         assetsReady=Pvp3dsAssets.available();
         refresh();
     }
