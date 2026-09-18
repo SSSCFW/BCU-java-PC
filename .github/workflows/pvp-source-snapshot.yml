@@ -1,0 +1,20 @@
+name: PvP roulette source snapshot
+on:
+  push:
+    branches: [work/pvp-roulette-v5]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Pack source
+        run: tar --exclude=.git --exclude=target --exclude=build -czf "$RUNNER_TEMP/source.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: roulette-source
+          path: ${{ runner.temp }}/source.tar.gz
+          retention-days: 1
