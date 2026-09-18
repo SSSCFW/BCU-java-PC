@@ -34,7 +34,8 @@ class PackageTests(unittest.TestCase):
                 manifest = (
                     "Manifest-Version: 1.0\n"
                     "Main-Class: main.MainBCU\n"
-                    "Add-Opens: " + " ".join(sorted(verify.REQUIRED_ADD_OPENS)) + "\n\n"
+                    "Add-Opens: java.base/java.lang java.desktop/sun.java2d\n"
+                    "  java.desktop/sun.awt java.desktop/sun.awt.windows\n\n"
                 )
                 jar.writestr("META-INF/MANIFEST.MF", manifest.encode("utf-8"))
                 for name in verify.REQUIRED_CLASSES:
