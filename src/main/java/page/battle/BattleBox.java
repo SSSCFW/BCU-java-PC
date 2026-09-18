@@ -1396,7 +1396,7 @@ public interface BattleBox {
 
 		private void drawTime(FakeGraphics g, float nameheight) {
 			P p = P.newP(box.getHeight() * 0.01f, box.getHeight() * 0.01f + nameheight);
-			float ratio = box.getHeight() * (bf.sb.isPvp() ? 0.055f : 0.1f) / aux.timer[0].getImg().getHeight();
+			float ratio = box.getHeight() * (bf.sb.isPvp() ? 0.07f : 0.1f) / aux.timer[0].getImg().getHeight();
 
 			float timeLeft = bf.sb.st.timeLimit * 60f - bf.sb.time / 30f;
 
