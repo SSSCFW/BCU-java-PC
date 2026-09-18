@@ -123,6 +123,16 @@ public final class NativeBattleUiTests {
                 Path path=Paths.get("target/native-ui-"+dir+"-"+twoRows+".png");Files.createDirectories(path.getParent());ImageIO.write(image,"png",path.toFile());
             }
             roulettePresentationTests(leftLu,rightLu);
+            online.net.lobby.RoomRules traitRules=new online.net.lobby.RoomRules(4400,0,-1,false,online.net.lobby.RoomRules.SpecialMode.NONE);
+            PvpStageBasis traitBattle=new PvpStageBasis(leftLu,rightLu,979,0,traitRules,1.0,1.0,
+                    common.util.Data.TRAIT_RED,common.util.Data.TRAIT_BLACK);
+            OnlineBattleField traitField=new OnlineBattleField(new Keys(),traitBattle.displayCopy(),1,value->{});
+            Box traitBox=new Box(traitField);BufferedImage traitImage=new BufferedImage(traitBox.getWidth(),traitBox.getHeight(),BufferedImage.TYPE_INT_ARGB);
+            Graphics2D tg=traitImage.createGraphics();Trace traitTrace=new Trace(tg);
+            try{traitBox.painter.draw(traitTrace);}finally{tg.dispose();}
+            Check.that(traitTrace.images.containsKey(CommonStatic.getBCAssets().icon[3][common.util.Data.TRAIT_RED].getImg())
+                            && traitTrace.images.containsKey(CommonStatic.getBCAssets().icon[3][common.util.Data.TRAIT_BLACK].getImg()),
+                    "selected player trait icons are drawn inside the battlefield above both castle HP displays");
             SBCtrl offline=new SBCtrl(new Keys(),live.st,0,Fixture.lineup(right),new int[3],983);
             for(int i=0;i<40;i++){offline.sb.money=100000;offline.action.add(0);offline.update();}
             Check.that(!offline.sb.le.isEmpty(),"offline fixture must spawn a real unit before debug comparison");
