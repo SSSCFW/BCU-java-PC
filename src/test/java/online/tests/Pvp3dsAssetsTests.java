@@ -10,7 +10,7 @@ public final class Pvp3dsAssetsTests {
         assertPart("ui_battle_multi_icon","アイコン：ふっとばし",40,40);
         assertPart("ui_battle_multi_icon","アイコン：プチベビーラッシュ",40,40);
         assertPart("ui_battle_multi_reel","効果名：攻撃力アップ",173,40);
-        assertPart("ui_battle_multi_reel","レベルマックス",30,21);
+        assertPart("ui_battle_multi_icon","レベルマックス",30,21);
         assertPart("ui_battle_multi_cutin","ぷちベビーラッシュ発動!",336,45);
         assertPart("ui_battle_multi","Rボタン",24,23);
         assertPart("ui_battle_multi","ルーレット点灯中ランプ",26,25);
