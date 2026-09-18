@@ -57,8 +57,12 @@ public final class RouletteTests {
         for(int i=0;i<5;i++)right.pvpRoulette.forceResult(b,right,PvpRouletteState.HP_UP);
         Check.equal(4,right.pvpRoulette.hpLevel,"HP boost caps at Level MAX");
         Check.equal(Math.round(oldMax*8.0),enemy.maxH,"HP Level MAX is 8x from 3DS table");
-        Check.equal(oldHealth,enemy.health,"deployed unit current HP is unchanged by native HP-up effect");
+        Check.equal(Math.round(oldHealth*8.0),enemy.health,"HP Level MAX immediately scales deployed unit current HP");
 
+        int baseDisplayedAtk=enemy.getAtk();
+        right.pvpRoulette.forceResult(b,right,PvpRouletteState.ATTACK_UP);
+        Check.equal((int)Math.round(baseDisplayedAtk*1.5),enemy.getAtk(),"attack-up immediately changes deployed-unit status attack");
+        right.pvpRoulette.attackLevel=0;
         for(int i=0;i<5;i++)right.pvpRoulette.forceResult(b,right,PvpRouletteState.ATTACK_UP);
         Check.equal(8.0,right.pvpRoulette.attackMultiplier(),"attack Level MAX is 8x");
         for(int i=0;i<5;i++)right.pvpRoulette.forceResult(b,right,PvpRouletteState.MOVE_UP);
@@ -140,9 +144,19 @@ public final class RouletteTests {
         for(int i=0;i<PvpRouletteState.AUTO_SPIN_TICKS-1;i++)manualOwner.pvpRoulette.advance(manual,manualOwner);
         Check.that(manualOwner.pvpRoulette.spinning,"roulette remains visible until the two-second threshold");
         Check.that(!manualOwner.pvpRoulette.press(manual,manualOwner),"repeated SPECIAL cannot skip an active reel");
+        int[] manualReel=manualOwner.pvpRoulette.reelSnapshot(),attackSlot=0;
+        while(manualReel[attackSlot]!=PvpRouletteState.ATTACK_UP)attackSlot++;
+        manualOwner.pvpRoulette.reelIndex=(attackSlot-1+manualReel.length)%manualReel.length;
         manualOwner.pvpRoulette.advance(manual,manualOwner);
-        Check.that(!manualOwner.pvpRoulette.spinning,"roulette resolves automatically after roughly two seconds");
-        Check.that(manualOwner.pvpRoulette.lastResult>=0,"automatic post-spin resolution records the selected effect");
+        Check.that(!manualOwner.pvpRoulette.spinning,"roulette reveals its result after roughly two seconds");
+        Check.equal(PvpRouletteState.ATTACK_UP,manualOwner.pvpRoulette.lastResult,"test reel reveals attack-up");
+        Check.equal(0,manualOwner.pvpRoulette.attackLevel,"revealed result does not apply while its message is visible");
+        Check.equal(PvpRouletteState.RESULT_DISPLAY_TICKS,manualOwner.pvpRoulette.resultDelayTicks,"effect waits for the result-message window");
+        for(int i=0;i<PvpRouletteState.RESULT_DISPLAY_TICKS-1;i++)manualOwner.pvpRoulette.advance(manual,manualOwner);
+        Check.equal(0,manualOwner.pvpRoulette.attackLevel,"effect remains pending until result message disappears");
+        manualOwner.pvpRoulette.advance(manual,manualOwner);
+        Check.equal(1,manualOwner.pvpRoulette.attackLevel,"effect activates after the result message disappears");
+        Check.equal(-1,manualOwner.pvpRoulette.pendingResult,"pending result clears after activation");
         Check.equal(0,manualOwner.pvpRoulette.gauge,"resolved roulette consumes the full gauge");
     }
     private static void modeTests() throws Exception {
