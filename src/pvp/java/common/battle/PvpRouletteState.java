@@ -121,6 +121,7 @@ public final class PvpRouletteState extends BattleObj {
             case HEAL:
                 for(Entity e:world.le) if(e instanceof EUnit&&e.dire==owner.ownDirection()&&!e.dead) {
                     e.health=Math.min(e.maxH,e.health+e.maxH/2);
+                    e.anim.getEff(HEAL);
                 }
                 break;
             case PRODUCTION_RECOVERY: clearCooldowns(owner); break;
@@ -162,7 +163,9 @@ public final class PvpRouletteState extends BattleObj {
         for(int i=0;i<2;i++)Arrays.fill(owner.elu.cool[i],0);
     }
     private static void timed(StageBasis player,int proc){
-        for(Entity e:player.world().le)if(e instanceof EUnit&&e.dire==player.ownDirection()&&!e.dead&&!((EUnit)e).isSpirit)
+        for(Entity e:player.world().le)if(e instanceof EUnit&&e.dire==player.ownDirection()&&!e.dead&&!((EUnit)e).isSpirit) {
             e.status[proc][0]=Math.max(e.status[proc][0],TEMP_TICKS);
+            e.anim.getEff(proc);
+        }
     }
 }
