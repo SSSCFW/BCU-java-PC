@@ -32,5 +32,26 @@ public final class LobbyPreferencesTests {
         online.tests.Check.equal(1,loaded.creatorSideIndex,"creator side preference roundtrip");
         online.tests.Check.equal(LobbyPreferences.LINEUP_RANDOM_VANILLA,loaded.lineupKind,"lineup choice preference roundtrip");
         online.tests.Check.equal(rules,loaded.hostRules(),"all host PvP room rules roundtrip");
+
+        java.util.Properties legacy=new java.util.Properties();
+        legacy.setProperty("serverAddress","wss://legacy.invalid/pvp");
+        legacy.setProperty("displayName","legacy");
+        legacy.setProperty("castleDistance","8123");
+        legacy.setProperty("backgroundId",Integer.toString(RoomRules.RANDOM_BACKGROUND));
+        legacy.setProperty("musicId","-1");
+        legacy.setProperty("force60Fps","true");
+        legacy.setProperty("specialMode",RoomRules.SpecialMode.ROULETTE.name());
+        legacy.setProperty("debugMode","true");
+        legacy.setProperty("hostTraitChoice",Integer.toString(PvpTraitRules.NONE));
+        legacy.setProperty("guestTraitChoice",Integer.toString(PvpTraitRules.NONE));
+        legacy.setProperty("hostTraitExclusions","0");legacy.setProperty("guestTraitExclusions","0");
+        legacy.setProperty("timeLimitMinutes","23");legacy.setProperty("castleHealthMultiplier","37.5");
+        legacy.setProperty("creatorSideIndex","1");legacy.setProperty("lineupKind",Integer.toString(LobbyPreferences.LINEUP_RANDOM));
+        legacy.setProperty("lineupSetIndex","-1");legacy.setProperty("lineupIndex","-1");
+        try(java.io.Writer out=Files.newBufferedWriter(file)){legacy.store(out,"legacy");}
+        LobbyPreferences migrated=LobbyPreferences.load(file,"fallback");
+        online.tests.Check.equal(online.net.lobby.PvpBattleMusic.DEFAULT_ID,migrated.musicId,"legacy random/silent BGM migrates to the curated default");
+        online.tests.Check.equal(8123,migrated.castleDistance,"legacy BGM migration preserves other room settings");
+        online.tests.Check.equal(23,migrated.timeLimitMinutes,"legacy BGM migration preserves time limit");
     }
 }
