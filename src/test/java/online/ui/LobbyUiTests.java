@@ -254,6 +254,27 @@ public final class LobbyUiTests {
                 await(()->((PvpStageBasis)field(page,"battle")).time>=150,"GUI battle must run 150 ticks without desync");
                 Check.that(edt(()->((PvpStageBasis)field(page,"battle")).le.stream().anyMatch(e->e.dire==1)),"native host input spawned a left unit");
                 Check.that(edt(()->((PvpStageBasis)field(page,"battle")).le.stream().anyMatch(e->e.dire==-1)),"native guest input spawned a right unit");
+
+                // Exercise the actual end-screen sequencing on BOTH real Swing clients.
+                edt(()->{
+                    BattleInfoPage nativePage=(BattleInfoPage)field(page,"battlePage");
+                    nativePage.showOnlineResult(host?"勝利！":"敗北","両者の戦闘結果が一致しました。OKを押してください。",()->{});
+                    Check.that(((JPanel)field(nativePage,"onlineBattleEnd")).isVisible(),"battle-end message is shown immediately on both clients");
+                    Check.that(!((Canvas)field(nativePage,"bb")).isVisible(),"heavyweight battle canvas is hidden behind end/result screens");
+                    return null;
+                });
+                await(()->((JPanel)field(field(page,"battlePage"),"onlineResult")).isVisible(),"result screen appears after battle-end sound completion");
+                edt(()->{
+                    BattleInfoPage nativePage=(BattleInfoPage)field(page,"battlePage");
+                    JPanel result=(JPanel)field(nativePage,"onlineResult");
+                    JLabel title=(JLabel)field(nativePage,"onlineResultTitle"),detail=(JLabel)field(nativePage,"onlineResultDetail");
+                    JButton ok=(JButton)field(nativePage,"onlineResultOk");
+                    Check.that(ok.isVisible()&&ok.isEnabled()&&ok.getWidth()>0&&ok.getHeight()>0,"OK button is visible and usable on both result screens");
+                    Check.that(!title.getForeground().equals(result.getBackground()),"result title has readable foreground/background contrast");
+                    Check.that(!detail.getForeground().equals(result.getBackground()),"result detail has readable foreground/background contrast");
+                    return null;
+                });
+
                 Files.write(shared.resolve(host?"host-done":"guest-done"),new byte[]{1});
                 long end=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);
                 while(!Files.exists(shared.resolve(host?"guest-done":"host-done"))){if(System.nanoTime()>end)throw new AssertionError("other peer stalled");Thread.sleep(20);}
