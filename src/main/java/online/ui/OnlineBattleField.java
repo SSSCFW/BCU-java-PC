@@ -120,7 +120,12 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
             case ROULETTE:
                 if(own.pvpRoulette==null)return "対戦ルーレット";
                 if(own.pvpRoulette.spinning)return "対戦ルーレット 回転中 / "+PvpRouletteState.NAMES[own.pvpRoulette.currentResult()];
-                String last=own.pvpRoulette.lastResult<0?"":(" / 前回: "+PvpRouletteState.NAMES[own.pvpRoulette.lastResult]);
+                String last="";
+                if(own.pvpRoulette.lastResult>=0) {
+                    int lv=own.pvpRoulette.lastLevel;
+                    String level=lv<=0?"":(lv>=4?" MAX":" Lv"+lv);
+                    last=" / 前回: "+PvpRouletteState.NAMES[own.pvpRoulette.lastResult]+level;
+                }
                 return "対戦ルーレット "+own.pvpRoulette.gauge/10+"%"+last;
             default:return "";
         }
