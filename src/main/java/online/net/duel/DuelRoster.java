@@ -21,7 +21,7 @@ public final class DuelRoster {
         for (int i = 0; i < 2; i++) {
             JsonObject p = message.getAsJsonArray("players").get(i).getAsJsonObject();
             result.ids[i] = Protocol.integer(p, "id"); result.names[i] = Protocol.string(p, "name", 40);
-            result.castleHealthMultiplier[i]=Protocol.real(p,"castleHealthMultiplier",0.1,1000.0);
+            result.castleHealthMultiplier[i]=p.has("castleHealthMultiplier")?Protocol.real(p,"castleHealthMultiplier",0.1,1000.0):20.0;
             String seat = Protocol.string(p, "seat", 16); int team = Protocol.integer(p, "team");
             if (result.ids[i] <= 0 || !seats.add(seat) ||
                     !(seat.equals("left") && team == 0 || seat.equals("right") && team == 1))

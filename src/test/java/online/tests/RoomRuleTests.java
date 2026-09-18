@@ -19,6 +19,8 @@ public final class RoomRuleTests {
         Check.rejects(()->new RoomRules(24001,0,-1,false),"too-long distance rejected");
         Check.rejects(()->new RoomRules(4400,-1,-1,false),"negative background rejected");
         Check.rejects(()->new RoomRules(4400,0,-2,false),"invalid silence identifier rejected");
+        Check.rejects(()->PvpStageBasis.validateCastleHealthMultiplier(Double.NaN),"NaN castle multiplier rejected");
+        Check.rejects(()->PvpStageBasis.validateCastleHealthMultiplier(0.0),"non-positive castle multiplier rejected");
         for(int distance:new int[]{1000,4400,24000}) {
             RoomRules rule=new RoomRules(distance,0,-1,true,RoomRules.SpecialMode.ROULETTE);
             JsonObject message=Protocol.message("rules");message.add("rules",rule.json());
@@ -27,6 +29,11 @@ public final class RoomRuleTests {
             BasisLU l=Fixture.lineup(FixtureNativeUi.unit("rule_l"+distance,0xff0055aa));
             BasisLU r=Fixture.lineup(FixtureNativeUi.unit("rule_r"+distance,0xffaa5500));
             PvpStageBasis a=new PvpStageBasis(l,r,134,0,rule),b=new PvpStageBasis(l,r,134,0,rule);
+            Check.equal(1200000L,a.left().ownBase().maxH,"default left castle HP is 20x");
+            Check.equal(1200000L,a.right().ownBase().maxH,"default right castle HP is 20x");
+            PvpStageBasis scaled=new PvpStageBasis(l,r,135,0,rule,2.5,7.25);
+            Check.equal(150000L,scaled.left().ownBase().maxH,"left player controls its own double castle HP multiplier");
+            Check.equal(435000L,scaled.right().ownBase().maxH,"right player controls its own double castle HP multiplier");
             Check.equal((float)distance,a.ubase.pos-a.ebase.pos,"configured distance is exact castle separation");
             Check.equal(distance+1600,a.st.len,"stage includes consistent castle margins");
             Check.equal(null,a.st.mus0,"no-BGM option contains no music identifier");

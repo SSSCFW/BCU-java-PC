@@ -28,6 +28,7 @@ public final class RoomLobbyTests {
         void rules(long revision,int distance){JsonObject o=Protocol.message("rules");o.addProperty("revision",revision);JsonObject r=new JsonObject();r.addProperty("castleDistance",distance);r.addProperty("backgroundId",4);r.addProperty("musicId",7);r.addProperty("force60Fps",true);r.addProperty("specialMode","ROULETTE");o.add("rules",r);send(o.toString());}
         void ready(long revision,boolean value){JsonObject o=Protocol.message("lobby_ready");o.addProperty("revision",revision);o.addProperty("ready",value);send(o.toString());}
         void lineup(String name){JsonObject o=Protocol.message("lineup");o.addProperty("name",name);send(o.toString());}
+        void castle(long revision,double value){JsonObject o=Protocol.message("player_rules");o.addProperty("revision",revision);o.addProperty("castleHealthMultiplier",value);send(o.toString());}
     }
     public static void run() throws Exception {
         RoomServer server=new RoomServer(new InetSocketAddress("127.0.0.1",0));server.start();Check.that(server.awaitStarted(3,TimeUnit.SECONDS),"lobby server starts");
@@ -39,6 +40,15 @@ public final class RoomLobbyTests {
             JsonObject a=host.state(2),b=guest.state(2);long rev=a.get("revision").getAsLong();
             Check.equal("EDITING",a.get("phase").getAsString(),"both peers edit before ready");
             Check.equal(joined.get("playerId"),a.get("hostId"),"host identity assigned by server");
+            for(JsonElement p:a.getAsJsonArray("players"))Check.equal(20.0,p.getAsJsonObject().get("castleHealthMultiplier").getAsDouble(),"every player starts at 20x castle HP");
+            host.castle(rev,12.5);a=host.state(2);b=guest.state(2);long castleRev=a.get("revision").getAsLong();
+            Check.that(castleRev>rev,"personal castle HP setting increments room revision");
+            int hostId=joined.get("playerId").getAsInt();
+            for(JsonElement p:a.getAsJsonArray("players")) {
+                JsonObject player=p.getAsJsonObject();
+                Check.equal(player.get("id").getAsInt()==hostId?12.5:20.0,player.get("castleHealthMultiplier").getAsDouble(),"castle HP multiplier belongs to each player");
+            }
+            rev=castleRev;
             guest.rules(rev,8000);Check.equal("HOST_ONLY",guest.take("notice").get("code").getAsString(),"guest cannot change host rules");
             host.rules(rev,0);Check.equal("RULES",host.take("notice").get("code").getAsString(),"invalid arena rejected without destroying room");
             host.rules(rev,8000);a=host.state(2);b=guest.state(2);long changed=a.get("revision").getAsLong();

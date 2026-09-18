@@ -86,7 +86,7 @@ public final class RouletteTests {
         right.pvpRoulette.advance(b,right);
         Check.equal(77,right.elu.cool[0][0],"petit baby rush stops forcing cooldown to zero after ten seconds");
 
-        // Gauge fills from canonical frontline position and auto-starts; special action stops after intro.
+        // Gauge follows the reverse-engineered castle-HP cadence and waits for explicit SPECIAL at 100%.
         // Native charge: once per second, full HP=1x, half HP=2x, near-zero HP approaches 5x.
         PvpStageBasis charge=duel(RoomRules.SpecialMode.ROULETTE);
         StageBasis chargeOwner=charge.right();
@@ -106,20 +106,21 @@ public final class RouletteTests {
         chargeOwner.ownBase().health=0;
         Check.equal(5.0,PvpRouletteState.castleHealthFactor(chargeOwner),"zero HP comeback factor is 5x");
 
-        PvpStageBasis auto=duel(RoomRules.SpecialMode.ROULETTE);
-        StageBasis autoOwner=auto.right();
-        autoOwner.pvpRoulette.gauge=PvpRouletteState.MAX_GAUGE;
-        autoOwner.pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;
-        autoOwner.pvpRoulette.advance(auto,autoOwner);
-        Check.that(autoOwner.pvpRoulette.spinning,"full roulette gauge starts reel automatically");
-        for(int i=0;i<10;i++)autoOwner.pvpRoulette.advance(auto,autoOwner);
-        Check.that(!autoOwner.pvpRoulette.press(auto,autoOwner),"special input cannot skip the two-second roulette animation");
-        for(int i=10;i<PvpRouletteState.AUTO_SPIN_TICKS-1;i++)autoOwner.pvpRoulette.advance(auto,autoOwner);
-        Check.that(autoOwner.pvpRoulette.spinning,"roulette remains visible until the two-second threshold");
-        autoOwner.pvpRoulette.advance(auto,autoOwner);
-        Check.that(!autoOwner.pvpRoulette.spinning,"roulette resolves automatically at roughly two seconds");
-        Check.that(autoOwner.pvpRoulette.lastResult>=0,"automatic roulette resolution records the selected effect");
-        Check.equal(0,autoOwner.pvpRoulette.gauge,"automatic roulette resolution consumes the full gauge");
+        PvpStageBasis manual=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis manualOwner=manual.right();
+        manualOwner.pvpRoulette.gauge=PvpRouletteState.MAX_GAUGE;
+        manualOwner.pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;
+        for(int i=0;i<PvpStageBasis.TPS;i++)manualOwner.pvpRoulette.advance(manual,manualOwner);
+        Check.that(!manualOwner.pvpRoulette.spinning,"full roulette gauge never starts without player SPECIAL");
+        Check.that(manualOwner.pvpRoulette.press(manual,manualOwner),"SPECIAL starts a full roulette gauge");
+        Check.that(manualOwner.pvpRoulette.spinning,"manual SPECIAL starts the visible reel");
+        for(int i=0;i<PvpRouletteState.AUTO_SPIN_TICKS-1;i++)manualOwner.pvpRoulette.advance(manual,manualOwner);
+        Check.that(manualOwner.pvpRoulette.spinning,"roulette remains visible until the two-second threshold");
+        Check.that(!manualOwner.pvpRoulette.press(manual,manualOwner),"repeated SPECIAL cannot skip an active reel");
+        manualOwner.pvpRoulette.advance(manual,manualOwner);
+        Check.that(!manualOwner.pvpRoulette.spinning,"roulette resolves automatically after roughly two seconds");
+        Check.that(manualOwner.pvpRoulette.lastResult>=0,"automatic post-spin resolution records the selected effect");
+        Check.equal(0,manualOwner.pvpRoulette.gauge,"resolved roulette consumes the full gauge");
     }
     private static void modeTests() throws Exception {
         PvpStageBasis none=duel(RoomRules.SpecialMode.NONE);
@@ -128,9 +129,11 @@ public final class RouletteTests {
         Check.equal(0,none.left().cannon,"NONE mode disables special meter/action");
 
         PvpStageBasis roulette=duel(RoomRules.SpecialMode.ROULETTE);
-        roulette.left().pvpRoulette.gauge=PvpRouletteState.MAX_GAUGE;
+        roulette.left().pvpRoulette.gauge=roulette.left().pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;
         roulette.step(new InputFrame(1,0,0));
-        Check.that(roulette.left().pvpRoulette.spinning,"ROULETTE mode updates synchronized reel state");
+        Check.that(!roulette.left().pvpRoulette.spinning,"ROULETTE does not auto-start at full gauge");
+        roulette.step(new InputFrame(2,InputFrame.SPECIAL,0));
+        Check.that(roulette.left().pvpRoulette.spinning,"ROULETTE starts only from synchronized SPECIAL input");
     }
     private static PvpStageBasis duel(RoomRules.SpecialMode mode)throws Exception {
         Unit l=Fixture.unit("roulette_l_"+mode,100000),r=Fixture.unit("roulette_r_"+mode,100000);
