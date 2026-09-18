@@ -8,6 +8,7 @@ import common.battle.data.MaskAtk;
 import common.battle.data.MaskUnit;
 import common.battle.data.PCoin;
 import common.pack.UserProfile;
+import online.net.lobby.PvpTraitRules;
 import common.util.BattleObj;
 import common.util.Data;
 import common.util.anim.EAnimU;
@@ -64,12 +65,14 @@ public class EUnit extends Entity {
 	public boolean bountyOrbCheck = false;
 	public int legendGrade = -1, coloGrade = -1, counterGrade = -1, bountyGrade = -1;
 	private boolean pvpDefeatRewarded, pvpRouletteDeathCharged;
+	private int pvpAssignedTrait=PvpTraitRules.NONE;
 
 	public EUnit(StageBasis b, MaskUnit de, EAnimU ea, float d0, int layer0, int layer1, Level level, PCoin pc,
 				 int[] index, boolean isSpirit, boolean isEveryOther) {
 		super(b, de, ea, d0, b.b.t().getAtkMulti(), b.b.t().getDefMulti(), pc, level);
 		currentLayer = spawnLayer = b.getValueBetween(layer0, layer1);
 		traits = de.getTraits();
+		if(b.isPvp())pvpAssignedTrait=((PvpStageBasis)b.world()).traitForDirection(b.ownDirection());
 		lvl = level.getLv() + level.getPlusLv();
 		this.isOrbBoosted = isEveryOther;
 		this.index = index;
@@ -88,6 +91,7 @@ public class EUnit extends Entity {
 		super(b, de, ea, d0, b.b.t().getAtkMulti(), b.b.t().getDefMulti(), null, null);
 		currentLayer = spawnLayer = b.getValueBetween(de.getFront(), de.getBack());
 		traits = de.getTraits();
+		if(b.isPvp())pvpAssignedTrait=((PvpStageBasis)b.world()).traitForDirection(b.ownDirection());
 		this.index = null;
 
 		lvl = 1;
@@ -185,6 +189,32 @@ public class EUnit extends Entity {
 		if (!StageLimit.isComboBanned(basis.est.lim, C_VKILL) && basis.b.getInc(C_VKILL, u) > 0)
 			abi |= AB_VKILL;
 		return abi;
+	}
+
+	public int pvpAssignedTrait(){return pvpAssignedTrait;}
+
+	public List<Trait> pvpAttributeTraits(){
+		if(!basis.isPvp()||pvpAssignedTrait<0)return java.util.Collections.emptyList();
+		Trait trait=UserProfile.getBCData().traits.get(pvpAssignedTrait);
+		return trait==null?java.util.Collections.emptyList():java.util.Collections.singletonList(trait);
+	}
+
+	private List<Trait> incomingTraits(AttackAb atk){
+		if(basis.isPvp()&&atk!=null&&atk.attacker instanceof EUnit)
+			return ((EUnit)atk.attacker).pvpAttributeTraits();
+		return atk==null?java.util.Collections.emptyList():atk.trait;
+	}
+
+	@Override
+	public boolean traitCompatible(List<Trait> targetTraits, Entity attacker, boolean targetOnly) {
+		if(!basis.isPvp())return super.traitCompatible(targetTraits,attacker,targetOnly);
+		List<Trait> assigned=pvpAttributeTraits();
+		if(targetOnly&&isBase)return true;
+		if(targetTraits.contains(null))return true;
+		for(Trait trait:targetTraits)if(assigned.contains(trait))return true;
+		if(Trait.isTargetTraited(assigned))
+			for(Trait trait:targetTraits)if(trait!=null&&trait.targetType)return true;
+		return false;
 	}
 
 	@Override
@@ -290,7 +320,7 @@ public class EUnit extends Entity {
 			counterGrade = -1;
 		}
 
-		if (atk.trait.contains(UserProfile.getBCData().traits.get(TRAIT_BEAST))) {
+		if (incomingTraits(atk).contains(UserProfile.getBCData().traits.get(TRAIT_BEAST))) {
 			Proc.BSTHUNT beastDodge = getProc().BSTHUNT;
 
 			if (beastDodge.prob > 0 && (atk.dire != dire)) {
@@ -334,7 +364,7 @@ public class EUnit extends Entity {
 			}
 		}
 
-		if (atk.trait.contains(UserProfile.getBCData().traits.get(TRAIT_SAGE)) && canBeApplied && (getAbi() & AB_SKILL) != 0) {
+		if (incomingTraits(atk).contains(UserProfile.getBCData().traits.get(TRAIT_SAGE)) && canBeApplied && (getAbi() & AB_SKILL) != 0) {
 			ans *= (1f - SUPER_SAGE_HUNTER_RESIST);
 		}
 
@@ -357,10 +387,11 @@ public class EUnit extends Entity {
 			else
 				ans = (int) (ans * atk.getProc().MINIVOLC.mult / 100f);
 
+		List<Trait> incoming=incomingTraits(atk);
 		if ((atk.model instanceof AtkModelEnemy || basis.isPvp() && atk.attacker instanceof EUnit) && status[P_CURSE][0] == 0) {
-			List<Trait> sharedTraits = new ArrayList<>(atk.trait); // get traits of enemy
-			sharedTraits.retainAll(traits); // keep
-			boolean isAntiTraited = Trait.isTargetTraited(atk.trait);
+			List<Trait> sharedTraits = new ArrayList<>(incoming);
+			sharedTraits.retainAll(traits);
+			boolean isAntiTraited = Trait.isTargetTraited(traits);
 			for (Trait t : traits) {
 				if (t.id.pack.equals("000000") || sharedTraits.contains(t))
 					continue;
@@ -369,13 +400,13 @@ public class EUnit extends Entity {
 			}
 
 			if ((getAbi() & AB_GOOD) != 0) {
-				ans = (int) (ans * basis.b.t().getGOODDEF(atk.trait, sharedTraits, level,
+				ans = (int) (ans * basis.b.t().getGOODDEF(incoming, sharedTraits, level,
 						StageLimit.isComboBanned(basis.est.lim, C_GOOD) ? 0 : basis.b.getInc(C_GOOD, mu.getPack().unit)));
 				if (!sharedTraits.isEmpty())
 					basis.scoreActivated(SCORE_GOOD, -1, traits.size());
 			}
 			if ((getAbi() & AB_RESIST) != 0) {
-				ans = (int) (ans * basis.b.t().getRESISTDEF(atk.trait, sharedTraits, level,
+				ans = (int) (ans * basis.b.t().getRESISTDEF(incoming, sharedTraits, level,
 						StageLimit.isComboBanned(basis.est.lim, Data.C_RESIST) ? 0 : basis.b.getInc(Data.C_RESIST, mu.getPack().unit)));
 				if (!sharedTraits.isEmpty())
 					basis.scoreActivated(SCORE_RESIST, -1, traits.size());
@@ -386,37 +417,38 @@ public class EUnit extends Entity {
 			}
 		}
 
-		if (atk.trait.contains(UserProfile.getBCData().traits.get(TRAIT_WITCH)) && (getAbi() & AB_WKILL) > 0)
+		if (incoming.contains(UserProfile.getBCData().traits.get(TRAIT_WITCH)) && (getAbi() & AB_WKILL) > 0)
 			ans = (int) (ans * basis.b.t().getWKDef(StageLimit.isComboBanned(basis.est.lim, Data.C_WKILL) ? 0 : basis.b.getInc(Data.C_WKILL, mu.getPack().unit)));
-		if (atk.trait.contains(UserProfile.getBCData().traits.get(TRAIT_EVA)) && (getAbi() & AB_EKILL) > 0)
+		if (incoming.contains(UserProfile.getBCData().traits.get(TRAIT_EVA)) && (getAbi() & AB_EKILL) > 0)
 			ans = (int) (ans * basis.b.t().getEKDef(StageLimit.isComboBanned(basis.est.lim, Data.C_EKILL) ? 0 : basis.b.getInc(Data.C_EKILL, mu.getPack().unit)));
 
 		if (isBase)
 			ans = (int) (ans * (1 + atk.getProc().ATKBASE.mult / 100.0));
 
-		if (atk.trait.contains(UserProfile.getBCData().traits.get(TRAIT_BARON))) {
+		if (incoming.contains(UserProfile.getBCData().traits.get(TRAIT_BARON))) {
 			if ((getAbi() & AB_BAKILL) > 0)
 				ans = (int) (ans * 0.7);
 			else if (coloGrade != -1)
 				ans = ans * ORB_BARON_DEFENSE[coloGrade] / 100;
 		}
-		if (atk.trait.contains(UserProfile.getBCData().traits.get(TRAIT_BEAST)) && getProc().BSTHUNT.active > 0)
+		if (incoming.contains(UserProfile.getBCData().traits.get(TRAIT_BEAST)) && getProc().BSTHUNT.active > 0)
 			ans = (int) (ans * 0.6);
-		if (atk.trait.contains(UserProfile.getBCData().traits.get(TRAIT_SAGE)) && (getAbi() & AB_SKILL) > 0)
+		if (incoming.contains(UserProfile.getBCData().traits.get(TRAIT_SAGE)) && (getAbi() & AB_SKILL) > 0)
 			ans = (int) (ans * SUPER_SAGE_HUNTER_HP);
-		if (atk.trait.contains(UserProfile.getBCData().traits.get(TRAIT_VILLAIN)) && (getAbi() & AB_VKILL) > 0)
+		if (incoming.contains(UserProfile.getBCData().traits.get(TRAIT_VILLAIN)) && (getAbi() & AB_VKILL) > 0)
 			ans = (int) (ans * VILLAIN_KILLER_RESIST);
 
 		// Perform orb
-		ans = getOrbRes(atk.trait, ans);
+		ans = getOrbRes(incoming, ans);
 
 		if(basis.canon.base > 0) {
-			ans = (int) (ans * basis.b.t().getBaseMagnification(basis.canon.base, atk.trait));
+			ans = (int) (ans * basis.b.t().getBaseMagnification(basis.canon.base, incoming));
 		}
 
-		ans = critCalc((getAbi() & AB_METALIC) != 0, ans, atk);
+		boolean metal=basis.isPvp()?pvpAssignedTrait==TRAIT_METAL:(getAbi() & AB_METALIC) != 0;
+		ans = critCalc(metal, ans, atk);
         if (basis.isPvp() && atk.attacker instanceof EUnit && atk.matk != null)
-            ans += ((EUnit)atk.attacker).getOrbAtk(traits, atk.matk);
+            ans += ((EUnit)atk.attacker).getOrbAtk(pvpAttributeTraits(), atk.matk);
 
 		return ans;
 	}
