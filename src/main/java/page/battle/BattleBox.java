@@ -189,7 +189,7 @@ public interface BattleBox {
 
 			drawCastle(g);
 			StageBasis player = controlState();
-			boolean cannonRule=!player.isPvp()||((PvpStageBasis)player.world()).rules.specialMode==online.net.lobby.RoomRules.SpecialMode.CANNON;
+			boolean cannonRule=!player.isPvp()||((PvpStageBasis)player.world()).specialMode()==online.net.lobby.RoomRules.SpecialMode.CANNON;
 			if(cannonRule && player.cannon == player.maxCannon && player.canon.id == 0) {
 				drawCannonRange(g, player);
 			}
@@ -354,7 +354,7 @@ public interface BattleBox {
 					hi -= ih;
 					g.drawImage(img, w - iw + BOTTOM_GAP * hr, hi, iw, ih);
 				}
-			boolean cannonFireLabel=!sb.isPvp()||((PvpStageBasis)sb.world()).rules.specialMode==online.net.lobby.RoomRules.SpecialMode.CANNON;
+			boolean cannonFireLabel=!sb.isPvp()||((PvpStageBasis)sb.world()).specialMode()==online.net.lobby.RoomRules.SpecialMode.CANNON;
 			if(sb.cannon == sb.maxCannon && cannonFireLabel) {
 				FakeImage fire = aux.battle[1][getFireLang()+ctype].getImg();
 
