@@ -17,7 +17,7 @@ public final class RoomRuleTests {
         FixtureNativeUi.init();
         Check.rejects(()->new RoomRules(999,0,-1,false),"too-short distance rejected");
         Check.rejects(()->new RoomRules(24001,0,-1,false),"too-long distance rejected");
-        Check.rejects(()->new RoomRules(4400,-1,-1,false),"negative background rejected");
+        Check.rejects(()->new RoomRules(4400,-2,-1,false),"unsupported negative background rejected");
         Check.rejects(()->new RoomRules(4400,0,-2,false),"invalid silence identifier rejected");
         Check.rejects(()->PvpStageBasis.validateCastleHealthMultiplier(Double.NaN),"NaN castle multiplier rejected");
         Check.rejects(()->PvpStageBasis.validateCastleHealthMultiplier(0.0),"non-positive castle multiplier rejected");
