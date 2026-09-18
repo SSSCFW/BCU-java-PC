@@ -576,15 +576,15 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
                 set(rouletteNotice,x,y,760,98,720,34);
                 set(rouletteDebugMax,x,y,210,134,300,46);
                 set(unitAbilityOverlay,x,y,500,95,1300,260);
-                set(onlineBattleEnd,x,y,790,485,720,170);
-                set(onlineResult,x,y,740,450,820,260);
+                set(onlineBattleEnd,x,y,790,565,720,170);
+                set(onlineResult,x,y,740,520,820,260);
             }else{
                 set(onlineTag,x,y,1330,310,250,30);
                 set(rouletteNotice,x,y,900,372,650,34);
                 set(rouletteDebugMax,x,y,710,372,300,46);
                 set(unitAbilityOverlay,x,y,760,320,680,230);
-                set(onlineBattleEnd,x,y,850,455,520,170);
-                set(onlineResult,x,y,805,425,610,250);
+                set(onlineBattleEnd,x,y,905,480,390,140);
+                set(onlineResult,x,y,865,445,470,210);
             }
         }
 		ct.setRowHeight(size(x, y, 50));
