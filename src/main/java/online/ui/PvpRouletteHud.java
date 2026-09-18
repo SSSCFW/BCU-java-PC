@@ -36,7 +36,7 @@ public final class PvpRouletteHud extends JComponent {
     };
     private static final String[] LEVEL={"","レベル１","レベル２","レベル３","レベルマックス"};
 
-    private static final int CUTIN_TICKS=45;
+    private static final int CUTIN_TICKS=PvpRouletteState.RESULT_DISPLAY_TICKS;
     private final OnlineBattleField online;
     private boolean assetsReady,wasSpinning;
     private int seenResult=-1,cutinUntilTick=-1;

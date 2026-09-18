@@ -12,6 +12,7 @@ import page.Page;
 import page.MainFrame;
 import page.battle.BattleInfoPage;
 import main.MainBCU;
+import io.BCMusic;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
@@ -245,7 +246,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         if(MainFrame.getPanel()!=roomLobby){changePanel(roomLobby);roomLobby.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());}
     }
     private void finishBattleToLobby(String text){
-        pulse.stop();
+        pulse.stop();BCMusic.stopAll();
         if(battlePage!=null){battlePage.detachOnline();battlePage=null;}
         battle=null;
         for(MatchBundle.Mounted m:mounted)if(m!=null)m.close();Arrays.fill(mounted,null);Arrays.fill(hashes,null);

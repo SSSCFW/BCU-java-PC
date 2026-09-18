@@ -126,7 +126,7 @@ public interface BattleBox {
 		private boolean rouletteWasSpinning;
 		private int rouletteResultTick = -1;
 		private int rouletteResult = -1;
-		private static final int ROULETTE_RESULT_TICKS = 2 * PvpStageBasis.TPS;
+		private static final int ROULETTE_RESULT_TICKS = PvpRouletteState.RESULT_DISPLAY_TICKS;
 
 		private static final String[] ROULETTE_ICON = {
 				"アイコン：ふっとばし","アイコン：癒やし","アイコン：生産回復","アイコン：にゃんこ砲",
@@ -239,6 +239,7 @@ public interface BattleBox {
 			if(sb.bg.overlay != null) {
 				drawBGOverlay(g, midY);
 			}
+			if(player.isPvp())drawRouletteShockwave(g,(PvpStageBasis)player.world());
 
 			// Native icons/prices/cooldowns/worker/cannon/money, for THIS participant on either side.
 			sb = player;
@@ -492,6 +493,20 @@ public interface BattleBox {
 			}
 		}
 
+		private void drawRouletteShockwave(FakeGraphics g,PvpStageBasis world) {
+			int ticks=Math.max(world.left().pvpRoulette==null?0:world.left().pvpRoulette.knockbackShockTicks,
+					world.right().pvpRoulette==null?0:world.right().pvpRoulette.knockbackShockTicks);
+			if(ticks<=0)return;
+			float progress=1f-ticks/(float)PvpRouletteState.KNOCKBACK_SHOCK_TICKS;
+			float cx=box.getWidth()/2f,cy=midh-road_h*bf.sb.siz;
+			float base=Math.min(box.getWidth(),box.getHeight())*(0.10f+0.55f*progress);
+			g.setColor(255,245,180);
+			for(int i=0;i<3;i++){
+				float r=base+i*18f;
+				g.drawOval(cx-r,cy-r*0.45f,r*2f,r*0.90f);
+			}
+		}
+
 		private void drawRoulettePresentation(FakeGraphics g, StageBasis player) {
 			if (!player.isPvp()
 					|| ((PvpStageBasis) player.world()).specialMode() != online.net.lobby.RoomRules.SpecialMode.ROULETTE
@@ -540,7 +555,6 @@ public interface BattleBox {
 			float x = (w - totalW) / 2f;
 			float y = Math.max(18f, (h - totalH) * 0.34f);
 
-			g.colRect(0, 0, w, h, 0, 0, 0, 72);
 			g.colRect(x - 12f * scale, y - 12f * scale, totalW + 24f * scale,
 					totalH + 34f * scale, 0, 0, 0, 205);
 
@@ -572,7 +586,6 @@ public interface BattleBox {
 			float cutX = (w - cutW) / 2f;
 			float cutY = Math.max(18f, h * 0.22f);
 
-			g.colRect(0, 0, w, h, 0, 0, 0, 92);
 			FakeImage cutin = Pvp3dsAssets.fakeImage("ui_battle_multi_cutin", ROULETTE_CUTIN[result]);
 			g.drawImage(cutin, cutX, cutY, cutW, cutH);
 
@@ -1038,6 +1051,7 @@ public interface BattleBox {
 					float x = getX(castle.pos);
 					float y = midh - (road_h + casth) * bf.sb.siz - aux.num[5][0].getImg().getHeight() * bf.sb.siz;
 					Res.getBase(castle, setSym(gra, bf.sb.siz * 0.8f, x, y, dir == 1 ? 1 : 0), false);
+					drawCastleTrait(gra,dir,x,y);
 				}
 				return;
 			}
@@ -1064,6 +1078,26 @@ public interface BattleBox {
 			posx = (int) (((sb.st.len - 800) * ratio + off) * bf.sb.siz + sb.pos);
 
 			Res.getBase(sb.ubase, setSym(gra, bf.sb.siz * 0.8f, posx, posy, 0), false);
+		}
+
+		private void drawCastleTrait(FakeGraphics gra,int dir,float x,float healthY) {
+			PvpStageBasis world=(PvpStageBasis)sb.world();
+			int trait=world.traitForDirection(dir);
+			try{
+				if(trait<0){
+					FakeImage none=Pvp3dsAssets.textBadge("属性なし");
+					float h=Math.max(18f,Math.min(25f,box.getHeight()*0.035f));
+					float w=h*none.getWidth()/Math.max(1f,none.getHeight());
+					gra.drawImage(none,x-w/2f,healthY-h-3f,w,h);
+					return;
+				}
+				common.util.unit.Trait t=common.pack.UserProfile.getBCData().traits.get(trait);
+				FakeImage icon=t!=null&&t.icon!=null?t.icon.getImg():(aux.dummyTrait==null?null:aux.dummyTrait.getImg());
+				if(icon==null)return;
+				float size=Math.max(22f,Math.min(36f,box.getHeight()*0.052f));
+				gra.colRect(x-size/2f-2f,healthY-size-5f,size+4f,size+4f,18,20,24,230);
+				gra.drawImage(icon,x-size/2f,healthY-size-3f,size,size);
+			}catch(RuntimeException ignored){}
 		}
 
 		@SuppressWarnings("UseBulkOperation")
@@ -1373,7 +1407,7 @@ public interface BattleBox {
 
 		private void drawTime(FakeGraphics g, float nameheight) {
 			P p = P.newP(box.getHeight() * 0.01f, box.getHeight() * 0.01f + nameheight);
-			float ratio = box.getHeight() * 0.1f / aux.timer[0].getImg().getHeight();
+			float ratio = box.getHeight() * (bf.sb.isPvp() ? 0.055f : 0.1f) / aux.timer[0].getImg().getHeight();
 
 			float timeLeft = bf.sb.st.timeLimit * 60f - bf.sb.time / 30f;
 

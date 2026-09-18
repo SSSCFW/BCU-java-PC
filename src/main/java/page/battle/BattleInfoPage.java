@@ -64,7 +64,6 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	private final JTG estat = new JTG(MainLocale.INFO, "stat");
 	private final JLabel ebase = new JLabel();
 	private final JLabel ubase = new JLabel();
-    private final JLabel eTraitIcon=new JLabel("",SwingConstants.CENTER),uTraitIcon=new JLabel("",SwingConstants.CENTER);
 	private final JLabel timer = new JLabel();
 	private final JLabel ecount = new JLabel();
 	private final JLabel ucount = new JLabel();
@@ -179,10 +178,11 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		// These native single-player operations cannot be performed independently online.
 		paus.setEnabled(false);paus.setVisible(false);
         onlineSpecial=new PvpRouletteHud(online);add(audio);add(onlineSpecial);add(onlineTag);add(babyRushStatus);add(rouletteNotice);add(rouletteDebugMax);
-        configureTraitIcon(eTraitIcon,displayCopy.leftTrait());configureTraitIcon(uTraitIcon,displayCopy.rightTrait());add(eTraitIcon);add(uTraitIcon);
-        onlineTag.setForeground(Color.WHITE);onlineTag.setFont(onlineTag.getFont().deriveFont(Font.BOLD,18f));
-        babyRushStatus.setForeground(new Color(255,225,80));babyRushStatus.setFont(babyRushStatus.getFont().deriveFont(Font.BOLD,16f));babyRushStatus.setVisible(false);
-        rouletteNotice.setForeground(new Color(255,245,180));rouletteNotice.setFont(rouletteNotice.getFont().deriveFont(Font.BOLD,16f));rouletteNotice.setVisible(false);
+        styleOnlineLabel(onlineTag,Color.WHITE,14f);
+        styleOnlineLabel(babyRushStatus,new Color(255,225,80),12f);babyRushStatus.setVisible(false);
+        styleOnlineLabel(rouletteNotice,new Color(255,245,180),13f);rouletteNotice.setVisible(false);
+        styleOnlineLabel(stream,Color.WHITE,12f);
+        timer.setVisible(false);
         rouletteDebugMax.setVisible(online.debugMode()&&online.rouletteMode());
         rouletteDebugMax.addActionListener(e->{getPress().clear();online.debugRouletteMax();});
         audio.addActionListener(e->{getPress().clear();if(audioDialog!=null&&audioDialog.isDisplayable()){audioDialog.toFront();return;}audioDialog=AudioSettingsPanel.open(this);});
@@ -203,20 +203,12 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		current = this;
 	}
 
-    private void configureTraitIcon(JLabel label,int trait){
-        label.setOpaque(false);label.setForeground(Color.WHITE);
-        label.setToolTipText("キャラ属性: "+PvpTraitRules.label(trait));
-        if(trait<0){
-            label.setText("属性なし");label.setIcon(null);label.setFont(label.getFont().deriveFont(Font.BOLD,11f));return;
-        }
-        try{
-            java.awt.image.BufferedImage image=UtilPC.getIcon(3,trait);
-            if(image!=null){
-                Image scaled=image.getScaledInstance(28,28,Image.SCALE_SMOOTH);
-                label.setIcon(new ImageIcon(scaled));label.setText("");return;
-            }
-        }catch(RuntimeException ignored){}
-        label.setText(PvpTraitRules.label(trait));label.setFont(label.getFont().deriveFont(Font.BOLD,10f));
+    private static void styleOnlineLabel(JLabel label,Color foreground,float size){
+        label.setOpaque(true);label.setBackground(new Color(22,24,30));label.setForeground(foreground);
+        label.setFont(label.getFont().deriveFont(Font.BOLD,size));
+        label.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(220,220,220)),
+                BorderFactory.createEmptyBorder(2,6,2,6)));
     }
 
     public void force60Fps(boolean value){if(online!=null)online.force60Fps(value);}
@@ -224,6 +216,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 
     public void showOnlineResult(String title,String detail,Runnable acknowledge){
         if(online==null||onlineClosed)return;
+        BCMusic.stopAll();
         online.interactive(false);getPress().clear();onlineResultAck=acknowledge;onlineResultAcked=false;
         onlineResultTitle.setText(title);onlineResultDetail.setText(detail);onlineResultOk.setText("OK");onlineResultOk.setEnabled(true);onlineResult.setVisible(true);onlineResult.repaint();
     }
@@ -256,9 +249,6 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		utd.setBasis(online.playerState()); utd.setList(lineup);
 		ebase.setText(onlineLeftName + "  HP: " + sb.ebase.health + "/" + sb.ebase.maxH);
 		ubase.setText(onlineRightName + "  HP: " + sb.ubase.health);
-        int remaining=((PvpStageBasis)sb.world()).remainingTimeTicks();
-        if(remaining<0)timer.setText("時間 ∞");
-        else{int seconds=(remaining+PvpStageBasis.TPS-1)/PvpStageBasis.TPS;timer.setText(String.format(java.util.Locale.ROOT,"残り %02d:%02d",seconds/60,seconds%60));}
 		ecount.setText(sb.entityCount(1) + "/" + sb.playerFor(1).maxNum);
 		ucount.setText(sb.entityCount(-1) + "/" + sb.playerFor(-1).maxNum);
 		if (bb.getPainter().dragging) bb.getPainter().dragFrame++;
@@ -302,6 +292,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		if (online == null || onlineClosed) return;
 		onlineClosed = true;
         if(audioDialog!=null){audioDialog.dispose();audioDialog=null;}
+        BCMusic.stopAll();
 		online.interactive(false);
 		getPress().clear();
 		if (current == this) current = null;
@@ -417,12 +408,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 			set(stream, x, y, 900, 0, online == null ? 400 : 200, 50);
 			set(next, x, y, 1100, 0, 200, 50);
 			set(row, x, y, 1300, 0, 200, 50);
-            if(online!=null){
-                set(eTraitIcon,x,y,240,0,600,24);set(ebase,x,y,240,24,600,26);
-                set(uTraitIcon,x,y,1740,0,200,24);set(ubase,x,y,1740,24,200,26);
-            }else{
-                set(ebase, x, y, 240, 0, 600, 50);set(ubase, x, y, 1740, 0, 200, 50);
-            }
+			set(ebase, x, y, 240, 0, 600, 50);set(ubase, x, y, 1740, 0, 200, 50);
 			set(timer, x, y, 1500, 0, 200, 50);
 			set((Canvas) bb, x, y, 190, 50, 1920, 1200);
 			set(ctp, x, y, 0, 0, 0, 0);
@@ -450,12 +436,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 			set(eup, x, y, 1650, 100, 600, 700);
 			set(eusp, x, y, 1650, 100, 600, 700);
 			set(utdsp, x, y, 1650, 850, 600, 400);
-            if(online!=null){
-                set(eTraitIcon,x,y,700,210,400,34);set(ebase,x,y,700,244,400,50);
-                set(uTraitIcon,x,y,1300,210,200,34);set(ubase,x,y,1300,244,200,50);
-            }else{
-                set(ebase, x, y, 700, 250, 400, 50);set(ubase, x, y, 1300, 250, 200, 50);
-            }
+			set(ebase, x, y, 700, 250, 400, 50);set(ubase, x, y, 1300, 250, 200, 50);
 			set(timer, x, y, 1100, 250, 200, 50);
 			set(ecount, x, y, 50, 50, 450, 50);
 			set(estat, x, y, 500, 50, 150, 50);
@@ -471,16 +452,16 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
                 else set(onlineSpecial,x,y,1100,200,390,50);
             }
             if(jtb.isSelected()){
-                set(onlineTag,x,y,220,60,300,34);
-                set(babyRushStatus,x,y,220,92,520,38);
-                set(rouletteNotice,x,y,220,130,720,38);
-                set(rouletteDebugMax,x,y,220,172,300,50);
+                set(onlineTag,x,y,1760,60,250,30);
+                set(babyRushStatus,x,y,210,98,520,30);
+                set(rouletteNotice,x,y,760,98,720,34);
+                set(rouletteDebugMax,x,y,210,134,300,46);
                 set(onlineResult,x,y,650,430,1000,320);
             }else{
-                set(onlineTag,x,y,720,310,300,34);
-                set(babyRushStatus,x,y,720,342,520,38);
-                set(rouletteNotice,x,y,720,380,720,38);
-                set(rouletteDebugMax,x,y,720,422,300,50);
+                set(onlineTag,x,y,1330,310,250,30);
+                set(babyRushStatus,x,y,710,336,520,30);
+                set(rouletteNotice,x,y,900,372,650,34);
+                set(rouletteDebugMax,x,y,710,372,300,46);
                 set(onlineResult,x,y,750,390,700,320);
             }
         }
