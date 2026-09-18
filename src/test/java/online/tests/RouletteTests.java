@@ -81,11 +81,15 @@ public final class RouletteTests {
         Check.equal(PvpRouletteState.TEMP_TICKS,enemy.status[common.util.Data.P_STOP][0],"stop starts at native 150 ticks");
 
         right.work_lv=1;right.money=123;right.elu.cool[0][0]=99;
+        int rushMax=right.maxMoney,rushExpected=Math.min(rushMax,123+rushMax/2);
         right.pvpRoulette.forceResult(b,right,PvpRouletteState.BABY_RUSH);
         Check.equal(0,right.elu.cool[0][0],"petit baby rush immediately removes production cooldown");
         Check.equal(1,right.work_lv,"petit baby rush does not change worker level");
-        Check.equal(123,right.money,"petit baby rush does not fill money");
+        Check.equal(rushExpected,right.money,"petit baby rush adds half of the current wallet limit");
         Check.equal(10*PvpStageBasis.TPS,right.pvpRoulette.babyRushTicks,"petit baby rush lasts exactly ten seconds at 30 TPS");
+        right.money=Math.max(0,right.maxMoney-1);
+        right.pvpRoulette.forceResult(b,right,PvpRouletteState.BABY_RUSH);
+        Check.equal(right.maxMoney,right.money,"petit baby rush money bonus never exceeds wallet limit");
         right.elu.cool[0][0]=88;
         for(int i=0;i<10*PvpStageBasis.TPS-1;i++)right.pvpRoulette.advance(b,right);
         Check.equal(0,right.elu.cool[0][0],"petit baby rush keeps cooldown at zero during the ten-second window");
