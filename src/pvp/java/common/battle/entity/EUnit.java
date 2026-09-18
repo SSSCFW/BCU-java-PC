@@ -255,7 +255,9 @@ public class EUnit extends Entity {
         if (!opponentKill)
             return;
 
-        int cost = basis.elu.price[index[0]][index[1]];
+        // Use the fully calculated battle-start cost. Roulette COST_DOWN mutates
+        // elu.price[][] for future deployment, but must not reduce defeat bounty.
+        int cost = basis.elu.basePrice[index[0]][index[1]];
         if (cost <= 0)
             return;
 
