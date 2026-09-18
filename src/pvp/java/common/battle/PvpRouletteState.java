@@ -36,18 +36,32 @@ public final class PvpRouletteState extends BattleObj {
     public int babyRushTicks;
 
     public PvpRouletteState(CopRand random) {
-        System.arraycopy(SOURCE_REEL,0,reel,0,reel.length);
-        // Native constructor performs 300 random swaps.
+        // FUN_0025502c initializes all 43 slots to 0x0e (empty), then inserts each
+        // weighted source value at a random slot, preferring the nearest free slot
+        // while walking backwards before falling forward.
+        Arrays.fill(reel,14);
+        for(int value:SOURCE_REEL) {
+            int pick=index(random),slot=pick;
+            if(reel[slot]!=14) {
+                slot=-1;
+                for(int j=pick;j>=0;j--)if(reel[j]==14){slot=j;break;}
+                if(slot<0)for(int j=pick;j<reel.length;j++)if(reel[j]==14){slot=j;break;}
+            }
+            if(slot<0)throw new IllegalStateException("Roulette reel fill failed");
+            reel[slot]=value;
+        }
+        // Native constructor then performs exactly 300 random swaps.
         for(int i=0;i<300;i++) {
             int a=index(random), b=index(random), v=reel[a]; reel[a]=reel[b]; reel[b]=v;
         }
-        // Native code repairs adjacent equal outcomes after shuffling.
-        for(int i=1;i<reel.length;i++) if(reel[i]==reel[i-1]) {
-            int swap=-1;
-            for(int d=1;d<reel.length;d++) {
-                int j=(i+d)%reel.length;
-                if(reel[j]!=reel[i] && (j+1>=reel.length || reel[j+1]!=reel[i])
-                        && (i+1>=reel.length || reel[i+1]!=reel[j])) {swap=j;break;}
+        // Finally repair adjacent equal outcomes. The native pass covers pairs 0..41.
+        for(int i=0;i<reel.length-1;i++) if(reel[i]==reel[i+1]) {
+            int repeated=reel[i],swap=-1;
+            for(int j=0;j<reel.length;j++) {
+                int candidate=reel[j];
+                boolean candidateIsolated=(j==0||reel[j-1]!=repeated)&&(j==reel.length-1||reel[j+1]!=repeated);
+                boolean targetAccepts=(i==0||reel[i-1]!=candidate)&&(i==reel.length-1||reel[i+1]!=candidate);
+                if(candidateIsolated&&targetAccepts){swap=j;break;}
             }
             if(swap>=0){int v=reel[i];reel[i]=reel[swap];reel[swap]=v;}
         }
