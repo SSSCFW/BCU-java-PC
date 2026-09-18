@@ -25,6 +25,7 @@ public final class AllTests {
         UiTests.run();
         RoomAudioTests.run();
         RoomRuleTests.run();
+        io.BCJSONTests.run();
         io.AudioVolumeTests.run();
         ProcessTests.run();
         System.out.println("PvP tests passed: " + Check.count + " assertions");
