@@ -48,7 +48,7 @@ public final class RoomAudioTests {
                     Fixture.lineup(FixtureNativeUi.unit("audio_roulette_r",0xff222222)),22,0,
                     new online.net.lobby.RoomRules(4400,0,-1,false,online.net.lobby.RoomRules.SpecialMode.ROULETTE));
             heard(1,()->roulette.left().pvpRoulette.forceResult(roulette,roulette.left(),PvpRouletteState.KNOCKBACK));
-            Check.that(heard.contains((int)Data.SE_WAVE),"roulette knockback activation plays the shockwave sound effect");
+            Check.that(heard.contains((int)Data.SE_BOSS),"roulette knockback activation reuses the native boss shock sound effect");
         } finally {CommonStatic.def=old;}
     }
     public static void main(String[] args)throws Exception{run();System.out.println("Player-local audio tests passed");}

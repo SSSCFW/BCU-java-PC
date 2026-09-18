@@ -31,6 +31,10 @@ public final class RouletteTests {
         StageBasis left=b.left(),right=b.right();
         EUnit own=unit(b,1),enemy=unit(b,-1);
 
+        int shockEffects=b.lea.size();
+        left.pvpRoulette.forceResult(b,left,PvpRouletteState.KNOCKBACK);
+        Check.that(b.lea.size()>shockEffects,"roulette knockback creates the native boss A_SHOCKWAVE effect");
+
         enemy.health=enemy.maxH/4;
         right.pvpRoulette.forceResult(b,right,PvpRouletteState.HEAL);
         Check.equal(enemy.maxH*3/4,enemy.health,"heal restores half max HP");

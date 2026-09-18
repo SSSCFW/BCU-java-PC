@@ -239,7 +239,6 @@ public interface BattleBox {
 			if(sb.bg.overlay != null) {
 				drawBGOverlay(g, midY);
 			}
-			if(player.isPvp())drawRouletteShockwave(g,(PvpStageBasis)player.world());
 
 			// Native icons/prices/cooldowns/worker/cannon/money, for THIS participant on either side.
 			sb = player;
@@ -490,20 +489,6 @@ public interface BattleBox {
 					g.drawImage(lv,x+size-lw,y+size-lh,lw,lh);
 				}catch(RuntimeException ignored){}
 				x+=size+gap;
-			}
-		}
-
-		private void drawRouletteShockwave(FakeGraphics g,PvpStageBasis world) {
-			int ticks=Math.max(world.left().pvpRoulette==null?0:world.left().pvpRoulette.knockbackShockTicks,
-					world.right().pvpRoulette==null?0:world.right().pvpRoulette.knockbackShockTicks);
-			if(ticks<=0)return;
-			float progress=1f-ticks/(float)PvpRouletteState.KNOCKBACK_SHOCK_TICKS;
-			float cx=box.getWidth()/2f,cy=midh-road_h*bf.sb.siz;
-			float base=Math.min(box.getWidth(),box.getHeight())*(0.10f+0.55f*progress);
-			g.setColor(255,245,180);
-			for(int i=0;i<3;i++){
-				float r=base+i*18f;
-				g.drawOval(cx-r,cy-r*0.45f,r*2f,r*0.90f);
 			}
 		}
 

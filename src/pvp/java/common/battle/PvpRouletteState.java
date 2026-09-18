@@ -1,11 +1,9 @@
 package common.battle;
 
-import common.CommonStatic;
 import common.battle.entity.Entity;
 import common.battle.entity.EUnit;
 import common.util.BattleObj;
 import common.util.CopRand;
-import common.util.Data;
 import java.util.*;
 
 /**
@@ -15,8 +13,7 @@ import java.util.*;
  */
 public final class PvpRouletteState extends BattleObj {
     public static final int MAX_GAUGE=1000, TEMP_TICKS=150, BABY_RUSH_TICKS=10*PvpStageBasis.TPS,
-            AUTO_SPIN_TICKS=2*PvpStageBasis.TPS, RESULT_DISPLAY_TICKS=2*PvpStageBasis.TPS,
-            KNOCKBACK_SHOCK_TICKS=18, ORIGINAL_MATCH_SECONDS=180;
+            AUTO_SPIN_TICKS=2*PvpStageBasis.TPS, RESULT_DISPLAY_TICKS=2*PvpStageBasis.TPS, ORIGINAL_MATCH_SECONDS=180;
     public static final int KNOCKBACK=0, HEAL=1, PRODUCTION_RECOVERY=2, CANNON=3,
             PRODUCTION_SHORTEN=4, WORKER_UP=5, COST_DOWN=6, MONEY_MAX=7,
             SLOW=8, STOP=9, ATTACK_UP=10, HP_UP=11, MOVE_UP=12, BABY_RUSH=13;
@@ -35,7 +32,7 @@ public final class PvpRouletteState extends BattleObj {
     private final int[] reel=new int[SOURCE_REEL.length];
     /** Native roulette keeps a target gauge and lets the visible gauge chase it by 50. */
     public int gauge, targetGauge, chargeClock, reelIndex, spinTicks, lastResult=-1, lastLevel;
-    public int pendingResult=-1, resultDelayTicks, knockbackShockTicks;
+    public int pendingResult=-1, resultDelayTicks;
     public long lastCastleHealth=-1;
     public boolean spinning;
     public int productionLevel, workerLevel, costLevel, attackLevel, hpLevel, moveLevel;
@@ -102,8 +99,6 @@ public final class PvpRouletteState extends BattleObj {
             babyRushTicks--;
             clearCooldowns(owner);
         }
-        if(knockbackShockTicks>0)knockbackShockTicks--;
-
         // FUN_0023bcc0 charges from castle HP actually lost since the previous update.
         // FUN_001954d0 is called before the stored castle HP is replaced, therefore
         // this event uses the PRE-DAMAGE castle ratio.
@@ -276,10 +271,9 @@ public final class PvpRouletteState extends BattleObj {
         StageBasis opponent=owner.playerFor(-owner.ownDirection());
         switch(result) {
             case KNOCKBACK:
-                knockbackShockTicks=KNOCKBACK_SHOCK_TICKS;
-                CommonStatic.setSE(Data.SE_WAVE);
-                for(Entity e:new ArrayList<>(world.le)) if(e instanceof EUnit && e.dire==opponent.ownDirection()&&!e.dead&&!((EUnit)e).isSpirit)
-                    e.interrupt(INT_KB,KB_DIS[INT_KB]);
+                // Reuse BCU's actual boss-spawn shock: same huge knockback,
+                // A_SHOCKWAVE animation and SE_BOSS sound. Only the target side differs in PvP.
+                world.triggerBossShock(opponent.ownDirection());
                 break;
             case HEAL:
                 for(Entity e:world.le) if(e instanceof EUnit&&e.dire==owner.ownDirection()&&!e.dead) {

@@ -699,6 +699,19 @@ public class StageBasis extends BattleObj {
 //					elu.delay(i, j, delay[i][j]);
 //	}
 
+	public void triggerBossShock(int targetDirection) {
+		if(targetDirection!=1&&targetDirection!=-1)throw new IllegalArgumentException("Invalid shock target direction");
+		for (Entity entity : le) {
+			if (entity.dire == targetDirection && (entity.touchable() & TCH_N) > 0 && (!(entity instanceof EUnit) || !((EUnit) entity).isSpirit)) {
+				entity.interrupt(INT_SW, KB_DIS[INT_SW]);
+				entity.postUpdate();
+			}
+		}
+		lea.add(new EAnimCont(700, 9, effas().A_SHOCKWAVE.getEAnim(DefEff.DEF)));
+		leaSort = true;
+		CommonStatic.setSE(SE_BOSS);
+	}
+
 	public boolean isActive() {
 		return ebase.health > 0 && ubase.health > 0 && !isDojoOvertime();
 	}
@@ -957,15 +970,7 @@ public class StageBasis extends BattleObj {
 		}
 
 		if (shock) {
-			for (Entity entity : le) {
-				if (entity.dire == -1 && (entity.touchable() & TCH_N) > 0 && (!(entity instanceof EUnit) || !((EUnit) entity).isSpirit)) {
-					entity.interrupt(INT_SW, KB_DIS[INT_SW]);
-					entity.postUpdate();
-				}
-			}
-			lea.add(new EAnimCont(700, 9, effas().A_SHOCKWAVE.getEAnim(DefEff.DEF)));
-			leaSort = true;
-			CommonStatic.setSE(SE_BOSS);
+			triggerBossShock(-1);
 			shock = false;
 		}
 

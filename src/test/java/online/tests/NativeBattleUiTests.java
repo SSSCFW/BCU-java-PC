@@ -38,7 +38,7 @@ public final class NativeBattleUiTests {
     }
     private static final class Trace extends FG2D {
         final IdentityHashMap<FakeImage,List<Rectangle>> images = new IdentityHashMap<>();
-        int axes, flips, ovals, fullScreenDarkRects;
+        int axes, flips, fullScreenDarkRects;
         Trace(Graphics2D graphics) { super(graphics); }
         @Override public void drawImage(FakeImage image, float x, float y, float w, float h) {
             images.computeIfAbsent(image, key -> new ArrayList<>()).add(new Rectangle((int)x, (int)y, (int)w, (int)h));
@@ -46,7 +46,6 @@ public final class NativeBattleUiTests {
         }
         @Override public void drawLine(float x,float y,float w,float h) { axes++; super.drawLine(x,y,w,h); }
         @Override public void drawRect(float x,float y,float w,float h) { axes++; super.drawRect(x,y,w,h); }
-        @Override public void drawOval(float x,float y,float w,float h) { ovals++; super.drawOval(x,y,w,h); }
         @Override public void colRect(float x,float y,float w,float h,int r,int g,int b,int a) {
             if(x<=0&&y<=0&&w>=1100&&h>=680&&r<80&&g<80&&b<80&&a>0)fullScreenDarkRects++;
             super.colRect(x,y,w,h,r,g,b,a);
@@ -226,12 +225,7 @@ public final class NativeBattleUiTests {
         Check.that(resultTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_reel",rouletteEffect(result))),
                 "resolved effect shows the original 3DS activation icon on the battlefield");
         Check.equal(0,resultTrace.fullScreenDarkRects,"roulette result must not darken the entire battlefield");
-        live.left().pvpRoulette.forceResult(live,live.left(),PvpRouletteState.KNOCKBACK);
-        field.publish(live.displayCopy());
-        BufferedImage shockImage=new BufferedImage(box.getWidth(),box.getHeight(),BufferedImage.TYPE_INT_ARGB);
-        Graphics2D kg=shockImage.createGraphics();Trace shockTrace=new Trace(kg);
-        try{box.painter.draw(shockTrace);}finally{kg.dispose();}
-        Check.that(shockTrace.ovals>=3,"knockback roulette activation renders a visible shockwave");
+
 
         Path spinPath=Paths.get("target/native-ui-roulette-spin.png");
         Path resultPath=Paths.get("target/native-ui-roulette-result.png");
