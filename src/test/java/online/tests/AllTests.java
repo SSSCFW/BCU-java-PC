@@ -21,6 +21,7 @@ public final class AllTests {
         CoreTests.run();
         CombatTests.run();
         RouletteTests.run();
+        Pvp3dsAssetsTests.run();
         UiTests.run();
         RoomAudioTests.run();
         RoomRuleTests.run();
