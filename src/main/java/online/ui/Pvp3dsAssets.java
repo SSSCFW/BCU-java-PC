@@ -84,13 +84,17 @@ public final class Pvp3dsAssets {
     public static synchronized FakeImage textBadge(String text){
         String key="#generated/badge/"+text;
         FakeImage cached=FAKE_IMAGES.get(key);if(cached!=null)return cached;
-        BufferedImage image=new BufferedImage(180,48,BufferedImage.TYPE_INT_ARGB);
+        Font font=new Font(Font.SANS_SERIF,Font.BOLD,22);
+        BufferedImage probe=new BufferedImage(1,1,BufferedImage.TYPE_INT_ARGB);
+        Graphics2D pg=probe.createGraphics();pg.setFont(font);
+        int width=Math.max(96,pg.getFontMetrics().stringWidth(text)+24);pg.dispose();
+        BufferedImage image=new BufferedImage(width,48,BufferedImage.TYPE_INT_ARGB);
         Graphics2D g=image.createGraphics();
         try{
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
             g.setColor(new Color(20,22,28,235));g.fillRoundRect(0,0,image.getWidth(),image.getHeight(),12,12);
             g.setColor(new Color(235,235,235));g.setStroke(new BasicStroke(2f));g.drawRoundRect(1,1,image.getWidth()-3,image.getHeight()-3,12,12);
-            Font font=new Font(Font.SANS_SERIF,Font.BOLD,22);g.setFont(font);FontMetrics fm=g.getFontMetrics();
+            g.setFont(font);FontMetrics fm=g.getFontMetrics();
             g.setColor(Color.WHITE);int x=(image.getWidth()-fm.stringWidth(text))/2,y=(image.getHeight()-fm.getHeight())/2+fm.getAscent();
             g.drawString(text,x,y);
         }finally{g.dispose();}
