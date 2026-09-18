@@ -93,7 +93,7 @@ public final class PvpRouletteHud extends JComponent {
 
                 if(!state.spinning&&state.lastLevel>0){
                     int lv=Math.min(4,state.lastLevel);
-                    g.drawImage(Pvp3dsAssets.image("ui_battle_multi_reel",LEVEL[lv]),226,14,null);
+                    g.drawImage(Pvp3dsAssets.image("ui_battle_multi_icon",LEVEL[lv]),226,14,null);
                 }
                 boolean hi=((world.time/4)&1)==0;
                 if(state.spinning){
