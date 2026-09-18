@@ -168,8 +168,15 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 DuelRoster startedRoster=DuelRoster.read(e);
                 if(startedRoster.playerId(0)!=roster.playerId(0)||startedRoster.playerId(1)!=roster.playerId(1)||startedRoster.leftIndex()!=leftSlot)
                     throw new java.io.IOException("Duel roster changed at start");
-                battle=PvpStageBasis.create(match,mounted[leftSlot].lineup,mounted[1-leftSlot].lineup,Protocol.number(e,"seed"),leftSlot,client.roomRules(),
-                        startedRoster.castleHealthMultiplier(startedRoster.leftIndex()),startedRoster.castleHealthMultiplier(startedRoster.rightIndex()));
+                long battleSeed=Protocol.number(e,"seed");
+                online.net.lobby.RoomRules activeRules=client.roomRules();
+                int roomHostId=Protocol.integer(e,"hostId");
+                int resolvedHostTrait=activeRules.resolvedHostTrait(battleSeed),resolvedGuestTrait=activeRules.resolvedGuestTrait(battleSeed);
+                int leftTrait=startedRoster.playerId(startedRoster.leftIndex())==roomHostId?resolvedHostTrait:resolvedGuestTrait;
+                int rightTrait=startedRoster.playerId(startedRoster.rightIndex())==roomHostId?resolvedHostTrait:resolvedGuestTrait;
+                battle=PvpStageBasis.create(match,mounted[leftSlot].lineup,mounted[1-leftSlot].lineup,battleSeed,leftSlot,activeRules,
+                        startedRoster.castleHealthMultiplier(startedRoster.leftIndex()),startedRoster.castleHealthMultiplier(startedRoster.rightIndex()),
+                        leftTrait,rightTrait);
                 showBattle();break;
             case "result":
                 resultSent=true;int winner=Protocol.integer(e,"winner");
