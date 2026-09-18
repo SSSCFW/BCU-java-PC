@@ -122,13 +122,13 @@ public final class PvpRouletteState extends BattleObj {
         }
 
         if(castleDamage>0)
-            addGauge(castleDamageGain(owner,previousCastle,castleDamage,world.time));
+            addGauge(castleDamageGain(owner,previousCastle,castleDamage,world));
 
         // FUN_002559d4: passive charge every 60 native frames. At 30TPS that is
         // once per 30 logic ticks. Base=10, then castle-HP and remaining-time factors.
         if(++chargeClock>=PvpStageBasis.TPS) {
             chargeClock-=PvpStageBasis.TPS;
-            addGauge((int)(10.0*castleHealthFactor(owner)*matchTimeFactor(world.time)));
+            addGauge((int)(10.0*castleHealthFactor(owner)*matchTimeFactor(world)));
         }
 
         // Native visible gauge follows target gauge by +50 per update.
@@ -144,11 +144,17 @@ public final class PvpRouletteState extends BattleObj {
      * base=floor(damage*3/1000), then castle comeback and remaining-time factors.
      */
     public static int castleDamageGain(StageBasis owner,long previousHealth,long damage,int battleTick) {
+        return castleDamageGain(owner,previousHealth,damage,matchTimeFactor(battleTick));
+    }
+    private static int castleDamageGain(StageBasis owner,long previousHealth,long damage,PvpStageBasis world) {
+        return castleDamageGain(owner,previousHealth,damage,matchTimeFactor(world));
+    }
+    private static int castleDamageGain(StageBasis owner,long previousHealth,long damage,double timeFactor) {
         if(damage<=0)return 0;
         long base=damage*3L/1000L;
         if(base<=0)return 0;
         double hp=castleHealthFactor(owner.ownBase().maxH,previousHealth);
-        return Math.max(0,(int)(base*hp*matchTimeFactor(battleTick)));
+        return Math.max(0,(int)(base*hp*timeFactor));
     }
 
     /**
@@ -162,7 +168,7 @@ public final class PvpRouletteState extends BattleObj {
         boolean ownDeath=deadDirection==owner.ownDirection();
         int base=(int)Math.min(250L,(long)internalPrice*(ownDeath?10L:5L)/10000L);
         if(base<=0)return;
-        double value=base*battlefieldFactor(owner,position)*castleHealthFactor(owner)*matchTimeFactor(world.time);
+        double value=base*battlefieldFactor(owner,position)*castleHealthFactor(owner)*matchTimeFactor(world);
         addGauge(Math.max(0,(int)value));
     }
 
@@ -183,15 +189,23 @@ public final class PvpRouletteState extends BattleObj {
     }
 
     /**
-     * FUN_001953d0. The original selectable limits are 180/300/420/600 seconds;
-     * rule index 0 initializes to 180 seconds. BCU currently has no match-time
-     * selector, so the original default (180s) drives this comeback multiplier.
-     * remaining >=50% => 1x, >=25% => 2x, final quarter => 5x.
+     * FUN_001953d0. The original selectable limits are 180/300/420/600 seconds.
+     * PvP now exposes its own 1-99 minute limit, so the same remaining-time
+     * thresholds are applied proportionally to the configured match duration.
+     * Unlimited matches have no final-quarter comeback window and stay at 1x.
      */
+    public static double matchTimeFactor(PvpStageBasis world) {
+        if(world==null||world.st.timeLimit<=0)return 1.0;
+        return matchTimeFactor(world.time,world.st.timeLimit*60);
+    }
     public static double matchTimeFactor(int battleTick) {
+        return matchTimeFactor(battleTick,ORIGINAL_MATCH_SECONDS);
+    }
+    public static double matchTimeFactor(int battleTick,int matchSeconds) {
+        if(matchSeconds<=0)return 1.0;
         int elapsed=Math.max(0,battleTick/PvpStageBasis.TPS);
-        int remaining=Math.max(0,ORIGINAL_MATCH_SECONDS-elapsed);
-        int percent=remaining*100/ORIGINAL_MATCH_SECONDS;
+        int remaining=Math.max(0,matchSeconds-elapsed);
+        int percent=remaining*100/matchSeconds;
         if(percent>=50)return 1.0;
         if(percent>=25)return 2.0;
         return 5.0;
