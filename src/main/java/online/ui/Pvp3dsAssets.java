@@ -62,7 +62,15 @@ public final class Pvp3dsAssets {
         FakeImage result=FAKE_IMAGES.get(key);
         if(result!=null)return result;
         if(ImageBuilder.builder==null)throw new IllegalStateException("ImageBuilder is not initialized");
-        result=ImageBuilder.builder.build(image(sheet,label));
+        try{
+            ByteArrayOutputStream out=new ByteArrayOutputStream();
+            if(!ImageIO.write(image(sheet,label),"png",out))
+                throw new IOException("PNG writer is unavailable");
+            byte[] png=out.toByteArray();
+            result=ImageBuilder.builder.build(() -> new ByteArrayInputStream(png));
+        }catch(IOException e){
+            throw new IllegalStateException("Cannot build PvP 3DS render image: "+sheet+" / "+label,e);
+        }
         FAKE_IMAGES.put(key,result);
         return result;
     }
