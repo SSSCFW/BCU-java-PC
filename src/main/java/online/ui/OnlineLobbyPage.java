@@ -230,7 +230,12 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 final InputFrame tickFrame=roster.toDuel(frame);
                 PvpAudio.forPlayer(slot==leftSlot?1:-1,()->battle.step(tickFrame));advanced++;
                 if(battle.time%Protocol.HASH_INTERVAL==0)client.checkpoint(battle.time,BattleDigest.of(battle));
-                if(battle.winner()!=-2){resultSent=true;client.result(battle.time,battle.winner(),BattleDigest.of(battle));message("試合終了。両者の結果を照合しています…");}
+                if(battle.winner()!=-2){
+                    resultSent=true;
+                    if(battlePage!=null)battlePage.beginOnlineBattleEnd();
+                    client.result(battle.time,battle.winner(),BattleDigest.of(battle));
+                    message("試合終了。両者の結果を照合しています…");
+                }
             }
             if(battlePage==null)return;
             if(advanced>0)battlePage.publishOnline(battle.displayCopy());
@@ -247,7 +252,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         if(MainFrame.getPanel()!=roomLobby){changePanel(roomLobby);roomLobby.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());}
     }
     private void finishBattleToLobby(String text){
-        pulse.stop();BCMusic.stopAll();
+        pulse.stop();PvpSoundBank.stopAll();BCMusic.stopAll();
         if(battlePage!=null){battlePage.detachOnline();battlePage=null;}
         battle=null;
         for(MatchBundle.Mounted m:mounted)if(m!=null)m.close();Arrays.fill(mounted,null);Arrays.fill(hashes,null);

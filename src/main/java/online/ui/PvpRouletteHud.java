@@ -50,7 +50,7 @@ public final class PvpRouletteHud extends JComponent {
     public void refresh(){
         PvpStageBasis world=(PvpStageBasis)online.sb;
         boolean roulette=world.specialMode()==RoomRules.SpecialMode.ROULETTE;
-        setVisible(roulette);
+        setVisible(roulette&&!online.battleUiHidden());
         StageBasis own=online.playerState();
         PvpRouletteState state=own.pvpRoulette;
         setToolTipText(online.specialStatus());

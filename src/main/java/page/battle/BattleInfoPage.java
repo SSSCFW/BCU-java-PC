@@ -4,9 +4,11 @@ import common.CommonStatic;
 import common.battle.*;
 import common.battle.entity.AbEntity;
 import common.battle.entity.Entity;
+import common.pack.Identifier;
 import common.util.Data;
 import common.util.stage.Replay;
 import common.util.stage.Stage;
+import common.util.stage.Music;
 import common.util.unit.Form;
 import io.BCMusic;
 import main.MainBCU;
@@ -14,6 +16,7 @@ import main.Opts;
 import online.ui.OnlineBattleField;
 import online.ui.AudioSettingsPanel;
 import online.ui.PvpRouletteHud;
+import online.ui.PvpSoundBank;
 import online.ui.PvpUnitAbilityOverlay;
 import online.net.lobby.PvpTraitRules;
 import utilpc.UtilPC;
@@ -88,9 +91,13 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
     private final JPanel onlineResult=new JPanel(new BorderLayout(10,10));
     private final JLabel onlineResultTitle=new JLabel("",SwingConstants.CENTER),onlineResultDetail=new JLabel("",SwingConstants.CENTER);
     private final JButton onlineResultOk=new JButton("OK");
-    private Runnable onlineResultAck;
-    private boolean onlineResultAcked,opponentRouletteSpinning;
-    private int rouletteNoticeUntil=-1;
+    private final JPanel onlineBattleEnd=new JPanel(new BorderLayout());
+    private final JLabel onlineBattleEndLabel=new JLabel("戦闘終了",SwingConstants.CENTER);
+    private Runnable onlineResultAck,pendingOnlineResultAck;
+    private String pendingOnlineResultTitle,pendingOnlineResultDetail;
+    private boolean onlineResultAcked,opponentRouletteSpinning,onlineBattleEnding,onlineBattleEndSoundDone;
+    private boolean rouletteAudioInitialized,audioOwnSpinning,audioOpponentSpinning;
+    private int rouletteNoticeUntil=-1,audioGaugeSegment=-1,audioOwnPending=-1,audioOpponentPending=-1;
 	private Runnable onlineExit;
 	private boolean onlineClosed;
 	private String onlineLeftName, onlineRightName;
@@ -202,8 +209,12 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
         onlineResult.setBackground(new Color(20,20,20));onlineResultTitle.setForeground(Color.WHITE);onlineResultDetail.setForeground(Color.WHITE);
         onlineResultTitle.setFont(onlineResultTitle.getFont().deriveFont(Font.BOLD,30f));
         JPanel resultCenter=new JPanel(new GridLayout(2,1,4,4));resultCenter.setOpaque(false);resultCenter.add(onlineResultTitle);resultCenter.add(onlineResultDetail);
-        onlineResult.add(resultCenter,BorderLayout.CENTER);onlineResult.add(onlineResultOk,BorderLayout.SOUTH);onlineResult.setVisible(false);add(onlineResult);setComponentZOrder(onlineResult,0);
+        onlineResult.add(resultCenter,BorderLayout.CENTER);onlineResult.add(onlineResultOk,BorderLayout.SOUTH);onlineResult.setVisible(false);add(onlineResult);
         onlineResultOk.addActionListener(e->{if(onlineResultAcked||onlineResultAck==null)return;onlineResultAcked=true;onlineResultOk.setEnabled(false);onlineResultDetail.setText("相手のOKを待っています…");onlineResultAck.run();});
+        onlineBattleEnd.setBackground(new Color(18,20,26));onlineBattleEnd.setBorder(BorderFactory.createLineBorder(new Color(235,235,235),3));
+        onlineBattleEndLabel.setForeground(Color.WHITE);onlineBattleEndLabel.setFont(onlineBattleEndLabel.getFont().deriveFont(Font.BOLD,52f));
+        onlineBattleEnd.add(onlineBattleEndLabel,BorderLayout.CENTER);onlineBattleEnd.setVisible(false);add(onlineBattleEnd);
+        setComponentZOrder(onlineResult,0);setComponentZOrder(onlineBattleEnd,0);
         if(MainBCU.loaded){BCMusic.stopAll();BCMusic.play(basis.sb.st.mus0);}
 		next.setEnabled(false);
 		rply.setEnabled(false);
@@ -226,12 +237,43 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
     public void force60Fps(boolean value){if(online!=null)online.force60Fps(value);}
     public int onlineFps(){return online==null?30:online.renderFps();}
 
+    public void beginOnlineBattleEnd(){
+        if(online==null||onlineClosed||onlineBattleEnding)return;
+        onlineBattleEnding=true;online.interactive(false);online.setBattleUiHidden(true);getPress().clear();
+        if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;heldUnitPoint=null;
+        if(audioDialog!=null){audioDialog.dispose();audioDialog=null;}
+        PvpSoundBank.stopAll();BCMusic.stopAll();hideOnlineBattleChrome();
+        onlineBattleEnd.setVisible(true);setComponentZOrder(onlineBattleEnd,0);onlineBattleEnd.repaint();
+        PvpSoundBank.play(PvpSoundBank.Sound.BATTLE_END,()->{
+            if(onlineClosed)return;
+            onlineBattleEndSoundDone=true;
+            showQueuedOnlineResult();
+        });
+    }
+
     public void showOnlineResult(String title,String detail,Runnable acknowledge){
         if(online==null||onlineClosed)return;
-        BCMusic.stopAll();
-        online.interactive(false);getPress().clear();onlineResultAck=acknowledge;onlineResultAcked=false;
-        onlineResultTitle.setText(title);onlineResultDetail.setText(detail);onlineResultOk.setText("OK");onlineResultOk.setEnabled(true);onlineResult.setVisible(true);onlineResult.repaint();
+        pendingOnlineResultTitle=title;pendingOnlineResultDetail=detail;pendingOnlineResultAck=acknowledge;
+        if(!onlineBattleEnding)beginOnlineBattleEnd();
+        showQueuedOnlineResult();
     }
+
+    private void showQueuedOnlineResult(){
+        if(!onlineBattleEndSoundDone||pendingOnlineResultTitle==null||onlineClosed)return;
+        onlineBattleEnd.setVisible(false);
+        onlineResultAck=pendingOnlineResultAck;onlineResultAcked=false;
+        onlineResultTitle.setText(pendingOnlineResultTitle);onlineResultDetail.setText(pendingOnlineResultDetail);
+        onlineResultOk.setText("OK");onlineResultOk.setEnabled(true);onlineResult.setVisible(true);setComponentZOrder(onlineResult,0);onlineResult.repaint();
+        BCMusic.stopAll();
+        BCMusic.play(new Identifier<>(Identifier.DEF,Music.class,30));
+    }
+
+    private void hideOnlineBattleChrome(){
+        Component[] hidden={back,jtb,paus,next,rply,row,audio,onlineSpecial,onlineTag,rouletteNotice,rouletteDebugMax,
+                unitAbilityOverlay,stream,ebase,ubase,timer,ecount,ucount,estat,ustat,eup,eusp,eep,eesp,ctp,utdsp,respawn,jsl};
+        for(Component component:hidden)if(component!=null)component.setVisible(false);
+    }
+
     public void onlineResultWaiting(String text){if(onlineResult.isVisible()&&onlineResultAcked)onlineResultDetail.setText(text);}
 
 	public void publishOnline(PvpStageBasis displayCopy) {
@@ -264,14 +306,49 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		ecount.setText(sb.entityCount(1) + "/" + sb.playerFor(1).maxNum);
 		ucount.setText(sb.entityCount(-1) + "/" + sb.playerFor(-1).maxNum);
 		if (bb.getPainter().dragging) bb.getPainter().dragFrame++;
-		if (MainBCU.loaded) BCMusic.flush(sb.ebase.health > 0 && sb.ubase.health > 0);
+		if (MainBCU.loaded && !onlineBattleEnding) BCMusic.flush(sb.ebase.health > 0 && sb.ubase.health > 0);
         if(onlineSpecial!=null)onlineSpecial.refresh();
-        rouletteDebugMax.setVisible(online.debugMode()&&online.rouletteMode());
+        rouletteDebugMax.setVisible(!onlineBattleEnding&&online.debugMode()&&online.rouletteMode());
+        updateRouletteSounds();
         updateOpponentRouletteNotice();
 		if (((Canvas) bb).isDisplayable()) bb.paint();
 	}
 
+    private void updateRouletteSounds(){
+        if(online==null||onlineClosed||onlineBattleEnding)return;
+        if(!online.rouletteMode()){
+            if(rouletteAudioInitialized)PvpSoundBank.stopLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
+            rouletteAudioInitialized=false;audioGaugeSegment=-1;return;
+        }
+        PvpRouletteState own=online.playerState().pvpRoulette,opponent=online.opponentState().pvpRoulette;
+        if(own==null||opponent==null)return;
+        int segment=Math.max(0,Math.min(10,own.gauge/100));
+        if(!rouletteAudioInitialized){
+            rouletteAudioInitialized=true;audioGaugeSegment=segment;audioOwnSpinning=own.spinning;audioOpponentSpinning=opponent.spinning;
+            audioOwnPending=own.pendingResult;audioOpponentPending=opponent.pendingResult;
+            if(own.spinning)PvpSoundBank.startLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
+            return;
+        }
+        if(segment>audioGaugeSegment){
+            for(int i=audioGaugeSegment+1;i<=segment;i++)if(i>0)PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_CHARGE);
+            if(audioGaugeSegment<10&&segment>=10)PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_MAX);
+        }
+        if(own.spinning&&!audioOwnSpinning){
+            PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_START);
+            PvpSoundBank.startLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
+        }else if(!own.spinning&&audioOwnSpinning)PvpSoundBank.stopLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
+        if(own.pendingResult>=0&&audioOwnPending<0){
+            PvpSoundBank.stopLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
+            PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_CONFIRM);
+        }
+        if(opponent.spinning&&!audioOpponentSpinning)PvpSoundBank.play(PvpSoundBank.Sound.OPPONENT_ROULETTE_START);
+        if(opponent.pendingResult>=0&&audioOpponentPending<0)PvpSoundBank.play(PvpSoundBank.Sound.OPPONENT_ROULETTE_CONFIRM);
+        audioGaugeSegment=segment;audioOwnSpinning=own.spinning;audioOpponentSpinning=opponent.spinning;
+        audioOwnPending=own.pendingResult;audioOpponentPending=opponent.pendingResult;
+    }
+
     private void updateOpponentRouletteNotice(){
+        if(onlineBattleEnding){rouletteNotice.setVisible(false);return;}
         if(online==null||!online.rouletteMode()){
             rouletteNotice.setVisible(false);opponentRouletteSpinning=false;return;
         }
@@ -299,7 +376,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		onlineClosed = true;
         if(audioDialog!=null){audioDialog.dispose();audioDialog=null;}
         if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;heldUnitPoint=null;
-        BCMusic.stopAll();
+        PvpSoundBank.stopAll();BCMusic.stopAll();
 		online.interactive(false);
 		getPress().clear();
 		if (current == this) current = null;
@@ -482,12 +559,14 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
                 set(rouletteNotice,x,y,760,98,720,34);
                 set(rouletteDebugMax,x,y,210,134,300,46);
                 set(unitAbilityOverlay,x,y,500,95,1300,260);
+                set(onlineBattleEnd,x,y,650,430,1000,260);
                 set(onlineResult,x,y,650,430,1000,320);
             }else{
                 set(onlineTag,x,y,1330,310,250,30);
                 set(rouletteNotice,x,y,900,372,650,34);
                 set(rouletteDebugMax,x,y,710,372,300,46);
                 set(unitAbilityOverlay,x,y,760,320,680,230);
+                set(onlineBattleEnd,x,y,780,410,640,220);
                 set(onlineResult,x,y,750,390,700,320);
             }
         }

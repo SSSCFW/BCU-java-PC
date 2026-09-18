@@ -22,7 +22,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     private final IntConsumer send;
     private final int direction;
     private int frontRow, changeFrame = -1;
-    private boolean goingUp, interactive = true, halfAdvanced;
+    private boolean goingUp, interactive = true, halfAdvanced, battleUiHidden;
     private long published;
     private boolean force60;
     public void force60Fps(boolean value){force60=value;}
@@ -69,6 +69,8 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     }
 
     public void interactive(boolean value) { interactive = value; if (!value) action.clear(); }
+    public void setBattleUiHidden(boolean value){battleUiHidden=value;if(value)interactive(false);}
+    public boolean battleUiHidden(){return battleUiHidden;}
     public boolean debugMode(){return ((PvpStageBasis)sb).debugMode();}
     public boolean rouletteMode(){return ((PvpStageBasis)sb).specialMode()==online.net.lobby.RoomRules.SpecialMode.ROULETTE;}
     public void debugRouletteMax(){

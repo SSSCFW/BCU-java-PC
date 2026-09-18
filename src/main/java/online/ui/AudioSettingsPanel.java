@@ -14,7 +14,7 @@ public final class AudioSettingsPanel extends JPanel {
         super(new GridBagLayout());setBorder(BorderFactory.createTitledBorder("自分の音量（相手には影響しません）"));
         refresh();row(0,"",enabled);row(1,"BGM",bg);row(2,"戦闘効果音",se);row(3,"操作・生産通知",ui);
         enabled.addActionListener(e->BCMusic.setSoundEnabled(enabled.isSelected()));
-        bg.addChangeListener(e->{if(!refreshing)BCMusic.setBGVol(bg.getValue());});se.addChangeListener(e->{if(!refreshing)BCMusic.setSEVol(se.getValue());});ui.addChangeListener(e->{if(!refreshing)BCMusic.setUIVol(ui.getValue());});
+        bg.addChangeListener(e->{if(!refreshing)BCMusic.setBGVol(bg.getValue());});se.addChangeListener(e->{if(!refreshing){BCMusic.setSEVol(se.getValue());PvpSoundBank.refreshVolume();}});ui.addChangeListener(e->{if(!refreshing)BCMusic.setUIVol(ui.getValue());});
     }
     public void refresh(){refreshing=true;try{bg.setValue(BCMusic.VOL_BG);se.setValue(BCMusic.VOL_SE);ui.setValue(BCMusic.VOL_UI);enabled.setSelected(BCMusic.play);}finally{refreshing=false;}}
     private void row(int y,String text,JComponent component){

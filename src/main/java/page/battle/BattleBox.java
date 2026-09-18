@@ -28,6 +28,7 @@ import common.util.pack.bgeffect.BackgroundEffect;
 import common.util.stage.CastleImg;
 import common.util.unit.Form;
 import main.MainBCU;
+import online.ui.OnlineBattleField;
 import online.ui.Pvp3dsAssets;
 import page.RetFunc;
 import utilpc.PP;
@@ -223,14 +224,15 @@ public interface BattleBox {
 
 			drawCastle(g);
 			StageBasis player = controlState();
+			boolean hideOnlineUi=bf instanceof OnlineBattleField&&((OnlineBattleField)bf).battleUiHidden();
 			boolean cannonRule=!player.isPvp()||((PvpStageBasis)player.world()).specialMode()==online.net.lobby.RoomRules.SpecialMode.CANNON;
-			if(cannonRule && player.cannon == player.maxCannon && player.canon.id == 0) {
+			if(!hideOnlineUi&&cannonRule && player.cannon == player.maxCannon && player.canon.id == 0) {
 				drawCannonRange(g, player);
 			}
 
 			drawEntity(g);
 
-			drawCastleHealthIndicator(g);
+			if(!hideOnlineUi)drawCastleHealthIndicator(g);
 
 			if(CommonStatic.getConfig().drawBGEffect && sb.bgEffect != null) {
 				sb.bgEffect.postDraw(g, setP(sb.pos, y), bf.sb.siz, midY);
@@ -241,13 +243,15 @@ public interface BattleBox {
 			}
 
 			// Native icons/prices/cooldowns/worker/cannon/money, for THIS participant on either side.
-			sb = player;
-			try {
-				drawBtm(g);
-				drawTop(g);
-				drawPermanentRouletteEffects(g, player);
-				drawRoulettePresentation(g, player);
-			} finally { sb = bf.sb; }
+			if(!hideOnlineUi){
+				sb = player;
+				try {
+					drawBtm(g);
+					drawTop(g);
+					drawPermanentRouletteEffects(g, player);
+					drawRoulettePresentation(g, player);
+				} finally { sb = bf.sb; }
+			}
 		}
 
 		public float getX(float x) {
