@@ -17,7 +17,7 @@ public final class RoomRules {
             catch(IllegalArgumentException e){throw new IOException("Invalid battle special mode",e);}
         }
     }
-    public static final int MIN_DISTANCE=1000, MAX_DISTANCE=24000;
+    public static final int MIN_DISTANCE=1000, MAX_DISTANCE=24000, RANDOM_BACKGROUND=-1, RANDOM_MUSIC=-2;
     public static final RoomRules DEFAULT=new RoomRules(4400,0,-1,false,SpecialMode.CANNON,false);
     public final int castleDistance, backgroundId, musicId;
     public final boolean force60Fps, debugMode;
@@ -29,7 +29,9 @@ public final class RoomRules {
         this(distance,background,music,force60,special,false);
     }
     public RoomRules(int distance,int background,int music,boolean force60,SpecialMode special,boolean debug) {
-        if(distance<MIN_DISTANCE||distance>MAX_DISTANCE||background<0||background>65535||music < -1||music>65535||special==null)
+        boolean backgroundValid=background==RANDOM_BACKGROUND||(background>=0&&background<=65535);
+        boolean musicValid=music==RANDOM_MUSIC||(music>=-1&&music<=65535);
+        if(distance<MIN_DISTANCE||distance>MAX_DISTANCE||!backgroundValid||!musicValid||special==null)
             throw new IllegalArgumentException("城間距離は1000〜24000、背景/BGM/特殊機能は有効な値を選択してください");
         castleDistance=distance;backgroundId=background;musicId=music;force60Fps=force60;specialMode=special;debugMode=debug;
     }
