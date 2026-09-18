@@ -53,10 +53,11 @@ public final class RouletteTests {
         Check.equal(4,right.pvpRoulette.productionLevel,"production shortening caps at native MAX");
         Check.that(right.elu.cool[0][0]<=5,"four production-shortening levels repeatedly halve current cooldown");
 
-        long oldMax=enemy.maxH;
+        long oldMax=enemy.maxH,oldHealth=enemy.health;
         for(int i=0;i<5;i++)right.pvpRoulette.forceResult(b,right,PvpRouletteState.HP_UP);
         Check.equal(4,right.pvpRoulette.hpLevel,"HP boost caps at Level MAX");
         Check.equal(Math.round(oldMax*8.0),enemy.maxH,"HP Level MAX is 8x from 3DS table");
+        Check.equal(oldHealth,enemy.health,"deployed unit current HP is unchanged by native HP-up effect");
 
         for(int i=0;i<5;i++)right.pvpRoulette.forceResult(b,right,PvpRouletteState.ATTACK_UP);
         Check.equal(8.0,right.pvpRoulette.attackMultiplier(),"attack Level MAX is 8x");
