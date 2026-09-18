@@ -26,6 +26,8 @@ public final class AllTests {
         RoomAudioTests.run();
         RoomRuleTests.run();
         RandomLineupTests.run();
+        PlayerTraitTests.run();
+        online.ui.LobbyPreferencesTests.run();
         io.BCJSONTests.run();
         io.AudioVolumeTests.run();
         ProcessTests.run();
