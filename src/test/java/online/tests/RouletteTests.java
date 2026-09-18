@@ -95,7 +95,7 @@ public final class RouletteTests {
         for(int i=0;i<PvpStageBasis.TPS-1;i++)chargeOwner.pvpRoulette.advance(charge,chargeOwner);
         Check.equal(0,chargeOwner.pvpRoulette.targetGauge,"roulette target does not charge before one second");
         chargeOwner.pvpRoulette.advance(charge,chargeOwner);
-        Check.equal(10,chargeOwner.pvpRoulette.targetGauge,"full castle HP charges native 10 points per second");
+        Check.equal(10,chargeOwner.pvpRoulette.targetGauge,"full castle HP charges native base 10 points per second in the first half");
         Check.equal(10,chargeOwner.pvpRoulette.gauge,"visible gauge chases target by up to 50 points");
         chargeOwner.ownBase().health=chargeOwner.ownBase().maxH/2;
         for(int i=0;i<PvpStageBasis.TPS;i++)chargeOwner.pvpRoulette.advance(charge,chargeOwner);
@@ -105,6 +105,25 @@ public final class RouletteTests {
         Check.equal(2.0,PvpRouletteState.castleHealthFactor(chargeOwner),"half HP comeback factor is 2x");
         chargeOwner.ownBase().health=0;
         Check.equal(5.0,PvpRouletteState.castleHealthFactor(chargeOwner),"zero HP comeback factor is 5x");
+
+        Check.equal(1.0,PvpRouletteState.matchTimeFactor(90*PvpStageBasis.TPS),"remaining 50 percent keeps 1x time factor");
+        Check.equal(2.0,PvpRouletteState.matchTimeFactor(91*PvpStageBasis.TPS),"below 50 percent remaining uses 2x time factor");
+        Check.equal(2.0,PvpRouletteState.matchTimeFactor(135*PvpStageBasis.TPS),"remaining 25 percent still uses 2x time factor");
+        Check.equal(5.0,PvpRouletteState.matchTimeFactor(136*PvpStageBasis.TPS),"final quarter uses 5x time factor");
+
+        PvpStageBasis castleGain=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis castleOwner=castleGain.right();
+        castleOwner.pvpRoulette.gauge=castleOwner.pvpRoulette.targetGauge=castleOwner.pvpRoulette.chargeClock=0;
+        castleOwner.pvpRoulette.initializeCharge(castleOwner);
+        castleOwner.ownBase().health-=10000;
+        castleOwner.pvpRoulette.advance(castleGain,castleOwner);
+        Check.equal(30,castleOwner.pvpRoulette.targetGauge,"taking 10000 castle damage adds floor(damage*3/1000) before comeback factors");
+        Check.equal(30,castleOwner.pvpRoulette.gauge,"castle-damage charge becomes visible immediately through the native +50 chase");
+
+        Check.equal(1.5,PvpRouletteState.battlefieldFactor(castleOwner,castleOwner.ownBase().pos),"unit loss at own castle uses 1.5x position factor");
+        float middle=(castleOwner.ownBase().pos+castleOwner.playerFor(-castleOwner.ownDirection()).ownBase().pos)/2f;
+        Check.equal(0.5,PvpRouletteState.battlefieldFactor(castleOwner,middle),"unit loss at arena center uses 0.5x position factor");
+        Check.equal(0.1,PvpRouletteState.battlefieldFactor(castleOwner,castleOwner.playerFor(-castleOwner.ownDirection()).ownBase().pos),"unit loss at enemy castle uses 0.1x position factor");
 
         PvpStageBasis manual=duel(RoomRules.SpecialMode.ROULETTE);
         StageBasis manualOwner=manual.right();

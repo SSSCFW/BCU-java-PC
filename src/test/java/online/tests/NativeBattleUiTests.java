@@ -143,8 +143,9 @@ public final class NativeBattleUiTests {
         try{meterBox.painter.draw(emptyTrace);}finally{eg.dispose();}
         Check.that(!emptyTrace.images.containsKey(CommonStatic.getBCAssets().battle[1][0].getImg()),
                 "roulette mode removes the native cannon icon from the bottom-right control");
-        Check.that(emptyTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi","ルーレットアイコン蓋（上部）")),
-                "roulette mode draws original 3DS roulette framing in the cannon control position");
+        Check.that(!emptyTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi","ルーレットアイコン蓋（上部）"))
+                        && !emptyTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_reel","ルーレットランプ：点灯")),
+                "bottom-right roulette control is gauge-only with no leftover roulette frame/lamp art");
 
         meter.left().pvpRoulette.gauge=meter.left().pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE/2;
         meterField.publish(meter.displayCopy());
@@ -171,6 +172,9 @@ public final class NativeBattleUiTests {
                 "on-field roulette animation renders the current 3DS icon");
         Check.that(spinTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_reel",rouletteName(current))),
                 "on-field roulette animation renders the current 3DS effect name");
+        Check.that(!spinTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi","ルーレットリール蓋（上部）"))
+                        && !spinTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi","ルーレットリール蓋（下部）")),
+                "opaque 3DS lid boards must not cover roulette effect-name text");
 
         for(int i=0;i<PvpRouletteState.AUTO_SPIN_TICKS;i++)live.step(new InputFrame(live.time,0,0));
         Check.that(!live.left().pvpRoulette.spinning,"roulette fixture auto-resolves after two seconds");

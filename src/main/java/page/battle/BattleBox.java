@@ -434,52 +434,30 @@ public interface BattleBox {
 		 */
 		private void drawRouletteGaugeControl(FakeGraphics g, int w, int h, float hr,
 		                                      int iw, int ih, PvpRouletteState state) {
-			float x = w - iw + BOTTOM_GAP * hr;
-			float y = h - ih;
-			float pad = Math.max(2f, Math.min(iw, ih) * 0.045f);
-			g.colRect(x, y, iw, ih, 8, 8, 12, 235);
-			g.colRect(x + pad, y + pad, iw - pad * 2, ih - pad * 2, 28, 28, 34, 245);
+			// Keep the native cannon hit box, but draw ONLY the roulette gauge.
+			// The surrounding area is transparent so no cannon/roulette remnants remain.
+			float controlX = w - iw + BOTTOM_GAP * hr;
+			float controlY = h - ih;
+			float gaugeW = Math.max(14f, Math.min(iw * 0.34f, 54f * hr));
+			float gaugeH = ih * 0.78f;
+			float gaugeX = controlX + (iw - gaugeW) / 2f;
+			float gaugeY = controlY + (ih - gaugeH) / 2f;
+			float border = Math.max(2f, 3f * hr);
 
-			float gaugeX = x + iw * 0.16f;
-			float gaugeY = y + ih * 0.12f;
-			float gaugeW = Math.max(8f, iw * 0.30f);
-			float gaugeH = ih * 0.76f;
-			float border = Math.max(1f, pad * 0.7f);
 			g.colRect(gaugeX - border, gaugeY - border, gaugeW + border * 2, gaugeH + border * 2,
-					235, 235, 235, 255);
-			g.colRect(gaugeX, gaugeY, gaugeW, gaugeH, 18, 18, 22, 255);
+					235, 235, 238, 255);
+			g.colRect(gaugeX, gaugeY, gaugeW, gaugeH, 15, 15, 18, 235);
 
 			float ratio = Math.max(0f, Math.min(1f, state.gauge / (float) PvpRouletteState.MAX_GAUGE));
 			float fill = gaugeH * ratio;
 			if (fill > 0f)
-				g.colRect(gaugeX, gaugeY + gaugeH - fill, gaugeW, fill,
-						state.gauge >= PvpRouletteState.MAX_GAUGE ? 255 : 235,
-						state.gauge >= PvpRouletteState.MAX_GAUGE ? 235 : 170, 35, 255);
+				g.colRect(gaugeX, gaugeY + gaugeH - fill, gaugeW, fill, 241, 178, 27, 255);
+
 			for (int i = 1; i < 10; i++) {
 				float sy = gaugeY + gaugeH * i / 10f;
-				g.colRect(gaugeX, sy, gaugeW, Math.max(1f, hr * 0.7f), 0, 0, 0, 150);
-			}
-
-			try {
-				FakeImage top = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレットアイコン蓋（上部）");
-				FakeImage bottom = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレットアイコン蓋（下部）");
-				float frameW = Math.min(iw * 0.34f, ih * 0.42f);
-				float frameH = frameW * 46f / 44f;
-				float fx = x + iw * 0.55f;
-				float fy = y + ih * 0.17f;
-				g.drawImage(top, fx, fy, frameW, frameH / 2f);
-				g.drawImage(bottom, fx, fy + frameH / 2f, frameW, frameH / 2f);
-
-				String lampLabel = state.gauge >= PvpRouletteState.MAX_GAUGE || state.spinning
-						? "ルーレットランプ：ハイライト" : "ルーレットランプ：点灯";
-				FakeImage lamp = Pvp3dsAssets.fakeImage("ui_battle_multi_reel", lampLabel);
-				float lampSize = Math.min(iw * 0.27f, ih * 0.25f);
-				g.drawImage(lamp, x + iw * 0.60f, y + ih * 0.62f, lampSize, lampSize);
-			} catch (RuntimeException ignored) {
-				// The meter itself is renderer-native and remains usable without optional art.
+				g.colRect(gaugeX, sy, gaugeW, Math.max(1f, hr * 0.65f), 0, 0, 0, 145);
 			}
 		}
-
 		private void drawRoulettePresentation(FakeGraphics g, StageBasis player) {
 			if (!player.isPvp()
 					|| ((PvpStageBasis) player.world()).specialMode() != online.net.lobby.RoomRules.SpecialMode.ROULETTE
@@ -539,15 +517,9 @@ public interface BattleBox {
 			g.drawImage(icon, x + 2f * scale, y + 3f * scale, 40f * scale, 40f * scale);
 			g.drawImage(name, reelX + 2.5f * scale, y + 3f * scale, 173f * scale, 40f * scale);
 
-			FakeImage iconTop = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレットアイコン蓋（上部）");
-			FakeImage iconBottom = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレットアイコン蓋（下部）");
-			FakeImage reelTop = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレットリール蓋（上部）");
-			FakeImage reelBottom = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレットリール蓋（下部）");
-			g.drawImage(iconTop, x, y, 44f * scale, 23f * scale);
-			g.drawImage(iconBottom, x, y + 23f * scale, 44f * scale, 23f * scale);
-			g.drawImage(reelTop, reelX, y, 178f * scale, 23f * scale);
-			g.drawImage(reelBottom, reelX, y + 23f * scale, 178f * scale, 23f * scale);
-
+            // The original lid/board cuts are opaque and cover the effect-name
+            // sprite at BCU scale. Draw the icon/name directly so the result text
+            // remains readable throughout the two-second spin.
 			FakeImage lamp = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレット点灯中ランプ");
 			g.drawImage(lamp, x - 34f * scale, y + 10f * scale, 26f * scale, 25f * scale);
 

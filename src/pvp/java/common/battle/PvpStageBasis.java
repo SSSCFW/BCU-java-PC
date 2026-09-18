@@ -57,6 +57,8 @@ public final class PvpStageBasis extends StageBasis {
         other.ebase = ebase; other.ubase = ubase;
         applyCastleHealthMultiplier(other,leftCastleMultiplier);
         applyCastleHealthMultiplier(this,rightCastleMultiplier);
+        other.pvpRoulette.initializeCharge(other);
+        pvpRoulette.initializeCharge(this);
         bgEffect = other.bgEffect = null;
         maxNum = other.maxNum = MAX_UNITS;
         maxMoney = b.t().getMaxMon(work_lv, false);

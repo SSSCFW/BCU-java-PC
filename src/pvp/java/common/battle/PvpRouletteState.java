@@ -13,7 +13,7 @@ import java.util.*;
  */
 public final class PvpRouletteState extends BattleObj {
     public static final int MAX_GAUGE=1000, TEMP_TICKS=150, BABY_RUSH_TICKS=10*PvpStageBasis.TPS,
-            AUTO_SPIN_TICKS=2*PvpStageBasis.TPS;
+            AUTO_SPIN_TICKS=2*PvpStageBasis.TPS, ORIGINAL_MATCH_SECONDS=180;
     public static final int KNOCKBACK=0, HEAL=1, PRODUCTION_RECOVERY=2, CANNON=3,
             PRODUCTION_SHORTEN=4, WORKER_UP=5, COST_DOWN=6, MONEY_MAX=7,
             SLOW=8, STOP=9, ATTACK_UP=10, HP_UP=11, MOVE_UP=12, BABY_RUSH=13;
@@ -32,6 +32,7 @@ public final class PvpRouletteState extends BattleObj {
     private final int[] reel=new int[SOURCE_REEL.length];
     /** Native roulette keeps a target gauge and lets the visible gauge chase it by 50. */
     public int gauge, targetGauge, chargeClock, reelIndex, spinTicks, lastResult=-1, lastLevel;
+    public long lastCastleHealth=-1;
     public boolean spinning;
     public int productionLevel, workerLevel, costLevel, attackLevel, hpLevel, moveLevel;
     public int babyRushTicks;
@@ -88,11 +89,25 @@ public final class PvpRouletteState extends BattleObj {
         }
     }
 
+    public void initializeCharge(StageBasis owner) {
+        lastCastleHealth=Math.max(0L,owner.ownBase().health);
+    }
+
     public void advance(PvpStageBasis world, StageBasis owner) {
         if(babyRushTicks>0) {
             babyRushTicks--;
             clearCooldowns(owner);
         }
+
+        // FUN_0023bcc0 charges from castle HP actually lost since the previous update.
+        // FUN_001954d0 is called before the stored castle HP is replaced, therefore
+        // this event uses the PRE-DAMAGE castle ratio.
+        long currentCastle=Math.max(0L,owner.ownBase().health);
+        if(lastCastleHealth<0)lastCastleHealth=currentCastle;
+        long previousCastle=lastCastleHealth;
+        long castleDamage=Math.max(0L,previousCastle-currentCastle);
+        lastCastleHealth=currentCastle;
+
         if(spinning) {
             spinTicks++;
             reelIndex=(reelIndex+1)%reel.length;
@@ -100,21 +115,86 @@ public final class PvpRouletteState extends BattleObj {
             return;
         }
 
-        // Full gauge stays armed until the player explicitly presses SPECIAL.
-        // Charging is the reverse-engineered 3DS roulette cadence, not cannon charge.
+        // Once the visible gauge reaches 1000 the native state machine leaves the
+        // charge state. Keep observing castle HP, but do not bank charge for later.
         if(gauge>=MAX_GAUGE) {
             gauge=targetGauge=MAX_GAUGE;return;
         }
 
-        // 3DS accumulates roulette charge once per 60 native frames (one second).
-        // BCU PvP logic is fixed at 30 TPS, so one native charge step is 30 logic ticks.
+        if(castleDamage>0)
+            addGauge(castleDamageGain(owner,previousCastle,castleDamage,world.time));
+
+        // FUN_002559d4: passive charge every 60 native frames. At 30TPS that is
+        // once per 30 logic ticks. Base=10, then castle-HP and remaining-time factors.
         if(++chargeClock>=PvpStageBasis.TPS) {
             chargeClock-=PvpStageBasis.TPS;
-            int add=(int)(10.0 * castleHealthFactor(owner));
-            targetGauge=Math.min(MAX_GAUGE,targetGauge+Math.max(0,add));
+            addGauge((int)(10.0*castleHealthFactor(owner)*matchTimeFactor(world.time)));
         }
 
+        // Native visible gauge follows target gauge by +50 per update.
         if(gauge<targetGauge)gauge=Math.min(targetGauge,gauge+50);
+    }
+
+    private void addGauge(int amount) {
+        if(amount>0)targetGauge=Math.min(MAX_GAUGE,targetGauge+amount);
+    }
+
+    /**
+     * FUN_0019dbc4: castle damage contribution.
+     * base=floor(damage*3/1000), then castle comeback and remaining-time factors.
+     */
+    public static int castleDamageGain(StageBasis owner,long previousHealth,long damage,int battleTick) {
+        if(damage<=0)return 0;
+        long base=damage*3L/1000L;
+        if(base<=0)return 0;
+        double hp=castleHealthFactor(owner.ownBase().maxH,previousHealth);
+        return Math.max(0,(int)(base*hp*matchTimeFactor(battleTick)));
+    }
+
+    /**
+     * FUN_002557d8: a deployed unit leaving battle also contributes to the local
+     * roulette. Own-unit loss uses 10/10000 of its internal production price;
+     * opponent loss uses 5/10000, capped at 250 before dynamic multipliers.
+     * Position factor is 1.5x at own castle, 0.5x at center, 0.1x at enemy castle.
+     */
+    public void unitDefeated(PvpStageBasis world,StageBasis owner,int deadDirection,float position,int internalPrice) {
+        if(spinning||gauge>=MAX_GAUGE||internalPrice<=0)return;
+        boolean ownDeath=deadDirection==owner.ownDirection();
+        int base=(int)Math.min(250L,(long)internalPrice*(ownDeath?10L:5L)/10000L);
+        if(base<=0)return;
+        double value=base*battlefieldFactor(owner,position)*castleHealthFactor(owner)*matchTimeFactor(world.time);
+        addGauge(Math.max(0,(int)value));
+    }
+
+    public static double battlefieldFactor(StageBasis owner,float position) {
+        float own=owner.ownBase().pos;
+        StageBasis opponent=owner.playerFor(-owner.ownDirection());
+        float enemy=opponent.ownBase().pos;
+        double half=Math.abs(own-enemy)/2.0;
+        if(half<=0.0)return 0.5;
+        double dOwn=Math.abs(position-own),dEnemy=Math.abs(position-enemy);
+        if(dOwn==dEnemy)return 0.5;
+        if(dOwn<dEnemy) {
+            double t=dOwn/half;
+            return 1.5*(1.0-t)+0.5*t;
+        }
+        double t=dEnemy/half;
+        return 0.1*(1.0-t)+0.5*t;
+    }
+
+    /**
+     * FUN_001953d0. The original selectable limits are 180/300/420/600 seconds;
+     * rule index 0 initializes to 180 seconds. BCU currently has no match-time
+     * selector, so the original default (180s) drives this comeback multiplier.
+     * remaining >=50% => 1x, >=25% => 2x, final quarter => 5x.
+     */
+    public static double matchTimeFactor(int battleTick) {
+        int elapsed=Math.max(0,battleTick/PvpStageBasis.TPS);
+        int remaining=Math.max(0,ORIGINAL_MATCH_SECONDS-elapsed);
+        int percent=remaining*100/ORIGINAL_MATCH_SECONDS;
+        if(percent>=50)return 1.0;
+        if(percent>=25)return 2.0;
+        return 5.0;
     }
 
     /**
@@ -123,10 +203,13 @@ public final class PvpRouletteState extends BattleObj {
      * and at 0% it is 5x, with linear interpolation on either side of 50%.
      */
     public static double castleHealthFactor(StageBasis owner) {
-        long max=Math.max(1L,owner.ownBase().maxH);
-        double ratio=Math.max(0.0,Math.min(1.0,(double)owner.ownBase().health/max));
-        if(ratio>=0.5)return 3.0-2.0*ratio; // 50% -> 2.0, 100% -> 1.0
-        return 5.0-6.0*ratio;               // 0% -> 5.0, 50% -> 2.0
+        return castleHealthFactor(owner.ownBase().maxH,owner.ownBase().health);
+    }
+    public static double castleHealthFactor(long maxHealth,long health) {
+        long max=Math.max(1L,maxHealth);
+        double ratio=Math.max(0.0,Math.min(1.0,(double)health/max));
+        if(ratio>=0.5)return 3.0-2.0*ratio;
+        return 5.0-6.0*ratio;
     }
 
     /**

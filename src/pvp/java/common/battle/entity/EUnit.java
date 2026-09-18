@@ -62,7 +62,7 @@ public class EUnit extends Entity {
 	public final boolean isOrbBoosted;
 	public boolean bountyOrbCheck = false;
 	public int legendGrade = -1, coloGrade = -1, counterGrade = -1, bountyGrade = -1;
-	private boolean pvpDefeatRewarded;
+	private boolean pvpDefeatRewarded, pvpRouletteDeathCharged;
 
 	public EUnit(StageBasis b, MaskUnit de, EAnimU ea, float d0, int layer0, int layer1, Level level, PCoin pc,
 				 int[] index, boolean isSpirit, boolean isEveryOther) {
@@ -189,6 +189,7 @@ public class EUnit extends Entity {
 	@Override
 	public void kill(KillMode atk) {
 		super.kill(atk);
+        chargePvpRouletteDeath(atk);
 		rewardPvpDefeat(atk);
 
 		if (getProc().MONEYBACK.exists() && index != null)
@@ -196,6 +197,18 @@ public class EUnit extends Entity {
 		if (getProc().CANONCHARGE.exists() && basis.cannon < basis.maxCannon - 1)
 			basis.cannon = Math.min(basis.maxCannon - 1, basis.cannon + getProc().CANONCHARGE.mult);
 	}
+
+    private void chargePvpRouletteDeath(KillMode mode) {
+        if(pvpRouletteDeathCharged||mode==KillMode.SPIRIT||!basis.isPvp()||index==null||isSpirit)return;
+        PvpStageBasis world=(PvpStageBasis)basis.world();
+        if(world.specialMode()!=online.net.lobby.RoomRules.SpecialMode.ROULETTE)return;
+        int price=basis.elu.price[index[0]][index[1]];
+        if(price<=0)return;
+        pvpRouletteDeathCharged=true;
+        StageBasis left=world.left(),right=world.right();
+        left.pvpRoulette.unitDefeated(world,left,dire,pos,price);
+        right.pvpRoulette.unitDefeated(world,right,dire,pos,price);
+    }
 
     private void rewardPvpDefeat(KillMode mode) {
         if (pvpDefeatRewarded || mode != KillMode.NORMAL || !basis.isPvp() || index == null || isSpirit)
