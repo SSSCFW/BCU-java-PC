@@ -205,14 +205,20 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
         rouletteDebugMax.setVisible(online.debugMode()&&online.rouletteMode());
         rouletteDebugMax.addActionListener(e->{getPress().clear();online.debugRouletteMax();});
         audio.addActionListener(e->{getPress().clear();if(audioDialog!=null&&audioDialog.isDisplayable()){audioDialog.toFront();return;}audioDialog=AudioSettingsPanel.open(this);});
-        onlineResult.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(Color.WHITE,2),BorderFactory.createEmptyBorder(18,24,18,24)));
-        onlineResult.setBackground(new Color(20,20,20));onlineResultTitle.setForeground(Color.WHITE);onlineResultDetail.setForeground(Color.WHITE);
-        onlineResultTitle.setFont(onlineResultTitle.getFont().deriveFont(Font.BOLD,30f));
-        JPanel resultCenter=new JPanel(new GridLayout(2,1,4,4));resultCenter.setOpaque(false);resultCenter.add(onlineResultTitle);resultCenter.add(onlineResultDetail);
-        onlineResult.add(resultCenter,BorderLayout.CENTER);onlineResult.add(onlineResultOk,BorderLayout.SOUTH);onlineResult.setVisible(false);add(onlineResult);
+        onlineResult.setOpaque(true);onlineResult.setBackground(new Color(18,20,26));
+        onlineResult.setBorder(BorderFactory.createEmptyBorder(80,120,80,120));
+        onlineResultTitle.setForeground(Color.WHITE);onlineResultDetail.setForeground(new Color(225,228,235));
+        onlineResultTitle.setFont(onlineResultTitle.getFont().deriveFont(Font.BOLD,42f));
+        onlineResultDetail.setFont(onlineResultDetail.getFont().deriveFont(Font.PLAIN,20f));
+        onlineResultOk.setBackground(new Color(240,242,246));onlineResultOk.setForeground(new Color(20,22,28));
+        onlineResultOk.setOpaque(true);onlineResultOk.setFont(onlineResultOk.getFont().deriveFont(Font.BOLD,22f));
+        onlineResultOk.setPreferredSize(new Dimension(220,58));
+        JPanel resultCenter=new JPanel(new GridLayout(2,1,12,12));resultCenter.setOpaque(false);resultCenter.add(onlineResultTitle);resultCenter.add(onlineResultDetail);
+        JPanel resultButton=new JPanel(new FlowLayout(FlowLayout.CENTER,0,18));resultButton.setOpaque(false);resultButton.add(onlineResultOk);
+        onlineResult.add(resultCenter,BorderLayout.CENTER);onlineResult.add(resultButton,BorderLayout.SOUTH);onlineResult.setVisible(false);add(onlineResult);
         onlineResultOk.addActionListener(e->{if(onlineResultAcked||onlineResultAck==null)return;onlineResultAcked=true;onlineResultOk.setEnabled(false);onlineResultDetail.setText("相手のOKを待っています…");onlineResultAck.run();});
-        onlineBattleEnd.setBackground(new Color(18,20,26));onlineBattleEnd.setBorder(BorderFactory.createLineBorder(new Color(235,235,235),3));
-        onlineBattleEndLabel.setForeground(Color.WHITE);onlineBattleEndLabel.setFont(onlineBattleEndLabel.getFont().deriveFont(Font.BOLD,52f));
+        onlineBattleEnd.setOpaque(true);onlineBattleEnd.setBackground(new Color(18,20,26));onlineBattleEnd.setBorder(null);
+        onlineBattleEndLabel.setForeground(Color.WHITE);onlineBattleEndLabel.setFont(onlineBattleEndLabel.getFont().deriveFont(Font.BOLD,64f));
         onlineBattleEnd.add(onlineBattleEndLabel,BorderLayout.CENTER);onlineBattleEnd.setVisible(false);add(onlineBattleEnd);
         setComponentZOrder(onlineResult,0);setComponentZOrder(onlineBattleEnd,0);
         if(MainBCU.loaded){BCMusic.stopAll();BCMusic.play(basis.sb.st.mus0);}
@@ -223,7 +229,14 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		paus.setToolTipText("オンライン対戦では単独で一時停止できません");
 		next.setToolTipText("オンライン対戦ではコマ送りできません");
 		add(stream);
+        setComponentZOrder(stream,0);setComponentZOrder(audio,0);setComponentZOrder(onlineTag,0);
+        setComponentZOrder(rouletteNotice,0);setComponentZOrder(rouletteDebugMax,0);
+        initializeOnlineAudio(displayCopy);
 		current = this;
+        // Online-only controls are added after ini(). If the window was already
+        // maximized, no resize event is guaranteed to follow, so force one once
+        // the page has actually been mounted.
+        SwingUtilities.invokeLater(this::fireDimensionChanged);
 	}
 
     private static void styleOnlineLabel(JLabel label,Color foreground,float size){
