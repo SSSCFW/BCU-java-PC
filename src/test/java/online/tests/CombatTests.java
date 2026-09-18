@@ -95,6 +95,19 @@ public final class CombatTests {
     cappedLeft.kill(Entity.KillMode.NORMAL);
     Check.equal(capped.right().maxMoney,capped.right().money,"defeat reward never exceeds max money");
 
+    PvpStageBasis discounted=duel(false,false);
+    EUnit discountedLeft=unit(discounted,1),discountedRight=unit(discounted,-1);
+    StageBasis discountedVictim=discounted.right(),discountedWinner=discounted.left();
+    int originalBountyCost=discountedVictim.elu.basePrice[discountedRight.index[0]][discountedRight.index[1]];
+    for(int i=0;i<4;i++)discountedVictim.pvpRoulette.forceResult(discounted,discountedVictim,PvpRouletteState.COST_DOWN);
+    Check.that(discountedVictim.elu.price[discountedRight.index[0]][discountedRight.index[1]]<originalBountyCost,
+            "roulette cost-down really lowers future deployment cost");
+    discountedWinner.money=0;
+    discountedRight.lastKilledBy.add((AttackSimple)model(discountedLeft).getAttack(0));
+    discountedRight.kill(Entity.KillMode.NORMAL);
+    Check.equal(originalBountyCost/2,discountedWinner.money,
+            "defeat reward uses pre-roulette cost and ignores cost-down");
+
     PvpStageBasis cleanup=duel(false,false);
     EUnit cleanupRight=unit(cleanup,-1);
     cleanup.left().money=0;
