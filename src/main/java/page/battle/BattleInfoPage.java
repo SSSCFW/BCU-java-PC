@@ -370,10 +370,12 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
         int segment=Math.max(0,Math.min(10,a.gauge/100));
         if(segment<audioGaugeSegment)audioGaugeSegment=segment;
         if(segment>audioGaugeSegment){
-            for(int i=audioGaugeSegment+1;i<=segment;i++){
-                if(i>=10)PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_MAX);
-                else if(i>0)PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_CHARGE);
-            }
+            // Every filled gauge segment gets the normal charge sound, including
+            // the final segment. Reaching 100% additionally gets the MAX sound.
+            for(int i=audioGaugeSegment+1;i<=segment;i++)
+                if(i>0)PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_CHARGE);
+            if(audioGaugeSegment<10&&segment>=10)
+                PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_MAX);
         }
 
         if(a.spinning&&!audioOwnSpinning){
