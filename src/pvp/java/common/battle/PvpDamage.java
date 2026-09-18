@@ -17,9 +17,10 @@ public final class PvpDamage extends Data {
             EUnit unit=(EUnit)source;
             StageBasis owner=unit.basis;
             if(source.status[P_CURSE][0]==0) {
-                ArrayList<Trait> shared=new ArrayList<>(atk.trait);shared.retainAll(target.traits);
+                java.util.List<Trait> targetTraits=target.pvpAttributeTraits();
+                ArrayList<Trait> shared=new ArrayList<>(atk.trait);shared.retainAll(targetTraits);
                 boolean anti=Trait.isTargetTraited(atk.trait);
-                for(Trait t:target.traits)if(!t.id.pack.equals(IdentifierDefault.VALUE) && !shared.contains(t)
+                for(Trait t:targetTraits)if(!t.id.pack.equals(IdentifierDefault.VALUE) && !shared.contains(t)
                         && (t.targetType && anti || t.targetForms.contains(((MaskUnit)unit.data).getPack())))shared.add(t);
                 if(!shared.isEmpty()) {
                     if((atk.abi&AB_GOOD)!=0)damage=(int)(damage*EUnit.OrbHandler.getOrbGood(atk,shared,owner.b.t()));
@@ -42,6 +43,9 @@ public final class PvpDamage extends Data {
         if(has(target,TRAIT_VILLAIN)&&(atk.abi&AB_VKILL)!=0)damage=(int)(damage*VILLAIN_KILLER_ATTACK);
         return damage;
     }
-    private static boolean has(Entity e,int trait){return e.traits.contains(UserProfile.getBCData().traits.get(trait));}
+    private static boolean has(Entity e,int trait){
+        if(e instanceof EUnit&&e.basis.isPvp())return ((EUnit)e).pvpAttributeTraits().contains(UserProfile.getBCData().traits.get(trait));
+        return e.traits.contains(UserProfile.getBCData().traits.get(trait));
+    }
     private static final class IdentifierDefault {static final String VALUE="000000";}
 }
