@@ -234,6 +234,7 @@ public final class RoomLobbyPage extends Page {
 
     void toggleReady(){
         if(closed||!editable()||pending)return;
+        stopMusicPreview();
         if(!ownReady())try{distance.commitEdit();if(dirty)throw new IllegalArgumentException("変更したルールを先に適用してください");if(playerDirty)throw new IllegalArgumentException("城体力倍率を先に適用してください");if(lineup.getSelectedItem()==null)throw new IllegalArgumentException("編成を選択してください");PvpStageBasis.validateRulesAssets(client.roomRules());}catch(Exception e){message(e.getMessage());return;}
         pending=true;client.lobbyReady(!ownReady(),state.get("revision").getAsLong());refreshControls();
     }
