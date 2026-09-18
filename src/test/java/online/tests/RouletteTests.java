@@ -77,7 +77,25 @@ public final class RouletteTests {
         Check.equal(PvpRouletteState.BABY_RUSH_TICKS,right.pvpRoulette.babyRushTicks,"petit baby rush duration is deterministic");
 
         // Gauge fills from canonical frontline position and auto-starts; special action stops after intro.
+        // Native charge: once per second, full HP=1x, half HP=2x, near-zero HP approaches 5x.
+        PvpStageBasis charge=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis chargeOwner=charge.right();
+        for(int i=0;i<PvpStageBasis.TPS-1;i++)chargeOwner.pvpRoulette.advance(charge,chargeOwner);
+        Check.equal(0,chargeOwner.pvpRoulette.targetGauge,"roulette target does not charge before one second");
+        chargeOwner.pvpRoulette.advance(charge,chargeOwner);
+        Check.equal(10,chargeOwner.pvpRoulette.targetGauge,"full castle HP charges native 10 points per second");
+        Check.equal(10,chargeOwner.pvpRoulette.gauge,"visible gauge chases target by up to 50 points");
+        chargeOwner.ownBase().health=chargeOwner.ownBase().maxH/2;
+        for(int i=0;i<PvpStageBasis.TPS;i++)chargeOwner.pvpRoulette.advance(charge,chargeOwner);
+        Check.equal(30,chargeOwner.pvpRoulette.targetGauge,"half castle HP uses native 2x roulette charge");
+        Check.equal(1.0,PvpRouletteState.castleHealthFactor(fullHealth(chargeOwner)),"full HP comeback factor is 1x");
+        chargeOwner.ownBase().health=chargeOwner.ownBase().maxH/2;
+        Check.equal(2.0,PvpRouletteState.castleHealthFactor(chargeOwner),"half HP comeback factor is 2x");
+        chargeOwner.ownBase().health=0;
+        Check.equal(5.0,PvpRouletteState.castleHealthFactor(chargeOwner),"zero HP comeback factor is 5x");
+
         right.pvpRoulette.gauge=PvpRouletteState.MAX_GAUGE;
+        right.pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;
         right.pvpRoulette.advance(b,right);
         Check.that(right.pvpRoulette.spinning,"full roulette gauge starts reel automatically");
         for(int i=0;i<10;i++)right.pvpRoulette.advance(b,right);
@@ -103,6 +121,7 @@ public final class RouletteTests {
         b.step(new InputFrame(0,1,1));
         return b;
     }
+    private static StageBasis fullHealth(StageBasis b){b.ownBase().health=b.ownBase().maxH;return b;}
     private static EUnit unit(PvpStageBasis b,int direction){
         return (EUnit)b.le.stream().filter(e->e instanceof EUnit&&e.dire==direction).findFirst().get();
     }
