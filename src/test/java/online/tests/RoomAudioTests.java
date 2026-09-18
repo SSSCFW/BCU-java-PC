@@ -42,6 +42,13 @@ public final class RoomAudioTests {
             heard.clear();heard(1,()->CommonStatic.setSE(Data.SE_HIT_0));Check.that(heard.contains((int)Data.SE_HIT_0),"shared combat sounds remain audible");
             heard.clear();b.right().money=1000000;b.right().elu.cool[0][0]=0;b.right().unitRespawnTime=0;b.step(new InputFrame(b.time,0,1));
             Check.that(heard.contains((int)Data.SE_SPEND_SUC),"sound context restored after scoped stepping");
+            heard.clear();
+            PvpStageBasis roulette=new PvpStageBasis(
+                    Fixture.lineup(FixtureNativeUi.unit("audio_roulette_l",0xff111111)),
+                    Fixture.lineup(FixtureNativeUi.unit("audio_roulette_r",0xff222222)),22,0,
+                    new online.net.lobby.RoomRules(4400,0,-1,false,online.net.lobby.RoomRules.SpecialMode.ROULETTE));
+            heard(1,()->roulette.left().pvpRoulette.forceResult(roulette,roulette.left(),PvpRouletteState.KNOCKBACK));
+            Check.that(heard.contains((int)Data.SE_WAVE),"roulette knockback activation plays the shockwave sound effect");
         } finally {CommonStatic.def=old;}
     }
     public static void main(String[] args)throws Exception{run();System.out.println("Player-local audio tests passed");}
