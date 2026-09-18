@@ -96,7 +96,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
     private final JButton onlineResultOk=PvpBattleOverlay.okButton();
     private final PvpBattleOverlay onlineBackdrop=new PvpBattleOverlay();
     private final JPanel onlineBattleEnd=new JPanel(new BorderLayout());
-    private final JLabel onlineBattleEndLabel=PvpBattleOverlay.label("戦闘終了",38f);
+    private final JLabel onlineBattleEndLabel=PvpBattleOverlay.label("戦闘終了",40f);
     private Runnable onlineResultAck,pendingOnlineResultAck;
     private String pendingOnlineResultTitle,pendingOnlineResultDetail;
     private boolean onlineResultAcked,opponentRouletteSpinning,onlineBattleEnding,onlineBattleEndSoundDone,onlineResultShown,onlineLayoutPending;
@@ -216,7 +216,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
         onlineResult.add(resultCenter,BorderLayout.CENTER);onlineResult.add(onlineResultOk,BorderLayout.SOUTH);onlineResult.setVisible(false);add(onlineResult);
         onlineResultOk.addActionListener(e->{if(onlineResultAcked||onlineResultAck==null)return;onlineResultAcked=true;onlineResultOk.setEnabled(false);onlineResultDetail.setText("相手のOKを待っています…");onlineResultAck.run();});
         onlineBattleEnd.setBackground(new Color(18,20,26));onlineBattleEnd.setBorder(BorderFactory.createLineBorder(new Color(235,235,235),3));
-        onlineBattleEndLabel.setForeground(Color.WHITE);onlineBattleEndLabel.setFont(onlineBattleEndLabel.getFont().deriveFont(Font.BOLD,38f));
+        onlineBattleEndLabel.setForeground(Color.WHITE);onlineBattleEndLabel.setFont(onlineBattleEndLabel.getFont().deriveFont(Font.BOLD,40f));
         onlineBattleEnd.add(onlineBattleEndLabel,BorderLayout.CENTER);onlineBattleEnd.setVisible(false);add(onlineBattleEnd);
         add(onlineBackdrop);
         setComponentZOrder(onlineResult,0);setComponentZOrder(onlineBattleEnd,0);
