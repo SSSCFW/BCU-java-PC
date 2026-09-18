@@ -2,6 +2,9 @@ name: Roulette v5 TDD
 on:
   push:
     branches: [work/roulette-v5]
+concurrency:
+  group: roulette-v5-tdd
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
