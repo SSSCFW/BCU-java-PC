@@ -172,11 +172,28 @@ public final class LobbyUiTests {
                 edt(()->{JComboBox<?> choices=(JComboBox<?>)field(page,"lineup");choices.setSelectedIndex(choices.getItemCount()-1);return null;});
                 await(()->!((Boolean)field(field(page,"roomLobby"),"pending")),"changed lineup acknowledged");
                 if(host){
-                    edt(()->{RoomLobbyPage lobby=(RoomLobbyPage)field(page,"roomLobby");((JSpinner)field(lobby,"distance")).setValue(8000);((JComboBox<?>)field(lobby,"background")).setSelectedIndex(2);((JComboBox<?>)field(lobby,"music")).setSelectedIndex(2);((JComboBox<?>)field(lobby,"special")).setSelectedItem(online.net.lobby.RoomRules.SpecialMode.ROULETTE);((JCheckBox)field(lobby,"force60")).doClick();((JCheckBox)field(lobby,"debugMode")).doClick();((JButton)field(lobby,"apply")).doClick();return null;});
+                    edt(()->{
+                        RoomLobbyPage lobby=(RoomLobbyPage)field(page,"roomLobby");
+                        ((JSpinner)field(lobby,"distance")).setValue(8000);
+                        ((JComboBox<?>)field(lobby,"background")).setSelectedIndex(2);
+                        ((JComboBox<?>)field(lobby,"music")).setSelectedIndex(2);
+                        ((JSpinner)field(lobby,"timeLimit")).setValue(1);
+                        ((JComboBox<?>)field(lobby,"hostTrait")).setSelectedIndex(2); // red
+                        ((JComboBox<?>)field(lobby,"guestTrait")).setSelectedIndex(1); // random
+                        JCheckBox[] guestEx=(JCheckBox[])field(lobby,"guestTraitExclude");
+                        int blackIndex=online.net.lobby.PvpTraitRules.optionIndex(common.util.Data.TRAIT_BLACK);
+                        for(int i=0;i<guestEx.length;i++)if(i!=blackIndex)guestEx[i].doClick();
+                        ((JComboBox<?>)field(lobby,"special")).setSelectedItem(online.net.lobby.RoomRules.SpecialMode.ROULETTE);
+                        ((JCheckBox)field(lobby,"force60")).doClick();((JCheckBox)field(lobby,"debugMode")).doClick();
+                        ((JButton)field(lobby,"apply")).doClick();return null;
+                    });
                 }
                 await(()->((RoomClient)field(page,"client")).roomRules().castleDistance==8000,"host rules reach both room clients");
                 Check.equal(online.net.lobby.RoomRules.SpecialMode.ROULETTE,((RoomClient)field(page,"client")).roomRules().specialMode,"host roulette rule reaches both clients");
                 Check.that(((RoomClient)field(page,"client")).roomRules().debugMode,"host debug mode reaches both clients");
+                Check.equal(1,((RoomClient)field(page,"client")).roomRules().timeLimitMinutes,"host time limit reaches both clients");
+                Check.equal(common.util.Data.TRAIT_RED,((RoomClient)field(page,"client")).roomRules().hostTraitChoice,"host selected attribute reaches both clients");
+                Check.equal(online.net.lobby.PvpTraitRules.RANDOM,((RoomClient)field(page,"client")).roomRules().guestTraitChoice,"guest random attribute reaches both clients");
                 edt(()->{Object audio=field(field(page,"roomLobby"),"audio");((JSlider)field(audio,"bg")).setValue(host?23:81);((JSlider)field(audio,"se")).setValue(host?45:11);((JSlider)field(audio,"ui")).setValue(host?67:9);return null;});
                 Files.write(shared.resolve(host?"host-lobby":"guest-lobby"),new byte[]{1});
                 long readyDeadline=System.nanoTime()+10_000_000_000L;
@@ -195,6 +212,9 @@ public final class LobbyUiTests {
                     PvpStageBasis live=(PvpStageBasis)field(page,"battle");Check.equal(8000f,live.ubase.pos-live.ebase.pos,"exact castle separation from host rules");
                     Check.equal(4,live.st.bg.id,"host background selected");Check.equal(7,live.st.mus0.id,"host BGM selected");
                     Check.equal(online.net.lobby.RoomRules.SpecialMode.ROULETTE,live.specialMode(),"battle uses synchronized roulette special mode");
+                    Check.equal(1,live.st.timeLimit,"battle uses host one-minute time limit");
+                    Check.equal(common.util.Data.TRAIT_BLACK,live.leftTrait(),"guest random exclusions resolve left-side attribute to black");
+                    Check.equal(common.util.Data.TRAIT_RED,live.rightTrait(),"host fixed attribute resolves right-side attribute to red");
                     PvpRouletteHud rouletteHud=(PvpRouletteHud)field(nativePage,"onlineSpecial");Check.that(rouletteHud.isVisible(),"native roulette HUD is visible in roulette mode");Check.that(rouletteHud.has3dsAssets(),"native battle page uses decoded 3DS roulette assets: "+Pvp3dsAssets.diagnostic());
                     Check.that(((JButton)field(nativePage,"rouletteDebugMax")).isVisible(),"host-enabled debug mode exposes roulette MAX button to both participants");
                     Check.that(live.b.lu.fs[0][0].unit.id.pack.contains("pvp"),"edited lineup remains isolated by match");
