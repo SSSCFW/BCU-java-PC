@@ -176,7 +176,7 @@ public final class RouletteTests {
         Check.equal(0,noDebug.left().pvpRoulette.gauge,"roulette debug command is ignored when host debug mode is disabled");
 
         Unit dl=Fixture.unit("roulette_debug_l",100000),dr=Fixture.unit("roulette_debug_r",100000);
-        RoomRules debugRules=new RoomRules(4400,0,-1,false,RoomRules.SpecialMode.ROULETTE,true);
+        RoomRules debugRules=new RoomRules(4400,0,3,false,RoomRules.SpecialMode.ROULETTE,true);
         PvpStageBasis debug=new PvpStageBasis(Fixture.lineup(dl),Fixture.lineup(dr),77881,0,debugRules);
         debug.step(new InputFrame(debug.time,InputFrame.DEBUG_ROULETTE_MAX,0));
         Check.equal(PvpRouletteState.MAX_GAUGE,debug.left().pvpRoulette.gauge,"either participant can fill its own roulette gauge in host-enabled debug mode");
@@ -190,7 +190,7 @@ public final class RouletteTests {
     }
     private static PvpStageBasis duel(RoomRules.SpecialMode mode)throws Exception {
         Unit l=Fixture.unit("roulette_l_"+mode,100000),r=Fixture.unit("roulette_r_"+mode,100000);
-        RoomRules rules=new RoomRules(4400,0,-1,false,mode);
+        RoomRules rules=new RoomRules(4400,0,3,false,mode);
         PvpStageBasis b=new PvpStageBasis(Fixture.lineup(l),Fixture.lineup(r),88123,0,rules);
         b.money=b.left().money=100000;
         b.step(new InputFrame(0,1,1));
