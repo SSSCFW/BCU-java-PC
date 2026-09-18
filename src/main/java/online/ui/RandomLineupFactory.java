@@ -42,20 +42,43 @@ public final class RandomLineupFactory {
 
     public static List<Unit> candidates(boolean vanilla) {
         Map<String,Unit> unique=new TreeMap<>();
+        Set<String> spiritTargets=spiritTargets();
         if(vanilla){
-            for(Unit unit:UserProfile.getBCData().units.getList())add(unique,unit,true);
+            for(Unit unit:UserProfile.getBCData().units.getList())add(unique,unit,true,spiritTargets);
         }else{
-            for(PackData pack:UserProfile.getAllPacks())for(Unit unit:pack.units)add(unique,unit,false);
+            for(PackData pack:UserProfile.getAllPacks())for(Unit unit:pack.units)add(unique,unit,false,spiritTargets);
         }
         return new ArrayList<>(unique.values());
     }
 
-    private static void add(Map<String,Unit> out,Unit unit,boolean vanilla){
+    private static void add(Map<String,Unit> out,Unit unit,boolean vanilla,Set<String> spiritTargets){
         if(unit==null||unit.id==null||unit.lv==null||unit.forms==null)return;
         if(vanilla&&!Identifier.DEF.equals(unit.id.pack))return;
-        if(bestForm(unit)==null)return;
-        out.put(unit.id.pack+":"+unit.id.id,unit);
+        Form form=bestForm(unit);
+        if(form==null)return;
+        // Spirit forms are support entities, not normal lineup choices. Keep
+        // ordinary zero-cost units eligible, but exclude a zero-cost unit when
+        // another form explicitly references it as its SPIRIT summon target.
+        if(form.du.getPrice()==0&&spiritTargets.contains(key(unit.id)))return;
+        out.put(key(unit.id),unit);
     }
+
+    private static Set<String> spiritTargets(){
+        Set<String> targets=new HashSet<>();
+        for(Unit unit:UserProfile.getBCData().units.getList())collectSpiritTargets(targets,unit);
+        for(PackData pack:UserProfile.getAllPacks())for(Unit unit:pack.units)collectSpiritTargets(targets,unit);
+        return targets;
+    }
+
+    private static void collectSpiritTargets(Set<String> targets,Unit unit){
+        if(unit==null||unit.forms==null)return;
+        for(Form form:unit.forms){
+            if(form==null||form.du==null||form.du.getProc()==null||!form.du.getProc().SPIRIT.exists()||form.du.getProc().SPIRIT.id==null)continue;
+            targets.add(key(form.du.getProc().SPIRIT.id));
+        }
+    }
+
+    private static String key(Identifier<?> id){return id.pack+":"+id.id;}
 
     private static Form bestForm(Unit unit){
         if(unit==null||unit.forms==null)return null;
