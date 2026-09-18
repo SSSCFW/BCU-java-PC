@@ -36,6 +36,8 @@ public final class FixtureAssets {
         for(int i=0;i<8;i++) {
             String base="./org/castle/001/nyankoCastle_001_0"+i;
             root.build(base+".png",new FDByte(png.toByteArray()));
+            // NyCastle attack animation uses nyankoCastle_001_0X_00.png.
+            root.build(base+"_00.png",new FDByte(png.toByteArray()));
             root.build(base+"_00.imgcut",new FDByte(cut));
             for(int j=0;j<3;j++) {
                 root.build(base+"_0"+j+".mamodel",new FDByte(model));
