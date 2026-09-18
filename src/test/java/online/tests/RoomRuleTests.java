@@ -16,18 +16,18 @@ import online.ui.OnlineBattleField;
 public final class RoomRuleTests {
     public static void run() throws Exception {
         FixtureNativeUi.init();
-        Check.rejects(()->new RoomRules(999,0,-1,false),"too-short distance rejected");
-        Check.rejects(()->new RoomRules(24001,0,-1,false),"too-long distance rejected");
-        Check.rejects(()->new RoomRules(4400,-2,-1,false),"unsupported negative background rejected");
+        Check.rejects(()->new RoomRules(999,0,3,false),"too-short distance rejected");
+        Check.rejects(()->new RoomRules(24001,0,3,false),"too-long distance rejected");
+        Check.rejects(()->new RoomRules(4400,-2,3,false),"unsupported negative background rejected");
         Check.rejects(()->new RoomRules(4400,0,-3,false),"unsupported negative music identifier rejected");
-        Check.rejects(()->new RoomRules(4400,0,-1,false,RoomRules.SpecialMode.NONE,false,
+        Check.rejects(()->new RoomRules(4400,0,3,false,RoomRules.SpecialMode.NONE,false,
                 PvpTraitRules.NONE,PvpTraitRules.NONE,0,0,100),"time limit above 99 minutes rejected");
-        Check.rejects(()->new RoomRules(4400,0,-1,false,RoomRules.SpecialMode.NONE,false,
+        Check.rejects(()->new RoomRules(4400,0,3,false,RoomRules.SpecialMode.NONE,false,
                 PvpTraitRules.RANDOM,PvpTraitRules.NONE,PvpTraitRules.ALL_EXCLUSIONS,0,15),"random trait cannot exclude every option");
         Check.rejects(()->PvpStageBasis.validateCastleHealthMultiplier(Double.NaN),"NaN castle multiplier rejected");
         Check.rejects(()->PvpStageBasis.validateCastleHealthMultiplier(0.0),"non-positive castle multiplier rejected");
         for(int distance:new int[]{1000,4400,24000}) {
-            RoomRules rule=new RoomRules(distance,0,-1,true,RoomRules.SpecialMode.ROULETTE,true,
+            RoomRules rule=new RoomRules(distance,0,3,true,RoomRules.SpecialMode.ROULETTE,true,
                     PvpTraitRules.RANDOM,common.util.Data.TRAIT_RED,1<<PvpTraitRules.optionIndex(common.util.Data.TRAIT_BLACK),0,15);
             JsonObject message=Protocol.message("rules");message.add("rules",rule.json());
             Check.equal(rule,RoomRules.read(message),"all rules roundtrip without client-local settings");
@@ -48,7 +48,7 @@ public final class RoomRuleTests {
             Check.equal(Math.round(rightBase*7.25),scaled.right().ownBase().maxH,"right player controls its own double castle HP multiplier");
             Check.equal((float)distance,a.ubase.pos-a.ebase.pos,"configured distance is exact castle separation");
             Check.equal(distance+1600,a.st.len,"stage includes consistent castle margins");
-            Check.equal(null,a.st.mus0,"no-BGM option contains no music identifier");
+            Check.equal(3,a.st.mus0.id,"curated battle BGM is installed into the arena");
             for(int tick=0;tick<5;tick++){a.step(new InputFrame(tick,0,0));b.step(new InputFrame(tick,0,0));}
             Check.equal(BattleDigest.of(a),BattleDigest.of(b),"same rules produce same simulation");
             boolean old=CommonStatic.getConfig().performanceModeBattle;
@@ -64,18 +64,21 @@ public final class RoomRuleTests {
             } finally {CommonStatic.getConfig().performanceModeBattle=old;}
         }
         for(RoomRules.SpecialMode mode:RoomRules.SpecialMode.values()){
-            RoomRules special=new RoomRules(4400,0,-1,false,mode);
+            RoomRules special=new RoomRules(4400,0,3,false,mode);
             JsonObject msg=Protocol.message("rules");msg.add("rules",special.json());
             Check.equal(mode,RoomRules.read(msg).specialMode,"host special mode roundtrip: "+mode);
         }
         common.util.pack.Background bg4=new common.util.pack.Background(new Identifier<>(Identifier.DEF,common.util.pack.Background.class,4),FixtureNativeUi.image(64,64,0xff556677));
         UserProfile.getBCData().bgs.set(4,bg4);
         UserProfile.getBCData().musics.set(3,new Music(new Identifier<>(Identifier.DEF,Music.class,3),0,new FDByte(new byte[]{4,5,6})));
-        RoomRules randomRules=new RoomRules(4400,RoomRules.RANDOM_BACKGROUND,RoomRules.RANDOM_MUSIC,false,RoomRules.SpecialMode.ROULETTE,true);
+        RoomRules randomRules=new RoomRules(4400,RoomRules.RANDOM_BACKGROUND,3,false,RoomRules.SpecialMode.ROULETTE,true);
         PvpStageBasis.validateRulesAssets(randomRules);
         RoomRules resolvedA=PvpStageBasis.resolveRandomRules(randomRules,123456789L),resolvedB=PvpStageBasis.resolveRandomRules(randomRules,123456789L);
-        Check.equal(resolvedA,resolvedB,"random background/BGM resolve deterministically from the shared match seed");
-        Check.that(resolvedA.backgroundId>=0&&resolvedA.musicId>=0,"random rules resolve to concrete standard background and BGM IDs");
+        Check.equal(resolvedA,resolvedB,"random background resolves deterministically from the shared match seed");
+        Check.that(resolvedA.backgroundId>=0,"random background resolves to a concrete standard background ID");
+        Check.equal(3,resolvedA.musicId,"curated BGM remains unchanged while resolving random background");
+        Check.rejects(()->new RoomRules(4400,0,7,false),"non-curated BGM identifier rejected");
+        Check.rejects(()->new RoomRules(4400,0,RoomRules.RANDOM_MUSIC,false),"random BGM is not available in online PvP");
 
         JsonObject invalidMode=Protocol.message("rules");invalidMode.add("rules",RoomRules.DEFAULT.json());
         invalidMode.getAsJsonObject("rules").addProperty("specialMode","NOT_A_MODE");
@@ -83,12 +86,12 @@ public final class RoomRuleTests {
         JsonObject bad=Protocol.message("rules");bad.add("rules",RoomRules.DEFAULT.json());
         bad.getAsJsonObject("rules").addProperty("force60Fps","true");
         Check.rejects(()->RoomRules.read(bad),"boolean option must not accept a string");
-        Check.rejects(()->PvpStageBasis.validateRulesAssets(new RoomRules(4400,65534,-1,false)),"unavailable background rejected before confirmation");
-        Identifier<Music> id=new Identifier<>(Identifier.DEF,Music.class,65534);
+        Check.rejects(()->PvpStageBasis.validateRulesAssets(new RoomRules(4400,65534,3,false)),"unavailable background rejected before confirmation");
+        Identifier<Music> id=new Identifier<>(Identifier.DEF,Music.class,166);
         Music previous=UserProfile.getBCData().musics.get(id.id);
         try {
             UserProfile.getBCData().musics.set(id.id,new Music(id,0,null));
-            Check.rejects(()->PvpStageBasis.validateRulesAssets(new RoomRules(4400,0,id.id,false)),"music entry without bytes must be rejected before ready");
+            Check.rejects(()->PvpStageBasis.validateRulesAssets(new RoomRules(4400,0,id.id,false)),"allowed music entry without bytes must be rejected before ready");
             UserProfile.getBCData().musics.set(id.id,new Music(id,0,new FDByte(new byte[]{1,2,3})));
             PvpStageBasis.validateRulesAssets(new RoomRules(4400,0,id.id,false));
         } finally {if(previous==null)UserProfile.getBCData().musics.remove(UserProfile.getBCData().musics.get(id.id));else UserProfile.getBCData().musics.set(id.id,previous);}
