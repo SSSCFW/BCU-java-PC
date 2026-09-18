@@ -77,6 +77,10 @@ public class EUnit extends Entity {
 
 		processAbilityOrbs();
 		processComboAbilities();
+		if (b.pvpRoulette != null && !isSpirit && b.pvpRoulette.hpLevel > 0) {
+			double multi = b.pvpRoulette.hpMultiplier();
+			health = maxH = Math.max(1L, Math.round(maxH * multi));
+		}
 	}
 
 	public EUnit(StageBasis b, MaskUnit de, EAnimU ea, float d0) {
@@ -418,6 +422,8 @@ public class EUnit extends Entity {
 		int speed = data.getSpeed();
 		extmov += (float) ((speed > 0 && basis.getGlobalSpeed(-1, speed) > -1 ? basis.getGlobalSpeed(-1, speed) : data.getSpeed())
 				* basis.b.getInc(C_SPE, ((MaskUnit) data).getPack().unit) / 50);
+		if (basis.pvpRoulette != null && basis.pvpRoulette.moveLevel > 0)
+			extmov *= basis.pvpRoulette.moveMultiplier();
 		super.updateMove(extmov / 4f);
 	}
 
