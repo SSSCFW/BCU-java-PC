@@ -28,6 +28,7 @@ import java.util.concurrent.*;
 /** One match per page. Network I/O stays off the EDT; game registry/simulation stay on it. */
 public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private static final long serialVersionUID=1L;
+    private static final long BATTLE_STEP_NANOS=1_000_000_000L/Protocol.TPS;
     private final JPanel content=new JPanel(new BorderLayout(12,12));
     private final JPanel setup=new JPanel(new GridBagLayout());
     private final JButton back=new JButton("戻る"),create=new JButton("部屋を作成"),join=new JButton("部屋に参加"),ready=new JButton("準備完了"),leave=new JButton("退出"),copyRoom=new JButton("部屋IDをコピー");
@@ -57,7 +58,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private volatile int generation;
     private boolean creating,uploaded,prepared,resultSent,busy;
     private volatile boolean disposed;
-    private long nextPaint;
+    private long nextPaint,nextBattleStep;
 
     public OnlineLobbyPage(Page parent){
         super(parent);loadPreferences();content.setBorder(new EmptyBorder(16,18,16,18));add(content);
@@ -220,32 +221,54 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         battlePage.onlineStatus(transportLabel(),true);
         changePanel(battlePage);
         battlePage.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());
-        nextPaint=0;pulse.start();
+        long now=System.nanoTime();nextPaint=now;nextBattleStep=now;pulse.start();
     }
     private void pump(){
         if(disposed||battle==null)return;
         try{
-            int advanced=0;ResolvedFrame frame;
-            while(!resultSent&&advanced<5&&(frame=client.pollResolvedFrame())!=null){
-                final InputFrame tickFrame=roster.toDuel(frame);
-                PvpAudio.forPlayer(slot==leftSlot?1:-1,()->battle.step(tickFrame));advanced++;
-                if(battlePage!=null)battlePage.observeOnlineAudioTick(battle);
-                if(battle.time%Protocol.HASH_INTERVAL==0)client.checkpoint(battle.time,BattleDigest.of(battle));
-                if(battle.winner()!=-2){
-                    resultSent=true;
-                    if(battlePage!=null){battlePage.publishOnline(battle.displayCopy());battlePage.beginOnlineBattleEnd();}
-                    client.result(battle.time,battle.winner(),BattleDigest.of(battle));
-                    message("試合終了。両者の結果を照合しています…");
+            long now=System.nanoTime();
+            // Never apply several authoritative ticks in one EDT callback. The network
+            // queue already absorbs jitter; presenting a 2-5 tick burst made walking
+            // animations visibly skip, and synchronous JOGL paints amplified it.
+            if(!resultSent&&now>=nextBattleStep){
+                ResolvedFrame frame=client.pollResolvedFrame();
+                if(frame!=null){
+                    final InputFrame tickFrame=roster.toDuel(frame);
+                    PvpAudio.forPlayer(slot==leftSlot?1:-1,()->battle.step(tickFrame));
+                    if(battlePage!=null){
+                        battlePage.observeOnlineAudioTick(battle);
+                        battlePage.publishOnline(battle.displayCopy());
+                    }
+                    if(battle.time%Protocol.HASH_INTERVAL==0)client.checkpoint(battle.time,BattleDigest.of(battle));
+                    if(battle.winner()!=-2){
+                        resultSent=true;
+                        if(battlePage!=null)battlePage.beginOnlineBattleEnd();
+                        client.result(battle.time,battle.winner(),BattleDigest.of(battle));
+                        message("試合終了。両者の結果を照合しています…");
+                    }
+                    // Advance to the first future 30 TPS slot instead of trying to
+                    // render missed ticks back-to-back after EDT/network stalls.
+                    nextBattleStep=advanceDeadline(nextBattleStep,System.nanoTime(),BATTLE_STEP_NANOS);
                 }
             }
             if(battlePage==null)return;
-            if(advanced>0)battlePage.publishOnline(battle.displayCopy());
-            long now=System.nanoTime();if(now>=nextPaint){
+            now=System.nanoTime();
+            if(now>=nextPaint){
                 if(!resultSent)battlePage.onlineStatus(transportLabel(),true);
+                long interval=1_000_000_000L/Math.max(1,battlePage.onlineFps());
                 battlePage.renderOnlineFrame();
-                nextPaint=now+1_000_000_000L/battlePage.onlineFps();
+                // Keep the ideal deadline phase. Using now+interval quantized 60 FPS
+                // to roughly 50 FPS with the 5 ms Swing timer and worsened JOGL jitter.
+                nextPaint=advanceDeadline(nextPaint,System.nanoTime(),interval);
             }
         }catch(Exception e){failed("同期処理を停止しました: "+e.getMessage());}
+    }
+    static long advanceDeadline(long deadline,long now,long interval){
+        if(interval<=0)throw new IllegalArgumentException("interval");
+        if(deadline<=0)return now+interval;
+        if(deadline>now)return deadline;
+        long periods=(now-deadline)/interval+1L;
+        return deadline+periods*interval;
     }
     private void requestBattleReturn(){
         if(client==null||roomLobby==null)return;
