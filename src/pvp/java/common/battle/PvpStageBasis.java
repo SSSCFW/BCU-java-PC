@@ -12,6 +12,7 @@ import java.util.*;
 /** Two independently owned player states, a single simulation world, no native CPU spawner. */
 public final class PvpStageBasis extends StageBasis {
     public static final int TPS = 30;
+    public final RoomRules rules;
     private String matchScope;
     public static PvpStageBasis create(String match, BasisLU left, BasisLU right, long seed, int leftSeat) throws Exception {
         return create(match,left,right,seed,leftSeat,RoomRules.DEFAULT);
@@ -26,16 +27,19 @@ public final class PvpStageBasis extends StageBasis {
         this(left,right,seed,leftSeat,RoomRules.DEFAULT);
     }
     public PvpStageBasis(BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules) {
-        this(arena(rules),left,right,seed,leftSeat);
+        this(arena(rules),left,right,seed,leftSeat,rules);
     }
-    private PvpStageBasis(Stage arena, BasisLU left, BasisLU right, long seed, int leftSeat) {
+    private PvpStageBasis(Stage arena, BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules) {
         super(null, new EStage(arena, 0), right, new int[3], seed, false);
+        this.rules=rules;
         if (leftSeat != 0 && leftSeat != 1) throw new IllegalArgumentException("Invalid player seat");
         pvpRoot = this; pvpDirection = -1; pvpSeat = 1-leftSeat;
         StageBasis other = new StageBasis(null, new EStage(arena,0), left, new int[3], seed, false);
         pvpOther = other; other.pvpRoot = this; other.pvpOther = this;
         other.pvpDirection = 1; other.pvpSeat = leftSeat;
         other.r = r; r.deterministicVisuals = true;
+        pvpRoulette = new PvpRouletteState(r);
+        other.pvpRoulette = new PvpRouletteState(r);
         other.le = le; other.tempe = tempe; other.lw = lw; other.tlw = tlw; other.lea = lea; other.la = la;
         other.ebaseSmoke = ebaseSmoke; other.ubaseSmoke = ubaseSmoke;
         ebase = new ECastle(other, left); ebase.added(1,800);
@@ -57,13 +61,21 @@ public final class PvpStageBasis extends StageBasis {
             if (pvpSeat == 0) { input(this,frame.right); input(pvpOther,frame.left); }
             else { input(pvpOther,frame.left); input(this,frame.right); }
             update();
+            if(rules.specialMode==RoomRules.SpecialMode.ROULETTE) {
+                left().pvpRoulette.advance(this,left());
+                right().pvpRoulette.advance(this,right());
+            }
             if(le.size()+tempe.size()>512 || lw.size()+tlw.size()>8192 || la.size()>8192)
                 throw new IllegalStateException("Custom battle exceeds entity/effect safety limit");
         }); return null; }); } catch(RuntimeException e){throw e;} catch(Exception e){throw new IllegalStateException(e);}
     }
     private static void input(StageBasis player, int mask) {
         if ((mask & InputFrame.WORKER) != 0) player.act_mon();
-        if ((mask & InputFrame.CANNON) != 0) player.act_can();
+        if ((mask & InputFrame.SPECIAL) != 0) {
+            PvpStageBasis world=(PvpStageBasis)player.world();
+            if(world.rules.specialMode==RoomRules.SpecialMode.CANNON) player.act_can();
+            else if(world.rules.specialMode==RoomRules.SpecialMode.ROULETTE) player.pvpRoulette.press(world,player);
+        }
         for (int i=0;i<10;i++) {
             if ((mask & (1<<(12+i))) != 0) player.act_lock(i/5,i%5);
             // Calls without a pressed bit intentionally retain native auto-spawn locks.
@@ -81,12 +93,15 @@ public final class PvpStageBasis extends StageBasis {
                 p.spiritEmphasizeStartTime[i][j]=time; p.spiritEmphasizeCount[i][j]=10;
             }
         }
-        if(p.cannon==p.maxCannon-1)PvpAudio.notification(p,SE_CANNON_CHARGE);
+        boolean cannonMode=rules.specialMode==RoomRules.SpecialMode.CANNON;
+        if(cannonMode && p.cannon==p.maxCannon-1)PvpAudio.notification(p,SE_CANNON_CHARGE);
         if (active) {
-            p.cannon++;
+            if(cannonMode)p.cannon++;
+            else p.cannon=0;
             p.maxMoney=p.b.t().getMaxMon(p.work_lv,StageLimit.isComboBanned(p.est.lim,C_M_MAX));
             int income=p.b.t().getMonInc(p.work_lv);
             if(!StageLimit.isComboBanned(p.est.lim,C_M_INC))income*=p.b.getInc(C_M_INC)/100+1;
+            if(p.pvpRoulette!=null)income=income*p.pvpRoulette.workerPercent()/100;
             p.money+=income;
         }
     }
