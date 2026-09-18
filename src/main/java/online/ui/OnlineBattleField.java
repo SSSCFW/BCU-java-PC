@@ -40,6 +40,8 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     }
 
     @Override public StageBasis playerState() { return sb.playerFor(direction); }
+    public StageBasis opponentState(){return sb.playerFor(-direction);}
+    public int playerDirection(){return direction;}
 
     /** Preserve camera/row selection across new authoritative snapshots without sending them. */
     public void publish(PvpStageBasis displayCopy) {
