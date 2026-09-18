@@ -60,7 +60,7 @@ public final class LobbyUiTests {
         Unit alternate=FixtureNativeUi.unit("edited_in_lobby",0xffaa77cc);CustomUnit ad=(CustomUnit)alternate.forms[0].du;ad.price=1;ad.speed=80;ad.range=250;
         BasisSet.current().lb.add(Fixture.lineup(alternate));
         common.pack.UserProfile.getBCData().bgs.set(4,new common.util.pack.Background(new common.pack.Identifier<>("000000",common.util.pack.Background.class,4),FixtureNativeUi.image(512,256,0xffaaccdd)));
-        common.pack.UserProfile.getBCData().musics.set(7,new common.util.stage.Music(new common.pack.Identifier<>("000000",common.util.stage.Music.class,7),0,new common.system.files.FDByte(new byte[]{1,2,3})));
+        common.pack.UserProfile.getBCData().musics.set(6,new common.util.stage.Music(new common.pack.Identifier<>("000000",common.util.stage.Music.class,6),0,new common.system.files.FDByte(new byte[]{1,2,3})));
         edt(() -> { MainBCU.author=""; MainFrame.F=new MainFrame("lobby regression");MainFrame.F.setSize(1200,900); return null; });
         newPage();
         Check.that(Arrays.stream(OnlineLobbyPage.class.getDeclaredFields()).noneMatch(f->f.getName().equals("share")),"connection page must not keep Pack-sharing consent control");
@@ -157,7 +157,12 @@ public final class LobbyUiTests {
                     Check.equal("ランダム",String.valueOf(lineupChoices.getItemAt(0)),"random lineup is the first lineup choice");
                     Check.equal("ランダム(バニラ)",String.valueOf(lineupChoices.getItemAt(1)),"vanilla random lineup is the second lineup choice");
                     Check.equal("ランダム",String.valueOf(((JComboBox<?>)field(lobby,"background")).getItemAt(0)),"random background option is first");
-                    Check.equal("ランダム",String.valueOf(((JComboBox<?>)field(lobby,"music")).getItemAt(0)),"random BGM option is first");
+                    JComboBox<?> battleMusic=(JComboBox<?>)field(lobby,"music");
+                    Check.equal("003.ogg 日本侵略！",String.valueOf(battleMusic.getItemAt(0)),"curated BGM shows file id and Japanese name");
+                    Check.equal("004.ogg 西表島の戦い",String.valueOf(battleMusic.getItemAt(1)),"curated BGM keeps requested ordering");
+                    Check.equal("006.ogg チャレンジバトル",String.valueOf(battleMusic.getItemAt(2)),"curated BGM exposes only requested tracks");
+                    Check.that(((JButton)field(lobby,"musicPreview")).isEnabled(),"BGM preview button is available");
+                    Check.that(!((JButton)field(lobby,"musicStop")).isEnabled(),"BGM stop button is disabled until a preview starts");
                     Check.that(((JSpinner)field(lobby,"distance")).isEnabled()==host,"only host can edit distance");
                     Check.that(((JComboBox<?>)field(lobby,"special")).isEnabled()==host,"only host can edit cannon/roulette/none");
                     if(host){
@@ -210,7 +215,7 @@ public final class LobbyUiTests {
                     Check.equal(60,nativePage.onlineFps(),"room force60 overrides a 30FPS preference locally");
                     Check.equal(!host,CommonStatic.getConfig().performanceModeBattle,"force60 must not rewrite saved client preference");
                     PvpStageBasis live=(PvpStageBasis)field(page,"battle");Check.equal(8000f,live.ubase.pos-live.ebase.pos,"exact castle separation from host rules");
-                    Check.equal(4,live.st.bg.id,"host background selected");Check.equal(7,live.st.mus0.id,"host BGM selected");
+                    Check.equal(4,live.st.bg.id,"host background selected");Check.equal(6,live.st.mus0.id,"host curated BGM selected");
                     Check.equal(online.net.lobby.RoomRules.SpecialMode.ROULETTE,live.specialMode(),"battle uses synchronized roulette special mode");
                     Check.equal(1,live.st.timeLimit,"battle uses host one-minute time limit");
                     Check.equal((int)common.util.Data.TRAIT_BLACK,live.leftTrait(),"guest random exclusions resolve left-side attribute to black");
