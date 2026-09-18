@@ -3,11 +3,13 @@ package online.ui;
 import com.google.gson.*;
 import common.battle.*;
 import common.pack.UserProfile;
+import io.BCMusic;
 import common.util.pack.Background;
 import common.util.stage.Music;
 import common.util.unit.Form;
 import online.net.*;
 import online.net.lobby.PvpTraitRules;
+import online.net.lobby.PvpBattleMusic;
 import online.net.lobby.RoomRules;
 import page.Page;
 import page.MainFrame;
@@ -45,12 +47,14 @@ public final class RoomLobbyPage extends Page {
     private final JSpinner distance=new JSpinner(new SpinnerNumberModel(4400,RoomRules.MIN_DISTANCE,RoomRules.MAX_DISTANCE,100));
     private final JComboBox<BackgroundChoice> background=new JComboBox<>();
     private final JComboBox<MusicChoice> music=new JComboBox<>();
+    private final JButton musicPreview=new JButton("試聴"),musicStop=new JButton("停止");
+    private final JLabel musicPreviewStatus=new JLabel("停止中");
     private final JTextArea participants=new JTextArea(3,35),status=new JTextArea(3,50);
     private final JLabel ruleNote=new JLabel("ホストのルールを受信しています…");
     private final JLabel[] icons=new JLabel[10];
     private final AudioSettingsPanel audio=new AudioSettingsPanel();
     private JsonObject state;
-    private boolean loading,editing,dirty,playerDirty,pending,closed,restoredHostPreferences,restoredPlayerPreferences;
+    private boolean loading,editing,dirty,playerDirty,pending,closed,restoredHostPreferences,restoredPlayerPreferences,musicPreviewing;
     private final ActionListener lineupListener;
 
     RoomLobbyPage(OnlineLobbyPage owner,RoomClient client,int id,String room,boolean protectedRoom,JComboBox<BasisLU> lineup,JButton ready){
@@ -71,14 +75,15 @@ public final class RoomLobbyPage extends Page {
         JPanel rules=new JPanel(new GridBagLayout());rules.setBorder(BorderFactory.createTitledBorder("対戦ルール（ホストのみ変更可能）"));
         background.addItem(new BackgroundChoice(null,true));
         for(Background b:UserProfile.getBCData().bgs.getList())if(b!=null)background.addItem(new BackgroundChoice(b,false));
-        music.addItem(new MusicChoice(null,true));music.addItem(new MusicChoice(null,false));
-        for(Music m:UserProfile.getBCData().musics.getList())if(m!=null&&m.data!=null)music.addItem(new MusicChoice(m,false));
+        for(PvpBattleMusic.Entry entry:PvpBattleMusic.entries())music.addItem(new MusicChoice(entry));
         populateTraits(hostTrait);populateTraits(guestTrait);buildExclusions(hostTraitExclude,hostTraitExcludePanel);buildExclusions(guestTraitExclude,guestTraitExcludePanel);
         JPanel timeRow=new JPanel(new FlowLayout(FlowLayout.LEADING,6,0));timeRow.add(timeLimit);timeRow.add(new JLabel("分"));timeRow.add(unlimitedTime);
+        JPanel musicRow=new JPanel(new BorderLayout(6,0));musicRow.add(music,BorderLayout.CENTER);
+        JPanel musicActions=new JPanel(new FlowLayout(FlowLayout.LEADING,4,0));musicActions.add(musicPreview);musicActions.add(musicStop);musicActions.add(musicPreviewStatus);musicRow.add(musicActions,BorderLayout.EAST);
 
         row(rules,0,"城と城の距離",distance);
         row(rules,1,"背景（標準データ）",background);
-        row(rules,2,"BGM（標準データ）",music);
+        row(rules,2,"対戦BGM",musicRow);
         row(rules,3,"戦闘時間",timeRow);
         row(rules,4,"ホスト側キャラ属性",hostTrait);
         row(rules,5,"ホスト側ランダム除外",hostTraitExcludePanel);
@@ -97,7 +102,9 @@ public final class RoomLobbyPage extends Page {
         lineupListener=e->{if(!loading&&!closed&&!editing){preview();pending=true;client.setLineupName(summary());refreshControls();}};
         lineup.addActionListener(lineupListener);
 
-        distance.addChangeListener(e->rulesChanged());background.addActionListener(e->rulesChanged());music.addActionListener(e->rulesChanged());
+        distance.addChangeListener(e->rulesChanged());background.addActionListener(e->rulesChanged());
+        music.addActionListener(e->{if(!loading)stopMusicPreview();rulesChanged();});
+        musicPreview.addActionListener(e->previewMusic());musicStop.addActionListener(e->stopMusicPreview());
         special.addActionListener(e->rulesChanged());force60.addActionListener(e->rulesChanged());debugMode.addActionListener(e->rulesChanged());
         timeLimit.addChangeListener(e->rulesChanged());unlimitedTime.addActionListener(e->{rulesChanged();refreshControls();});
         hostTrait.addActionListener(e->{rulesChanged();refreshControls();});guestTrait.addActionListener(e->{rulesChanged();refreshControls();});
@@ -176,6 +183,7 @@ public final class RoomLobbyPage extends Page {
         boolean can=editable()&&!ownReady()&&!pending&&!closed,hostCan=can&&host();
         lineup.setEnabled(can);edit.setEnabled(can&&lineup.getSelectedItem()!=null&&!owner.isRandomLineupChoice((BasisLU)lineup.getSelectedItem()));castleHealthMultiplier.setEnabled(can);applyPlayer.setEnabled(can&&playerDirty);
         distance.setEnabled(hostCan);background.setEnabled(hostCan);music.setEnabled(hostCan);special.setEnabled(hostCan);force60.setEnabled(hostCan);debugMode.setEnabled(hostCan);
+        musicPreview.setEnabled(!closed&&music.getSelectedItem()!=null);musicStop.setEnabled(!closed&&musicPreviewing);
         hostTrait.setEnabled(hostCan);guestTrait.setEnabled(hostCan);unlimitedTime.setEnabled(hostCan);timeLimit.setEnabled(hostCan&&!unlimitedTime.isSelected());
         setExclusionEnabled(hostTraitExclude,hostCan&&selectedTrait(hostTrait)==PvpTraitRules.RANDOM);
         setExclusionEnabled(guestTraitExclude,hostCan&&selectedTrait(guestTrait)==PvpTraitRules.RANDOM);
@@ -185,6 +193,24 @@ public final class RoomLobbyPage extends Page {
     }
 
     private void rulesChanged(){if(loading||closed)return;dirty=true;refreshControls();}
+
+    private void previewMusic(){
+        if(closed)return;
+        MusicChoice choice=(MusicChoice)music.getSelectedItem();
+        if(choice==null)return;
+        Music track=UserProfile.getBCData().musics.get(choice.id());
+        if(track==null||track.data==null){message("試聴できるBGMデータがありません: "+choice);return;}
+        BCMusic.stopAll();BCMusic.music=null;
+        BCMusic.play(track.id);
+        musicPreviewing=true;musicPreviewStatus.setText("試聴中: "+choice);
+        refreshControls();
+    }
+
+    private void stopMusicPreview(){
+        if(musicPreviewing){BCMusic.stopAll();BCMusic.music=null;}
+        musicPreviewing=false;musicPreviewStatus.setText("停止中");
+        if(!closed)refreshControls();
+    }
 
     private void applyRules(){
         try{
@@ -213,6 +239,7 @@ public final class RoomLobbyPage extends Page {
     private void preview(){BasisLU b=(BasisLU)lineup.getSelectedItem();boolean random=b!=null&&owner.isRandomLineupChoice(b);for(int i=0;i<10;i++){Form f=b==null||random?null:b.lu.fs[i/5][i%5];icons[i].setIcon(null);icons[i].setText(random?"?":f==null?"—":f.toString());if(f!=null&&f.anim!=null)try{icons[i].setIcon(UtilPC.getIcon(f.anim.getUni()));}catch(Exception ignored){}}}
     private void editLineup(){
         if(!editable()||ownReady()||pending)return;
+        stopMusicPreview();
         BasisLU b=(BasisLU)lineup.getSelectedItem();if(b==null||owner.isRandomLineupChoice(b))return;
         for(BasisSet set:BasisSet.list())if(set.lb.contains(b)){BasisSet.setCurrent(set);set.sele=b;break;}
         editing=true;client.setLineupName(summary());
@@ -226,7 +253,7 @@ public final class RoomLobbyPage extends Page {
     }
     void message(String text){status.setText(text==null?"":text);}
     void notice(String text){pending=false;message(text);refreshControls();}
-    void closeLobby(){if(closed)return;closed=true;lineup.removeActionListener(lineupListener);refreshControls();}
+    void closeLobby(){if(closed)return;stopMusicPreview();closed=true;lineup.removeActionListener(lineupListener);refreshControls();}
     @Override protected JButton getBackButton(){return back;}
     @Override protected void resized(int w,int h){setBounds(0,0,w,h);content.setBounds(0,0,w,h);content.revalidate();}
 
@@ -241,9 +268,9 @@ public final class RoomLobbyPage extends Page {
         public String toString(){return random?"ランダム":background.toString();}
     }
     private static final class MusicChoice{
-        final Music music;final boolean random;
-        MusicChoice(Music m,boolean random){music=m;this.random=random;}
-        int id(){return random?RoomRules.RANDOM_MUSIC:music==null?-1:music.id.id;}
-        public String toString(){return random?"ランダム":music==null?"BGMなし":music.toString();}
+        final PvpBattleMusic.Entry entry;
+        MusicChoice(PvpBattleMusic.Entry value){entry=value;}
+        int id(){return entry.id;}
+        public String toString(){return entry.displayName();}
     }
 }
