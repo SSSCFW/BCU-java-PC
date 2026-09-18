@@ -53,6 +53,7 @@ public final class PvpRouletteState extends BattleObj {
     }
     private static int index(CopRand random){return Math.min(SOURCE_REEL.length-1,(int)(random.nextFloat()*SOURCE_REEL.length));}
     public int[] reelSnapshot(){return reel.clone();}
+    public int currentResult(){return reel[reelIndex];}
     public static double multiplier(int level){return PERMANENT[Math.max(0,Math.min(4,level))];}
     public int workerPercent(){return WORKER[Math.max(0,Math.min(4,workerLevel))];}
     public int productionDivisor(){return 1<<Math.max(0,Math.min(4,productionLevel));}
