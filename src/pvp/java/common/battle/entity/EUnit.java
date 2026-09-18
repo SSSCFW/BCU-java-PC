@@ -1,5 +1,6 @@
 package common.battle.entity;
 
+import common.battle.PvpStageBasis;
 import common.battle.StageBasis;
 import common.battle.Treasure;
 import common.battle.attack.*;
