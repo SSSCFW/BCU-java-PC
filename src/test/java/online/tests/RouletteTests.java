@@ -72,10 +72,12 @@ public final class RouletteTests {
         left.pvpRoulette.forceResult(b,left,PvpRouletteState.STOP);
         Check.equal(PvpRouletteState.TEMP_TICKS,enemy.status[common.util.Data.P_STOP][0],"stop starts at native 150 ticks");
 
-        right.elu.cool[0][0]=99;
+        right.work_lv=1;right.money=0;right.elu.cool[0][0]=99;
         right.pvpRoulette.forceResult(b,right,PvpRouletteState.BABY_RUSH);
         Check.equal(0,right.elu.cool[0][0],"petit baby rush immediately removes production cooldown");
-        Check.equal(PvpRouletteState.BABY_RUSH_TICKS,right.pvpRoulette.babyRushTicks,"petit baby rush duration is deterministic");
+        Check.equal(8,right.work_lv,"petit baby rush raises worker level to maximum");
+        Check.equal(right.maxMoney,right.money,"petit baby rush fills the recalculated bank");
+        Check.equal(14,right.pvpRoulette.babyRushTicks,"petit baby rush uses the native 0x0e battle counter");
 
         // Gauge fills from canonical frontline position and auto-starts; special action stops after intro.
         // Native charge: once per second, full HP=1x, half HP=2x, near-zero HP approaches 5x.
