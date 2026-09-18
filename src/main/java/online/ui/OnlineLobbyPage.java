@@ -229,6 +229,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
             while(!resultSent&&advanced<5&&(frame=client.pollResolvedFrame())!=null){
                 final InputFrame tickFrame=roster.toDuel(frame);
                 PvpAudio.forPlayer(slot==leftSlot?1:-1,()->battle.step(tickFrame));advanced++;
+                if(battlePage!=null)battlePage.observeOnlineAudioTick(battle);
                 if(battle.time%Protocol.HASH_INTERVAL==0)client.checkpoint(battle.time,BattleDigest.of(battle));
                 if(battle.winner()!=-2){
                     resultSent=true;
