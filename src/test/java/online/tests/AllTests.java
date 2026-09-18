@@ -25,6 +25,7 @@ public final class AllTests {
         UiTests.run();
         RoomAudioTests.run();
         RoomRuleTests.run();
+        RandomLineupTests.run();
         io.BCJSONTests.run();
         io.AudioVolumeTests.run();
         ProcessTests.run();
