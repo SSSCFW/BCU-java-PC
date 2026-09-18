@@ -33,7 +33,7 @@ public final class RoomLobbyPage extends Page {
     private final JSpinner castleHealthMultiplier=new JSpinner(new SpinnerNumberModel(PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER,
             PvpStageBasis.MIN_CASTLE_HEALTH_MULTIPLIER,PvpStageBasis.MAX_CASTLE_HEALTH_MULTIPLIER,0.5));
     private final JSpinner distance=new JSpinner(new SpinnerNumberModel(4400,RoomRules.MIN_DISTANCE,RoomRules.MAX_DISTANCE,100));
-    private final JComboBox<Background> background=new JComboBox<>();
+    private final JComboBox<BackgroundChoice> background=new JComboBox<>();
     private final JComboBox<MusicChoice> music=new JComboBox<>();
     private final JTextArea participants=new JTextArea(3,35),status=new JTextArea(3,50);
     private final JLabel ruleNote=new JLabel("ホストのルールを受信しています…");
@@ -57,8 +57,10 @@ public final class RoomLobbyPage extends Page {
         own.add(ownTop,BorderLayout.NORTH);
         JPanel slots=new JPanel(new GridLayout(2,5,6,6));for(int i=0;i<10;i++){icons[i]=new JLabel("—",SwingConstants.CENTER);icons[i].setVerticalTextPosition(SwingConstants.BOTTOM);icons[i].setHorizontalTextPosition(SwingConstants.CENTER);slots.add(icons[i]);}own.add(slots,BorderLayout.CENTER);sections.add(own);
         JPanel rules=new JPanel(new GridBagLayout());rules.setBorder(BorderFactory.createTitledBorder("対戦ルール（ホストのみ変更可能）"));
-        for(Background b:UserProfile.getBCData().bgs.getList())if(b!=null)background.addItem(b);
-        music.addItem(new MusicChoice(null));for(Music m:UserProfile.getBCData().musics.getList())if(m!=null&&m.data!=null)music.addItem(new MusicChoice(m));
+        background.addItem(new BackgroundChoice(null,true));
+        for(Background b:UserProfile.getBCData().bgs.getList())if(b!=null)background.addItem(new BackgroundChoice(b,false));
+        music.addItem(new MusicChoice(null,true));music.addItem(new MusicChoice(null,false));
+        for(Music m:UserProfile.getBCData().musics.getList())if(m!=null&&m.data!=null)music.addItem(new MusicChoice(m,false));
         row(rules,0,"城と城の距離",distance);row(rules,1,"背景（標準データ）",background);row(rules,2,"BGM（標準データ）",music);row(rules,3,"戦闘特殊機能",special);row(rules,4,"",force60);row(rules,5,"",debugMode);row(rules,6,"",apply);row(rules,7,"",ruleNote);sections.add(rules);sections.add(audio);
         content.add(new JScrollPane(sections),BorderLayout.CENTER);
         JPanel footer=new JPanel(new BorderLayout(8,8));footer.add(ready,BorderLayout.EAST);status.setEditable(false);status.setLineWrap(true);status.setWrapStyleWord(true);footer.add(new JScrollPane(status),BorderLayout.CENTER);content.add(footer,BorderLayout.SOUTH);
@@ -79,7 +81,7 @@ public final class RoomLobbyPage extends Page {
         try{
             if(!dirty||!host()||!editable()){
                 distance.setValue(rules.castleDistance);force60.setSelected(rules.force60Fps);special.setSelectedItem(rules.specialMode);debugMode.setSelected(rules.debugMode);
-                for(int i=0;i<background.getItemCount();i++)if(background.getItemAt(i).id.id==rules.backgroundId)background.setSelectedIndex(i);
+                for(int i=0;i<background.getItemCount();i++)if(background.getItemAt(i).id()==rules.backgroundId)background.setSelectedIndex(i);
                 for(int i=0;i<music.getItemCount();i++)if(music.getItemAt(i).id()==rules.musicId)music.setSelectedIndex(i);
                 dirty=false;
             }
@@ -95,13 +97,13 @@ public final class RoomLobbyPage extends Page {
     }
     private void refreshControls(){
         boolean can=editable()&&!ownReady()&&!pending&&!closed;
-        lineup.setEnabled(can);edit.setEnabled(can);castleHealthMultiplier.setEnabled(can);applyPlayer.setEnabled(can&&playerDirty);
+        lineup.setEnabled(can);edit.setEnabled(can&&lineup.getSelectedItem()!=null&&!owner.isRandomLineupChoice((BasisLU)lineup.getSelectedItem()));castleHealthMultiplier.setEnabled(can);applyPlayer.setEnabled(can&&playerDirty);
         distance.setEnabled(can&&host());background.setEnabled(can&&host());music.setEnabled(can&&host());special.setEnabled(can&&host());force60.setEnabled(can&&host());debugMode.setEnabled(can&&host());apply.setEnabled(can&&host()&&dirty);
         ready.setText(ownReady()?"準備を解除":"準備完了");ready.setEnabled(editable()&&!pending&&!closed&&(ownReady()||(!dirty&&!playerDirty&&lineup.getSelectedItem()!=null)));
         if(!editable()&&state!=null){ready.setText("共有・開始待ち…");edit.setEnabled(false);}
     }
     private void rulesChanged(){if(loading||closed)return;dirty=true;refreshControls();}
-    private void applyRules(){try{distance.commitEdit();Background b=(Background)background.getSelectedItem();MusicChoice m=(MusicChoice)music.getSelectedItem();if(b==null||m==null)throw new IllegalArgumentException("背景とBGMを選択してください");RoomRules r=new RoomRules((Integer)distance.getValue(),b.id.id,m.id(),force60.isSelected(),(RoomRules.SpecialMode)special.getSelectedItem(),debugMode.isSelected());PvpStageBasis.validateRulesAssets(r);pending=true;dirty=false;client.setRoomRules(r,state.get("revision").getAsLong());refreshControls();}catch(Exception e){message(e.getMessage());}}
+    private void applyRules(){try{distance.commitEdit();BackgroundChoice b=(BackgroundChoice)background.getSelectedItem();MusicChoice m=(MusicChoice)music.getSelectedItem();if(b==null||m==null)throw new IllegalArgumentException("背景とBGMを選択してください");RoomRules r=new RoomRules((Integer)distance.getValue(),b.id(),m.id(),force60.isSelected(),(RoomRules.SpecialMode)special.getSelectedItem(),debugMode.isSelected());PvpStageBasis.validateRulesAssets(r);pending=true;dirty=false;client.setRoomRules(r,state.get("revision").getAsLong());refreshControls();}catch(Exception e){message(e.getMessage());}}
     private void applyPlayerRules(){try{castleHealthMultiplier.commitEdit();double value=((Number)castleHealthMultiplier.getValue()).doubleValue();PvpStageBasis.validateCastleHealthMultiplier(value);pending=true;playerDirty=false;client.setCastleHealthMultiplier(value,state.get("revision").getAsLong());refreshControls();}catch(Exception e){message(e.getMessage());}}
     void toggleReady(){
         if(closed||!editable()||pending)return;
@@ -109,10 +111,10 @@ public final class RoomLobbyPage extends Page {
         pending=true;client.lobbyReady(!ownReady(),state.get("revision").getAsLong());refreshControls();
     }
     private String summary(){String s=String.valueOf(lineup.getSelectedItem());return s.length()>120?s.substring(0,120):s;}
-    private void preview(){BasisLU b=(BasisLU)lineup.getSelectedItem();for(int i=0;i<10;i++){Form f=b==null?null:b.lu.fs[i/5][i%5];icons[i].setIcon(null);icons[i].setText(f==null?"—":f.toString());if(f!=null&&f.anim!=null)try{icons[i].setIcon(UtilPC.getIcon(f.anim.getUni()));}catch(Exception ignored){}}}
+    private void preview(){BasisLU b=(BasisLU)lineup.getSelectedItem();boolean random=b!=null&&owner.isRandomLineupChoice(b);for(int i=0;i<10;i++){Form f=b==null||random?null:b.lu.fs[i/5][i%5];icons[i].setIcon(null);icons[i].setText(random?"?":f==null?"—":f.toString());if(f!=null&&f.anim!=null)try{icons[i].setIcon(UtilPC.getIcon(f.anim.getUni()));}catch(Exception ignored){}}}
     private void editLineup(){
         if(!editable()||ownReady()||pending)return;
-        BasisLU b=(BasisLU)lineup.getSelectedItem();if(b==null)return;
+        BasisLU b=(BasisLU)lineup.getSelectedItem();if(b==null||owner.isRandomLineupChoice(b))return;
         for(BasisSet set:BasisSet.list())if(set.lb.contains(b)){BasisSet.setCurrent(set);set.sele=b;break;}
         editing=true;client.setLineupName(summary());
         try {changePanel(new BasisPage(this));}
@@ -120,7 +122,7 @@ public final class RoomLobbyPage extends Page {
     }
     @Override protected void renew(){
         audio.refresh();if(!editing)return;editing=false;loading=true;
-        try{lineup.removeAllItems();for(BasisSet set:BasisSet.list())for(BasisLU b:set.lb)lineup.addItem(b);lineup.setSelectedItem(BasisSet.current().sele);}finally{loading=false;}
+        try{owner.populateLineupChoices(lineup,BasisSet.current().sele);}finally{loading=false;}
         preview();pending=true;client.setLineupName(summary());refreshControls();
     }
     void message(String text){status.setText(text==null?"":text);}
@@ -128,5 +130,16 @@ public final class RoomLobbyPage extends Page {
     void closeLobby(){if(closed)return;closed=true;lineup.removeActionListener(lineupListener);refreshControls();}
     @Override protected JButton getBackButton(){return back;}
     @Override protected void resized(int w,int h){setBounds(0,0,w,h);content.setBounds(0,0,w,h);content.revalidate();}
-    private static final class MusicChoice{final Music music;MusicChoice(Music m){music=m;}int id(){return music==null?-1:music.id.id;}public String toString(){return music==null?"BGMなし":music.toString();}}
+    private static final class BackgroundChoice{
+        final Background background;final boolean random;
+        BackgroundChoice(Background value,boolean random){background=value;this.random=random;}
+        int id(){return random?RoomRules.RANDOM_BACKGROUND:background.id.id;}
+        public String toString(){return random?"ランダム":background.toString();}
+    }
+    private static final class MusicChoice{
+        final Music music;final boolean random;
+        MusicChoice(Music m,boolean random){music=m;this.random=random;}
+        int id(){return random?RoomRules.RANDOM_MUSIC:music==null?-1:music.id.id;}
+        public String toString(){return random?"ランダム":music==null?"BGMなし":music.toString();}
+    }
 }
