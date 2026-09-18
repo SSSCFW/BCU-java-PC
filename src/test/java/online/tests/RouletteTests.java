@@ -144,7 +144,8 @@ public final class RouletteTests {
         for(int i=0;i<PvpRouletteState.AUTO_SPIN_TICKS-1;i++)manualOwner.pvpRoulette.advance(manual,manualOwner);
         Check.that(manualOwner.pvpRoulette.spinning,"roulette remains visible until the two-second threshold");
         Check.that(!manualOwner.pvpRoulette.press(manual,manualOwner),"repeated SPECIAL cannot skip an active reel");
-        int[] manualReel=manualOwner.pvpRoulette.reelSnapshot(),attackSlot=0;
+        int[] manualReel=manualOwner.pvpRoulette.reelSnapshot();
+        int attackSlot=0;
         while(manualReel[attackSlot]!=PvpRouletteState.ATTACK_UP)attackSlot++;
         manualOwner.pvpRoulette.reelIndex=(attackSlot-1+manualReel.length)%manualReel.length;
         manualOwner.pvpRoulette.advance(manual,manualOwner);
