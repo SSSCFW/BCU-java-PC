@@ -12,7 +12,7 @@ import java.util.*;
  * (Level 1/2/3/MAX); together with the base state this is five states.
  */
 public final class PvpRouletteState extends BattleObj {
-    public static final int MAX_GAUGE=1000, TEMP_TICKS=150, BABY_RUSH_TICKS=14*PvpStageBasis.TPS;
+    public static final int MAX_GAUGE=1000, TEMP_TICKS=150, BABY_RUSH_TICKS=14;
     public static final int KNOCKBACK=0, HEAL=1, PRODUCTION_RECOVERY=2, CANNON=3,
             PRODUCTION_SHORTEN=4, WORKER_UP=5, COST_DOWN=6, MONEY_MAX=7,
             SLOW=8, STOP=9, ATTACK_UP=10, HP_UP=11, MOVE_UP=12, BABY_RUSH=13;
@@ -184,7 +184,16 @@ public final class PvpRouletteState extends BattleObj {
                 }
                 break;
             case MOVE_UP: if(moveLevel<4)moveLevel++;break;
-            case BABY_RUSH: babyRushTicks=BABY_RUSH_TICKS;clearCooldowns(owner);break;
+            case BABY_RUSH:
+                // Native case 13 sets the worker field to its max index (7), recalculates
+                // economy, fills money, and writes 0x0e to the per-side battle counter.
+                owner.work_lv=8;
+                owner.maxMoney=owner.b.t().getMaxMon(owner.work_lv,
+                        common.util.stage.StageLimit.isComboBanned(owner.est.lim,C_M_MAX));
+                owner.money=owner.maxMoney;
+                babyRushTicks=BABY_RUSH_TICKS;
+                clearCooldowns(owner);
+                break;
             default: throw new IllegalArgumentException("Unknown roulette result");
         }
     }
