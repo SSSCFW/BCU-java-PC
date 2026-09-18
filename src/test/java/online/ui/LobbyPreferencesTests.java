@@ -17,7 +17,7 @@ public final class LobbyPreferencesTests {
         online.tests.Check.equal("wss://example.invalid/pvp",loaded.serverAddress,"preference server roundtrip");
         online.tests.Check.equal("tester",loaded.displayName,"preference display name roundtrip");
         online.tests.Check.equal(PvpTraitRules.RANDOM,loaded.hostTraitChoice,"host trait preference roundtrip");
-        online.tests.Check.equal(common.util.Data.TRAIT_RED,loaded.guestTraitChoice,"guest trait preference roundtrip");
+        online.tests.Check.equal((int)common.util.Data.TRAIT_RED,loaded.guestTraitChoice,"guest trait preference roundtrip");
         online.tests.Check.equal(5,loaded.hostTraitExclusions,"host random exclusions roundtrip");
         online.tests.Check.equal(2,loaded.guestTraitExclusions,"guest random exclusions roundtrip");
         online.tests.Check.equal(RoomRules.UNLIMITED_TIME,loaded.timeLimitMinutes,"unlimited time preference roundtrip");
