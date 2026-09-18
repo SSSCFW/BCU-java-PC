@@ -256,7 +256,9 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
         if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;heldUnitPoint=null;
         if(audioDialog!=null){audioDialog.dispose();audioDialog=null;}
         PvpSoundBank.stopAll();BCMusic.stopAll();hideOnlineBattleChrome();
-        onlineBattleEnd.setVisible(true);setComponentZOrder(onlineBattleEnd,0);onlineBattleEnd.repaint();
+        onlineBattleEndSoundDone=false;onlineResult.setVisible(false);
+        onlineBattleEnd.setVisible(true);setComponentZOrder(onlineBattleEnd,0);
+        revalidate();repaint();
         PvpSoundBank.play(PvpSoundBank.Sound.BATTLE_END,()->{
             if(onlineClosed)return;
             onlineBattleEndSoundDone=true;
@@ -276,15 +278,22 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
         onlineBattleEnd.setVisible(false);
         onlineResultAck=pendingOnlineResultAck;onlineResultAcked=false;
         onlineResultTitle.setText(pendingOnlineResultTitle);onlineResultDetail.setText(pendingOnlineResultDetail);
-        onlineResultOk.setText("OK");onlineResultOk.setEnabled(true);onlineResult.setVisible(true);setComponentZOrder(onlineResult,0);onlineResult.repaint();
+        onlineResultOk.setText("OK");onlineResultOk.setEnabled(true);
+        onlineResult.setVisible(true);setComponentZOrder(onlineResult,0);
         BCMusic.stopAll();
         BCMusic.play(new Identifier<>(Identifier.DEF,Music.class,30));
+        revalidate();repaint();onlineResultOk.requestFocusInWindow();
     }
 
     private void hideOnlineBattleChrome(){
         Component[] hidden={back,jtb,paus,next,rply,row,audio,onlineSpecial,onlineTag,rouletteNotice,rouletteDebugMax,
                 unitAbilityOverlay,stream,ebase,ubase,timer,ecount,ucount,estat,ustat,eup,eusp,eep,eesp,ctp,utdsp,respawn,jsl};
         for(Component component:hidden)if(component!=null)component.setVisible(false);
+        // BattleBox uses an AWT Canvas (heavyweight). Swing overlays over it are
+        // not reliable on all Windows/JRE combinations, which caused the blank
+        // white end box. Hide the canvas once the battle is over and use an
+        // opaque full-page end/result view.
+        ((Canvas)bb).setVisible(false);
     }
 
     public void onlineResultWaiting(String text){if(onlineResult.isVisible()&&onlineResultAcked)onlineResultDetail.setText(text);}
@@ -322,42 +331,67 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		if (MainBCU.loaded && !onlineBattleEnding) BCMusic.flush(sb.ebase.health > 0 && sb.ubase.health > 0);
         if(onlineSpecial!=null)onlineSpecial.refresh();
         rouletteDebugMax.setVisible(!onlineBattleEnding&&online.debugMode()&&online.rouletteMode());
-        updateRouletteSounds();
         updateOpponentRouletteNotice();
 		if (((Canvas) bb).isDisplayable()) bb.paint();
 	}
 
-    private void updateRouletteSounds(){
-        if(online==null||onlineClosed||onlineBattleEnding)return;
-        if(!online.rouletteMode()){
-            if(rouletteAudioInitialized)PvpSoundBank.stopLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
+    public void initializeOnlineAudio(PvpStageBasis world){
+        if(online==null||world==null||world.specialMode()!=online.net.lobby.RoomRules.SpecialMode.ROULETTE){
+            rouletteAudioInitialized=false;audioGaugeSegment=-1;audioOwnPending=audioOpponentPending=-1;
+            audioOwnSpinning=audioOpponentSpinning=false;return;
+        }
+        StageBasis own=world.playerFor(online.playerDirection()),opponent=world.playerFor(-online.playerDirection());
+        PvpRouletteState a=own.pvpRoulette,b=opponent.pvpRoulette;
+        if(a==null||b==null){rouletteAudioInitialized=false;return;}
+        rouletteAudioInitialized=true;
+        audioGaugeSegment=Math.max(0,Math.min(10,a.gauge/100));
+        audioOwnSpinning=a.spinning;audioOpponentSpinning=b.spinning;
+        audioOwnPending=a.pendingResult;audioOpponentPending=b.pendingResult;
+        if(a.spinning)PvpSoundBank.startLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
+    }
+
+    /**
+     * Observe the canonical simulation after every resolved 30 TPS tick.
+     * Audio must be driven from logic ticks rather than rendered snapshots:
+     * render frames can skip several state transitions on a busy/networked client.
+     */
+    public void observeOnlineAudioTick(PvpStageBasis world){
+        if(online==null||onlineClosed||onlineBattleEnding||world==null)return;
+        if(world.specialMode()!=online.net.lobby.RoomRules.SpecialMode.ROULETTE){
+            if(audioOwnSpinning)PvpSoundBank.stopLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
             rouletteAudioInitialized=false;audioGaugeSegment=-1;return;
         }
-        PvpRouletteState own=online.playerState().pvpRoulette,opponent=online.opponentState().pvpRoulette;
-        if(own==null||opponent==null)return;
-        int segment=Math.max(0,Math.min(10,own.gauge/100));
-        if(!rouletteAudioInitialized){
-            rouletteAudioInitialized=true;audioGaugeSegment=segment;audioOwnSpinning=own.spinning;audioOpponentSpinning=opponent.spinning;
-            audioOwnPending=own.pendingResult;audioOpponentPending=opponent.pendingResult;
-            if(own.spinning)PvpSoundBank.startLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
-            return;
-        }
+        StageBasis own=world.playerFor(online.playerDirection()),opponent=world.playerFor(-online.playerDirection());
+        PvpRouletteState a=own.pvpRoulette,b=opponent.pvpRoulette;
+        if(a==null||b==null)return;
+        if(!rouletteAudioInitialized){initializeOnlineAudio(world);return;}
+
+        int segment=Math.max(0,Math.min(10,a.gauge/100));
+        if(segment<audioGaugeSegment)audioGaugeSegment=segment;
         if(segment>audioGaugeSegment){
-            for(int i=audioGaugeSegment+1;i<=segment;i++)if(i>0)PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_CHARGE);
-            if(audioGaugeSegment<10&&segment>=10)PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_MAX);
+            for(int i=audioGaugeSegment+1;i<=segment;i++){
+                if(i>=10)PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_MAX);
+                else if(i>0)PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_CHARGE);
+            }
         }
-        if(own.spinning&&!audioOwnSpinning){
+
+        if(a.spinning&&!audioOwnSpinning){
             PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_START);
             PvpSoundBank.startLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
-        }else if(!own.spinning&&audioOwnSpinning)PvpSoundBank.stopLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
-        if(own.pendingResult>=0&&audioOwnPending<0){
+        }else if(!a.spinning&&audioOwnSpinning){
             PvpSoundBank.stopLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
-            PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_CONFIRM);
         }
-        if(opponent.spinning&&!audioOpponentSpinning)PvpSoundBank.play(PvpSoundBank.Sound.OPPONENT_ROULETTE_START);
-        if(opponent.pendingResult>=0&&audioOpponentPending<0)PvpSoundBank.play(PvpSoundBank.Sound.OPPONENT_ROULETTE_CONFIRM);
-        audioGaugeSegment=segment;audioOwnSpinning=own.spinning;audioOpponentSpinning=opponent.spinning;
-        audioOwnPending=own.pendingResult;audioOpponentPending=opponent.pendingResult;
+        if(a.pendingResult>=0&&audioOwnPending<0)
+            PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_CONFIRM);
+
+        if(b.spinning&&!audioOpponentSpinning)
+            PvpSoundBank.play(PvpSoundBank.Sound.OPPONENT_ROULETTE_START);
+        if(b.pendingResult>=0&&audioOpponentPending<0)
+            PvpSoundBank.play(PvpSoundBank.Sound.OPPONENT_ROULETTE_CONFIRM);
+
+        audioGaugeSegment=segment;
+        audioOwnSpinning=a.spinning;audioOpponentSpinning=b.spinning;
+        audioOwnPending=a.pendingResult;audioOpponentPending=b.pendingResult;
     }
 
     private void updateOpponentRouletteNotice(){
