@@ -31,7 +31,7 @@ public final class PvpStageBasis extends StageBasis {
     }
     private PvpStageBasis(Stage arena, BasisLU left, BasisLU right, long seed, int leftSeat, RoomRules rules) {
         super(null, new EStage(arena, 0), right, new int[3], seed, false);
-        this.pvpSpecialMode=specialMode().ordinal();
+        this.pvpSpecialMode=rules.specialMode.ordinal();
         if (leftSeat != 0 && leftSeat != 1) throw new IllegalArgumentException("Invalid player seat");
         pvpRoot = this; pvpDirection = -1; pvpSeat = 1-leftSeat;
         StageBasis other = new StageBasis(null, new EStage(arena,0), left, new int[3], seed, false);
