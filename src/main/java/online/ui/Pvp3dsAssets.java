@@ -23,6 +23,7 @@ public final class Pvp3dsAssets {
             {2,8},{5,17},{9,29},{13,42},{18,60},{24,80},{33,106},{47,183}
     };
     private static final Map<String,Sheet> SHEETS=new HashMap<>();
+    private static String lastError;
 
     private Pvp3dsAssets(){}
 
@@ -31,12 +32,17 @@ public final class Pvp3dsAssets {
             image("ui_battle_multi_icon","アイコン：ふっとばし");
             image("ui_battle_multi_reel","効果名：ふっとばし");
             image("ui_battle_multi_cutin","ふっとばし発動!");
-            image("ui_battle_multi","Rボタン");
+            image("ui_battle_multi","ルーレット点灯中ランプ");
+            lastError=null;
             return true;
         }catch(RuntimeException e){
+            lastError=e.toString();
+            System.err.println("BCU PvP 3DS assets: "+lastError);
             return false;
         }
     }
+
+    public static synchronized String diagnostic(){return lastError==null?"OK":lastError;}
 
     public static synchronized BufferedImage image(String sheet,String label){
         Sheet s=SHEETS.get(sheet);
