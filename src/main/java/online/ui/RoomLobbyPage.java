@@ -28,6 +28,7 @@ public final class RoomLobbyPage extends Page {
     private final JButton back=new JButton("部屋から退出"),edit=new JButton("編成を編集"),apply=new JButton("ルールを適用"),ready;
     private final JComboBox<BasisLU> lineup;
     private final JCheckBox force60=new JCheckBox("全員の表示を60FPSに揃える（戦闘処理は30TPS）");
+    private final JComboBox<RoomRules.SpecialMode> special=new JComboBox<>(RoomRules.SpecialMode.values());
     private final JSpinner distance=new JSpinner(new SpinnerNumberModel(4400,RoomRules.MIN_DISTANCE,RoomRules.MAX_DISTANCE,100));
     private final JComboBox<Background> background=new JComboBox<>();
     private final JComboBox<MusicChoice> music=new JComboBox<>();
@@ -51,13 +52,13 @@ public final class RoomLobbyPage extends Page {
         JPanel rules=new JPanel(new GridBagLayout());rules.setBorder(BorderFactory.createTitledBorder("対戦ルール（ホストのみ変更可能）"));
         for(Background b:UserProfile.getBCData().bgs.getList())if(b!=null)background.addItem(b);
         music.addItem(new MusicChoice(null));for(Music m:UserProfile.getBCData().musics.getList())if(m!=null&&m.data!=null)music.addItem(new MusicChoice(m));
-        row(rules,0,"城と城の距離",distance);row(rules,1,"背景（標準データ）",background);row(rules,2,"BGM（標準データ）",music);row(rules,3,"",force60);row(rules,4,"",apply);row(rules,5,"",ruleNote);sections.add(rules);sections.add(audio);
+        row(rules,0,"城と城の距離",distance);row(rules,1,"背景（標準データ）",background);row(rules,2,"BGM（標準データ）",music);row(rules,3,"戦闘特殊機能",special);row(rules,4,"",force60);row(rules,5,"",apply);row(rules,6,"",ruleNote);sections.add(rules);sections.add(audio);
         content.add(new JScrollPane(sections),BorderLayout.CENTER);
         JPanel footer=new JPanel(new BorderLayout(8,8));footer.add(ready,BorderLayout.EAST);status.setEditable(false);status.setLineWrap(true);status.setWrapStyleWord(true);footer.add(new JScrollPane(status),BorderLayout.CENTER);content.add(footer,BorderLayout.SOUTH);
         back.addActionListener(e->owner.returnToConnection());edit.addActionListener(e->editLineup());apply.addActionListener(e->applyRules());
         lineupListener=e->{if(!loading&&!closed&&!editing){preview();pending=true;client.setLineupName(summary());refreshControls();}};
         lineup.addActionListener(lineupListener);
-        distance.addChangeListener(e->rulesChanged());background.addActionListener(e->rulesChanged());music.addActionListener(e->rulesChanged());force60.addActionListener(e->rulesChanged());
+        distance.addChangeListener(e->rulesChanged());background.addActionListener(e->rulesChanged());music.addActionListener(e->rulesChanged());special.addActionListener(e->rulesChanged());force60.addActionListener(e->rulesChanged());
         preview();refreshControls();message("編成とルールを確認してください。全員が準備完了するとキャラを自動共有し、対戦を開始します。");
     }
     private static void row(JPanel panel,int y,String title,Component component){GridBagConstraints c=new GridBagConstraints();c.gridy=y;c.gridx=0;c.anchor=GridBagConstraints.WEST;c.insets=new Insets(4,8,4,8);panel.add(new JLabel(title),c);c.gridx=1;c.weightx=1;c.fill=GridBagConstraints.HORIZONTAL;panel.add(component,c);}
@@ -69,7 +70,7 @@ public final class RoomLobbyPage extends Page {
         RoomRules rules=RoomRules.read(value);loading=true;
         try{
             if(!dirty||!host()||!editable()){
-                distance.setValue(rules.castleDistance);force60.setSelected(rules.force60Fps);
+                distance.setValue(rules.castleDistance);force60.setSelected(rules.force60Fps);special.setSelectedItem(rules.specialMode);
                 for(int i=0;i<background.getItemCount();i++)if(background.getItemAt(i).id.id==rules.backgroundId)background.setSelectedIndex(i);
                 for(int i=0;i<music.getItemCount();i++)if(music.getItemAt(i).id()==rules.musicId)music.setSelectedIndex(i);
                 dirty=false;
@@ -81,12 +82,12 @@ public final class RoomLobbyPage extends Page {
     private void refreshControls(){
         boolean can=editable()&&!ownReady()&&!pending&&!closed;
         lineup.setEnabled(can);edit.setEnabled(can);
-        distance.setEnabled(can&&host());background.setEnabled(can&&host());music.setEnabled(can&&host());force60.setEnabled(can&&host());apply.setEnabled(can&&host()&&dirty);
+        distance.setEnabled(can&&host());background.setEnabled(can&&host());music.setEnabled(can&&host());special.setEnabled(can&&host());force60.setEnabled(can&&host());apply.setEnabled(can&&host()&&dirty);
         ready.setText(ownReady()?"準備を解除":"準備完了");ready.setEnabled(editable()&&!pending&&!closed&&(ownReady()||(!dirty&&lineup.getSelectedItem()!=null)));
         if(!editable()&&state!=null){ready.setText("共有・開始待ち…");edit.setEnabled(false);}
     }
     private void rulesChanged(){if(loading||closed)return;dirty=true;refreshControls();}
-    private void applyRules(){try{distance.commitEdit();Background b=(Background)background.getSelectedItem();MusicChoice m=(MusicChoice)music.getSelectedItem();if(b==null||m==null)throw new IllegalArgumentException("背景とBGMを選択してください");RoomRules r=new RoomRules((Integer)distance.getValue(),b.id.id,m.id(),force60.isSelected());PvpStageBasis.validateRulesAssets(r);pending=true;dirty=false;client.setRoomRules(r,state.get("revision").getAsLong());refreshControls();}catch(Exception e){message(e.getMessage());}}
+    private void applyRules(){try{distance.commitEdit();Background b=(Background)background.getSelectedItem();MusicChoice m=(MusicChoice)music.getSelectedItem();if(b==null||m==null)throw new IllegalArgumentException("背景とBGMを選択してください");RoomRules r=new RoomRules((Integer)distance.getValue(),b.id.id,m.id(),force60.isSelected(),(RoomRules.SpecialMode)special.getSelectedItem());PvpStageBasis.validateRulesAssets(r);pending=true;dirty=false;client.setRoomRules(r,state.get("revision").getAsLong());refreshControls();}catch(Exception e){message(e.getMessage());}}
     void toggleReady(){
         if(closed||!editable()||pending)return;
         if(!ownReady())try{distance.commitEdit();if(dirty)throw new IllegalArgumentException("変更したルールを先に適用してください");if(lineup.getSelectedItem()==null)throw new IllegalArgumentException("編成を選択してください");PvpStageBasis.validateRulesAssets(client.roomRules());}catch(Exception e){message(e.getMessage());return;}
