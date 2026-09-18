@@ -8,6 +8,7 @@ import common.system.files.FDByte;
 import common.util.stage.Music;
 import online.net.Protocol;
 import online.net.lobby.RoomRules;
+import online.net.lobby.PvpTraitRules;
 import online.sync.*;
 import online.ui.OnlineBattleField;
 
@@ -19,14 +20,22 @@ public final class RoomRuleTests {
         Check.rejects(()->new RoomRules(24001,0,-1,false),"too-long distance rejected");
         Check.rejects(()->new RoomRules(4400,-2,-1,false),"unsupported negative background rejected");
         Check.rejects(()->new RoomRules(4400,0,-3,false),"unsupported negative music identifier rejected");
+        Check.rejects(()->new RoomRules(4400,0,-1,false,RoomRules.SpecialMode.NONE,false,
+                PvpTraitRules.NONE,PvpTraitRules.NONE,0,0,100),"time limit above 99 minutes rejected");
+        Check.rejects(()->new RoomRules(4400,0,-1,false,RoomRules.SpecialMode.NONE,false,
+                PvpTraitRules.RANDOM,PvpTraitRules.NONE,PvpTraitRules.ALL_EXCLUSIONS,0,15),"random trait cannot exclude every option");
         Check.rejects(()->PvpStageBasis.validateCastleHealthMultiplier(Double.NaN),"NaN castle multiplier rejected");
         Check.rejects(()->PvpStageBasis.validateCastleHealthMultiplier(0.0),"non-positive castle multiplier rejected");
         for(int distance:new int[]{1000,4400,24000}) {
-            RoomRules rule=new RoomRules(distance,0,-1,true,RoomRules.SpecialMode.ROULETTE,true);
+            RoomRules rule=new RoomRules(distance,0,-1,true,RoomRules.SpecialMode.ROULETTE,true,
+                    PvpTraitRules.RANDOM,common.util.Data.TRAIT_RED,1<<PvpTraitRules.optionIndex(common.util.Data.TRAIT_BLACK),0,15);
             JsonObject message=Protocol.message("rules");message.add("rules",rule.json());
             Check.equal(rule,RoomRules.read(message),"all rules roundtrip without client-local settings");
             Check.equal(RoomRules.SpecialMode.ROULETTE,RoomRules.read(message).specialMode,"special mode is synchronized in room rules");
             Check.that(RoomRules.read(message).debugMode,"host debug mode is synchronized in room rules");
+            Check.equal(15,RoomRules.read(message).timeLimitMinutes,"time limit is synchronized in room rules");
+            Check.equal(PvpTraitRules.RANDOM,RoomRules.read(message).hostTraitChoice,"host random trait is synchronized");
+            Check.equal(common.util.Data.TRAIT_RED,RoomRules.read(message).guestTraitChoice,"guest fixed trait is synchronized");
             BasisLU l=Fixture.lineup(FixtureNativeUi.unit("rule_l"+distance,0xff0055aa));
             BasisLU r=Fixture.lineup(FixtureNativeUi.unit("rule_r"+distance,0xffaa5500));
             PvpStageBasis baseline=new PvpStageBasis(l,r,133,0,rule,1.0,1.0);
