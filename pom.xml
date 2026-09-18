@@ -92,7 +92,9 @@
                 <configuration><archive><manifest>
                     <mainClass>main.MainBCU</mainClass><addClasspath>true</addClasspath>
                     <classpathPrefix>lib/</classpathPrefix>
-                </manifest></archive></configuration>
+                </manifest><manifestEntries>
+                    <Add-Opens>java.base/java.lang java.desktop/sun.java2d java.desktop/sun.awt java.desktop/sun.awt.windows</Add-Opens>
+                </manifestEntries></archive></configuration>
             </plugin>
             <plugin>
                 <groupId>org.jetbrains.kotlin</groupId>
