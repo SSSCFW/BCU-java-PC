@@ -183,6 +183,13 @@ public final class NativeBattleUiTests {
                         && fullTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_icon","アイコン：体力アップ"))
                         && fullTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_icon","アイコン：移動アップ")),
                 "permanent roulette effects render as a horizontal icon row under the money HUD");
+        meter.left().pvpRoulette.babyRushTicks=PvpRouletteState.BABY_RUSH_TICKS;
+        meterField.publish(meter.displayCopy());
+        BufferedImage rushImage=new BufferedImage(meterBox.getWidth(),meterBox.getHeight(),BufferedImage.TYPE_INT_ARGB);
+        Graphics2D rushG=rushImage.createGraphics();Trace rushTrace=new Trace(rushG);
+        try{meterBox.painter.draw(rushTrace);}finally{rushG.dispose();}
+        Check.that(rushTrace.images.containsKey(Pvp3dsAssets.textBadge("ぷちベビーラッシュ 残り 10秒")),
+                "baby-rush countdown is rendered inside the battlefield directly below the PvP timer");
 
         PvpStageBasis live=new PvpStageBasis(leftLu,rightLu,782,0,rules);
         StageBasis own=live.left();
