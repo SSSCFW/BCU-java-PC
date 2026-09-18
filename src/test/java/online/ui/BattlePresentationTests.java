@@ -84,7 +84,15 @@ public final class BattlePresentationTests {
                 if(args[0].endsWith("result")){
                     if(args[0].startsWith("late")){
                         edt(()->{page.beginOnlineBattleEnd();return null;});Thread.sleep(1500);
-                        edt(()->{Check.that(((JPanel)field(page,"onlineBattleEnd")).isVisible()&&!((JPanel)field(page,"onlineResult")).isVisible(),"finished sound waits for the verified server result");return null;});
+                        edt(()->{
+                            JPanel ending=(JPanel)field(page,"onlineBattleEnd");
+                            JPanel backdrop=(JPanel)field(page,"onlineBackdrop");
+                            Check.that(ending.isVisible()&&!((JPanel)field(page,"onlineResult")).isVisible(),"finished sound waits for the verified server result");
+                            Check.that(backdrop.isVisible(),"frozen battlefield remains visible behind the ending card");
+                            Check.that(ending.getWidth()<backdrop.getWidth()/2&&ending.getHeight()<backdrop.getHeight()/3,
+                                    "battle-end card stays compact instead of covering the battlefield");
+                            return null;
+                        });
                     }
                     edt(()->{page.showOnlineResult("勝利！","両者の結果が一致しました。OKを押してください。",()->{});return null;});
                     if(args[0].startsWith("resize"))edt(()->{
@@ -105,7 +113,11 @@ public final class BattlePresentationTests {
                         JPanel result=(JPanel)field(page,"onlineResult");JButton ok=(JButton)field(page,"onlineResultOk");
                         JLabel label=(JLabel)field(page,"onlineResultTitle");
                         System.out.println("result="+result.getBounds()+" valid="+result.isValid()+" title="+label.getBounds()+" font="+label.getFont()+" bg="+result.getBackground()+" fg="+label.getForeground()+" OK="+ok.getBounds());
+                        JPanel backdrop=(JPanel)field(page,"onlineBackdrop");
                         Check.that(result.isShowing()&&ok.isShowing()&&ok.getWidth()>0&&ok.getHeight()>0,"result OK must be laid out and visible on first battle ending");
+                        Check.that(backdrop.isShowing(),"battlefield snapshot remains visible behind the result card");
+                        Check.that(result.getWidth()<backdrop.getWidth()*3/5&&result.getHeight()<backdrop.getHeight()/2,
+                                "result card stays compact and leaves most of the battlefield visible");
                         Check.that(label.getFont().getSize()>=24,"result heading must remain legible after page-wide resizing");return null;
                     });
                 }
