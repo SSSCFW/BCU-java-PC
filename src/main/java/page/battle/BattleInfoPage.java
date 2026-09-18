@@ -14,6 +14,8 @@ import main.Opts;
 import online.ui.OnlineBattleField;
 import online.ui.AudioSettingsPanel;
 import online.ui.PvpRouletteHud;
+import online.net.lobby.PvpTraitRules;
+import utilpc.UtilPC;
 import java.util.function.IntConsumer;
 import page.*;
 import page.awt.BBBuilder;
@@ -62,6 +64,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	private final JTG estat = new JTG(MainLocale.INFO, "stat");
 	private final JLabel ebase = new JLabel();
 	private final JLabel ubase = new JLabel();
+    private final JLabel eTraitIcon=new JLabel("",SwingConstants.CENTER),uTraitIcon=new JLabel("",SwingConstants.CENTER);
 	private final JLabel timer = new JLabel();
 	private final JLabel ecount = new JLabel();
 	private final JLabel ucount = new JLabel();
@@ -176,6 +179,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		// These native single-player operations cannot be performed independently online.
 		paus.setEnabled(false);paus.setVisible(false);
         onlineSpecial=new PvpRouletteHud(online);add(audio);add(onlineSpecial);add(onlineTag);add(babyRushStatus);add(rouletteNotice);add(rouletteDebugMax);
+        configureTraitIcon(eTraitIcon,displayCopy.leftTrait());configureTraitIcon(uTraitIcon,displayCopy.rightTrait());add(eTraitIcon);add(uTraitIcon);
         onlineTag.setForeground(Color.WHITE);onlineTag.setFont(onlineTag.getFont().deriveFont(Font.BOLD,18f));
         babyRushStatus.setForeground(new Color(255,225,80));babyRushStatus.setFont(babyRushStatus.getFont().deriveFont(Font.BOLD,16f));babyRushStatus.setVisible(false);
         rouletteNotice.setForeground(new Color(255,245,180));rouletteNotice.setFont(rouletteNotice.getFont().deriveFont(Font.BOLD,16f));rouletteNotice.setVisible(false);
@@ -198,6 +202,22 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		add(stream);
 		current = this;
 	}
+
+    private void configureTraitIcon(JLabel label,int trait){
+        label.setOpaque(false);label.setForeground(Color.WHITE);
+        label.setToolTipText("キャラ属性: "+PvpTraitRules.label(trait));
+        if(trait<0){
+            label.setText("属性なし");label.setIcon(null);label.setFont(label.getFont().deriveFont(Font.BOLD,11f));return;
+        }
+        try{
+            java.awt.image.BufferedImage image=UtilPC.getIcon(3,trait);
+            if(image!=null){
+                Image scaled=image.getScaledInstance(28,28,Image.SCALE_SMOOTH);
+                label.setIcon(new ImageIcon(scaled));label.setText("");return;
+            }
+        }catch(RuntimeException ignored){}
+        label.setText(PvpTraitRules.label(trait));label.setFont(label.getFont().deriveFont(Font.BOLD,10f));
+    }
 
     public void force60Fps(boolean value){if(online!=null)online.force60Fps(value);}
     public int onlineFps(){return online==null?30:online.renderFps();}
@@ -236,7 +256,9 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		utd.setBasis(online.playerState()); utd.setList(lineup);
 		ebase.setText(onlineLeftName + "  HP: " + sb.ebase.health + "/" + sb.ebase.maxH);
 		ubase.setText(onlineRightName + "  HP: " + sb.ubase.health);
-		timer.setText(sb.time + "f");
+        int remaining=((PvpStageBasis)sb.world()).remainingTimeTicks();
+        if(remaining<0)timer.setText("時間 ∞");
+        else{int seconds=(remaining+PvpStageBasis.TPS-1)/PvpStageBasis.TPS;timer.setText(String.format(java.util.Locale.ROOT,"残り %02d:%02d",seconds/60,seconds%60));}
 		ecount.setText(sb.entityCount(1) + "/" + sb.playerFor(1).maxNum);
 		ucount.setText(sb.entityCount(-1) + "/" + sb.playerFor(-1).maxNum);
 		if (bb.getPainter().dragging) bb.getPainter().dragFrame++;
@@ -395,9 +417,13 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 			set(stream, x, y, 900, 0, online == null ? 400 : 200, 50);
 			set(next, x, y, 1100, 0, 200, 50);
 			set(row, x, y, 1300, 0, 200, 50);
-			set(ebase, x, y, 240, 0, 600, 50);
+            if(online!=null){
+                set(eTraitIcon,x,y,240,0,600,24);set(ebase,x,y,240,24,600,26);
+                set(uTraitIcon,x,y,1740,0,200,24);set(ubase,x,y,1740,24,200,26);
+            }else{
+                set(ebase, x, y, 240, 0, 600, 50);set(ubase, x, y, 1740, 0, 200, 50);
+            }
 			set(timer, x, y, 1500, 0, 200, 50);
-			set(ubase, x, y, 1740, 0, 200, 50);
 			set((Canvas) bb, x, y, 190, 50, 1920, 1200);
 			set(ctp, x, y, 0, 0, 0, 0);
 			set(eep, x, y, 50, 100, 0, 0);
@@ -424,9 +450,13 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 			set(eup, x, y, 1650, 100, 600, 700);
 			set(eusp, x, y, 1650, 100, 600, 700);
 			set(utdsp, x, y, 1650, 850, 600, 400);
-			set(ebase, x, y, 700, 250, 400, 50);
+            if(online!=null){
+                set(eTraitIcon,x,y,700,210,400,34);set(ebase,x,y,700,244,400,50);
+                set(uTraitIcon,x,y,1300,210,200,34);set(ubase,x,y,1300,244,200,50);
+            }else{
+                set(ebase, x, y, 700, 250, 400, 50);set(ubase, x, y, 1300, 250, 200, 50);
+            }
 			set(timer, x, y, 1100, 250, 200, 50);
-			set(ubase, x, y, 1300, 250, 200, 50);
 			set(ecount, x, y, 50, 50, 450, 50);
 			set(estat, x, y, 500, 50, 150, 50);
 			set(ucount, x, y, 1650, 50, 450, 50);
