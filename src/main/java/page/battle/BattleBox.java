@@ -6,6 +6,7 @@ import common.CommonStatic.BattleConst;
 import common.battle.BattleField;
 import common.battle.StageBasis;
 import common.battle.PvpStageBasis;
+import common.battle.PvpRouletteState;
 import common.battle.attack.ContAb;
 import common.battle.attack.ContWaveAb;
 import common.battle.data.DataEnemy;
@@ -27,6 +28,7 @@ import common.util.pack.bgeffect.BackgroundEffect;
 import common.util.stage.CastleImg;
 import common.util.unit.Form;
 import main.MainBCU;
+import online.ui.Pvp3dsAssets;
 import page.RetFunc;
 import utilpc.PP;
 import utilpc.awt.FG2D;
@@ -120,6 +122,38 @@ public interface BattleBox {
 
 		private final ArrayList<ContAb> efList = new ArrayList<>();
 
+		// Presentation-only tracking for the large on-field roulette/result animation.
+		private boolean rouletteWasSpinning;
+		private int rouletteResultTick = -1;
+		private int rouletteResult = -1;
+		private static final int ROULETTE_RESULT_TICKS = 2 * PvpStageBasis.TPS;
+
+		private static final String[] ROULETTE_ICON = {
+				"アイコン：ふっとばし","アイコン：癒やし","アイコン：生産回復","アイコン：にゃんこ砲",
+				"アイコン：生産短縮","アイコン：働き増加","アイコン：コストダウン","アイコン：お金マックス",
+				"アイコン：スロウ","アイコン：ストップ","アイコン：攻撃力アップ","アイコン：体力アップ",
+				"アイコン：移動アップ","アイコン：プチベビーラッシュ"
+		};
+		private static final String[] ROULETTE_NAME = {
+				"効果名：ふっとばし","効果名：癒やし","効果名：生産回復","効果名：にゃんこ砲",
+				"効果名：生産短縮","効果名：働き増加","効果名：コストダウン","効果名：お金マックス",
+				"効果名：スロウ","効果名：ストップ","効果名：攻撃力アップ","効果名：体力アップ",
+				"効果名：移動アップ","効果名：プチベビーラッシュ"
+		};
+		private static final String[] ROULETTE_EFFECT = {
+				"発動エフェクト：ふっとばし","発動エフェクト：癒やし","発動エフェクト：生産回復","発動エフェクト：にゃんこ砲",
+				"発動エフェクト：生産短縮","発動エフェクト：働き増加","発動エフェクト：コストダウン","発動エフェクト：お金マックス",
+				"発動エフェクト：スロウ","発動エフェクト：ストップ","発動エフェクト：攻撃力アップ","発動エフェクト：体力アップ",
+				"発動エフェクト：移動アップ","発動エフェクト：プチベビーラッシュ"
+		};
+		private static final String[] ROULETTE_CUTIN = {
+				"ふっとばし発動!","にゃんこ回復ボーナス!","生産回復ボーナス!","にゃんこ砲発射!",
+				"生産短縮ボーナス!","働きネコ仕事効率UPボーナス!","コストダウンボーナス!","お金MAXボーナス!!",
+				"スロウ発動!","ストップ発動!","攻撃力UPボーナス!","体力UPボーナス!",
+				"移動スピードUPボーナス!","ぷちベビーラッシュ発動!"
+		};
+		private static final String[] ROULETTE_LEVEL = {"","レベル１","レベル２","レベル３","レベルマックス"};
+
 		private final SymCoord sym = new SymCoord(null, 0, 0, 0, 0);
 		private final P p = new P(0, 0);
 
@@ -211,6 +245,7 @@ public interface BattleBox {
 			try {
 				drawBtm(g);
 				drawTop(g);
+				drawRoulettePresentation(g, player);
 			} finally { sb = bf.sb; }
 		}
 
@@ -384,6 +419,120 @@ public interface BattleBox {
 			}
 
 			unir = hr;
+		}
+
+		private void drawRoulettePresentation(FakeGraphics g, StageBasis player) {
+			if (!player.isPvp()
+					|| ((PvpStageBasis) player.world()).specialMode() != online.net.lobby.RoomRules.SpecialMode.ROULETTE
+					|| player.pvpRoulette == null) {
+				rouletteWasSpinning = false;
+				rouletteResultTick = -1;
+				rouletteResult = -1;
+				return;
+			}
+
+			PvpRouletteState state = player.pvpRoulette;
+			try {
+				if (state.spinning) {
+					rouletteWasSpinning = true;
+					drawRouletteSpin(g, state);
+					return;
+				}
+
+				if (rouletteWasSpinning && state.lastResult >= 0) {
+					rouletteResultTick = bf.sb.time;
+					rouletteResult = state.lastResult;
+				}
+				rouletteWasSpinning = false;
+
+				if (rouletteResultTick >= 0 && rouletteResult >= 0) {
+					int age = bf.sb.time - rouletteResultTick;
+					if (age >= 0 && age < ROULETTE_RESULT_TICKS)
+						drawRouletteResult(g, state, rouletteResult, age);
+					else if (age >= ROULETTE_RESULT_TICKS) {
+						rouletteResultTick = -1;
+						rouletteResult = -1;
+					}
+				}
+			} catch (RuntimeException ignored) {
+				// The compact Swing HUD has its own text fallback; never break battle rendering
+				// if an optional 3DS presentation asset cannot be decoded.
+			}
+		}
+
+		private void drawRouletteSpin(FakeGraphics g, PvpRouletteState state) {
+			int w = box.getWidth(), h = box.getHeight();
+			float scale = Math.max(1.25f, Math.min(2.4f, Math.min(w / 460f, h / 180f)));
+			float iconW = 44f * scale, reelW = 178f * scale, gap = 4f * scale;
+			float totalW = iconW + gap + reelW;
+			float totalH = 46f * scale;
+			float x = (w - totalW) / 2f;
+			float y = Math.max(18f, (h - totalH) * 0.34f);
+
+			g.colRect(0, 0, w, h, 0, 0, 0, 72);
+			g.colRect(x - 12f * scale, y - 12f * scale, totalW + 24f * scale,
+					totalH + 34f * scale, 0, 0, 0, 205);
+
+			int result = state.currentResult();
+			FakeImage icon = Pvp3dsAssets.fakeImage("ui_battle_multi_reel", ROULETTE_ICON[result]);
+			FakeImage name = Pvp3dsAssets.fakeImage("ui_battle_multi_reel", ROULETTE_NAME[result]);
+			float reelX = x + iconW + gap;
+			g.drawImage(icon, x + 2f * scale, y + 3f * scale, 40f * scale, 40f * scale);
+			g.drawImage(name, reelX + 2.5f * scale, y + 3f * scale, 173f * scale, 40f * scale);
+
+			FakeImage iconTop = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレットアイコン蓋（上部）");
+			FakeImage iconBottom = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレットアイコン蓋（下部）");
+			FakeImage reelTop = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレットリール蓋（上部）");
+			FakeImage reelBottom = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレットリール蓋（下部）");
+			g.drawImage(iconTop, x, y, 44f * scale, 23f * scale);
+			g.drawImage(iconBottom, x, y + 23f * scale, 44f * scale, 23f * scale);
+			g.drawImage(reelTop, reelX, y, 178f * scale, 23f * scale);
+			g.drawImage(reelBottom, reelX, y + 23f * scale, 178f * scale, 23f * scale);
+
+			FakeImage lamp = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレット点灯中ランプ");
+			g.drawImage(lamp, x - 34f * scale, y + 10f * scale, 26f * scale, 25f * scale);
+
+			float progress = Math.min(1f, state.spinTicks / (float) PvpRouletteState.AUTO_SPIN_TICKS);
+			float barY = y + totalH + 8f * scale;
+			g.colRect(x, barY, totalW, 5f * scale, 40, 40, 40, 230);
+			g.colRect(x, barY, totalW * progress, 5f * scale, 255, 255, 255, 245);
+		}
+
+		private void drawRouletteResult(FakeGraphics g, PvpRouletteState state, int result, int age) {
+			int w = box.getWidth(), h = box.getHeight();
+			float base = Math.max(1.25f, Math.min(2.25f, w / 520f));
+			float pulse = age < 8 ? 1f + (8 - age) * 0.018f : 1f;
+			float cutScale = base * pulse;
+			float cutW = 336f * cutScale, cutH = 45f * cutScale;
+			float cutX = (w - cutW) / 2f;
+			float cutY = Math.max(18f, h * 0.22f);
+
+			g.colRect(0, 0, w, h, 0, 0, 0, 92);
+			FakeImage cutin = Pvp3dsAssets.fakeImage("ui_battle_multi_cutin", ROULETTE_CUTIN[result]);
+			g.drawImage(cutin, cutX, cutY, cutW, cutH);
+
+			float rowScale = Math.max(1.35f, Math.min(2.0f, base));
+			FakeImage effect = Pvp3dsAssets.fakeImage("ui_battle_multi_reel", ROULETTE_EFFECT[result]);
+			FakeImage name = Pvp3dsAssets.fakeImage("ui_battle_multi_reel", ROULETTE_NAME[result]);
+			float effectW = 47f * rowScale, effectH = 47f * rowScale;
+			float nameW = 173f * rowScale, nameH = 40f * rowScale;
+			float rowW = effectW + 10f * rowScale + nameW;
+			float rowX = (w - rowW) / 2f;
+			float rowY = cutY + cutH + 12f * rowScale;
+			g.colRect(rowX - 8f * rowScale, rowY - 6f * rowScale,
+					rowW + 16f * rowScale, Math.max(effectH, nameH) + 12f * rowScale,
+					0, 0, 0, 205);
+			g.drawImage(effect, rowX, rowY, effectW, effectH);
+			g.drawImage(name, rowX + effectW + 10f * rowScale,
+					rowY + (effectH - nameH) / 2f, nameW, nameH);
+
+			int level = state.lastLevel;
+			if (level > 0) {
+				level = Math.min(4, level);
+				FakeImage lv = Pvp3dsAssets.fakeImage("ui_battle_multi_reel", ROULETTE_LEVEL[level]);
+				float lw = 30f * rowScale, lh = 21f * rowScale;
+				g.drawImage(lv, rowX + rowW - lw, rowY + effectH + 5f * rowScale, lw, lh);
+			}
 		}
 
 		private int getFireLang() {

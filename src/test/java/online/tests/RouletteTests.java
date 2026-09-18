@@ -106,13 +106,20 @@ public final class RouletteTests {
         chargeOwner.ownBase().health=0;
         Check.equal(5.0,PvpRouletteState.castleHealthFactor(chargeOwner),"zero HP comeback factor is 5x");
 
-        right.pvpRoulette.gauge=PvpRouletteState.MAX_GAUGE;
-        right.pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;
-        right.pvpRoulette.advance(b,right);
-        Check.that(right.pvpRoulette.spinning,"full roulette gauge starts reel automatically");
-        for(int i=0;i<10;i++)right.pvpRoulette.advance(b,right);
-        Check.that(right.pvpRoulette.press(b,right),"special button stops an active roulette after intro");
-        Check.equal(0,right.pvpRoulette.gauge,"roulette consumes full gauge");
+        PvpStageBasis auto=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis autoOwner=auto.right();
+        autoOwner.pvpRoulette.gauge=PvpRouletteState.MAX_GAUGE;
+        autoOwner.pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;
+        autoOwner.pvpRoulette.advance(auto,autoOwner);
+        Check.that(autoOwner.pvpRoulette.spinning,"full roulette gauge starts reel automatically");
+        for(int i=0;i<10;i++)autoOwner.pvpRoulette.advance(auto,autoOwner);
+        Check.that(!autoOwner.pvpRoulette.press(auto,autoOwner),"special input cannot skip the two-second roulette animation");
+        for(int i=10;i<PvpRouletteState.AUTO_SPIN_TICKS-1;i++)autoOwner.pvpRoulette.advance(auto,autoOwner);
+        Check.that(autoOwner.pvpRoulette.spinning,"roulette remains visible until the two-second threshold");
+        autoOwner.pvpRoulette.advance(auto,autoOwner);
+        Check.that(!autoOwner.pvpRoulette.spinning,"roulette resolves automatically at roughly two seconds");
+        Check.that(autoOwner.pvpRoulette.lastResult>=0,"automatic roulette resolution records the selected effect");
+        Check.equal(0,autoOwner.pvpRoulette.gauge,"automatic roulette resolution consumes the full gauge");
     }
     private static void modeTests() throws Exception {
         PvpStageBasis none=duel(RoomRules.SpecialMode.NONE);

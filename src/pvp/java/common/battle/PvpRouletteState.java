@@ -12,7 +12,8 @@ import java.util.*;
  * (Level 1/2/3/MAX); together with the base state this is five states.
  */
 public final class PvpRouletteState extends BattleObj {
-    public static final int MAX_GAUGE=1000, TEMP_TICKS=150, BABY_RUSH_TICKS=10*PvpStageBasis.TPS;
+    public static final int MAX_GAUGE=1000, TEMP_TICKS=150, BABY_RUSH_TICKS=10*PvpStageBasis.TPS,
+            AUTO_SPIN_TICKS=2*PvpStageBasis.TPS;
     public static final int KNOCKBACK=0, HEAL=1, PRODUCTION_RECOVERY=2, CANNON=3,
             PRODUCTION_SHORTEN=4, WORKER_UP=5, COST_DOWN=6, MONEY_MAX=7,
             SLOW=8, STOP=9, ATTACK_UP=10, HP_UP=11, MOVE_UP=12, BABY_RUSH=13;
@@ -95,6 +96,7 @@ public final class PvpRouletteState extends BattleObj {
         if(spinning) {
             spinTicks++;
             reelIndex=(reelIndex+1)%reel.length;
+            if(spinTicks>=AUTO_SPIN_TICKS)resolve(world,owner);
             return;
         }
 
@@ -126,14 +128,22 @@ public final class PvpRouletteState extends BattleObj {
         return 5.0-6.0*ratio;               // 0% -> 5.0, 50% -> 2.0
     }
 
-    /** The 3DS reel auto-starts at full gauge; the special button stops it after the intro frames. */
+    /**
+     * The reel now resolves automatically after roughly two seconds so the
+     * complete animation is visible on both peers. A late SPECIAL input may
+     * still resolve it at the same threshold, but can never skip the animation.
+     */
     public boolean press(PvpStageBasis world, StageBasis owner) {
-        if(!spinning || spinTicks<10)return false;
+        if(!spinning || spinTicks<AUTO_SPIN_TICKS)return false;
+        resolve(world,owner);
+        return true;
+    }
+
+    private void resolve(PvpStageBasis world, StageBasis owner) {
         int result=reel[reelIndex];
         spinning=false;spinTicks=0;gauge=targetGauge=0;chargeClock=0;lastResult=result;
         apply(world,owner,result);
         lastLevel=stockState(result);
-        return true;
     }
 
     public void forceResult(PvpStageBasis world,StageBasis owner,int result) {

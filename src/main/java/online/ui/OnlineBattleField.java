@@ -119,7 +119,12 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
             case CANNON:return "にゃんこ砲 "+Math.min(100,own.cannon*100/Math.max(1,own.maxCannon))+"%";
             case ROULETTE:
                 if(own.pvpRoulette==null)return "対戦ルーレット";
-                if(own.pvpRoulette.spinning)return "対戦ルーレット 回転中 / "+PvpRouletteState.NAMES[own.pvpRoulette.currentResult()];
+                if(own.pvpRoulette.spinning) {
+                    int remain=Math.max(0,PvpRouletteState.AUTO_SPIN_TICKS-own.pvpRoulette.spinTicks);
+                    double seconds=remain/(double)PvpStageBasis.TPS;
+                    return String.format(java.util.Locale.ROOT,"対戦ルーレット 回転中 / %.1f秒 / %s",seconds,
+                            PvpRouletteState.NAMES[own.pvpRoulette.currentResult()]);
+                }
                 String last="";
                 if(own.pvpRoulette.lastResult>=0) {
                     int lv=own.pvpRoulette.lastLevel;

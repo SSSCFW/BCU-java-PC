@@ -115,6 +115,7 @@ public final class NativeBattleUiTests {
                 Check.equal(before,BattleDigest.of(live),"rendering, zoom and native input cannot advance canonical simulation");
                 Path path=Paths.get("target/native-ui-"+dir+"-"+twoRows+".png");Files.createDirectories(path.getParent());ImageIO.write(image,"png",path.toFile());
             }
+            roulettePresentationTests(leftLu,rightLu);
             SBCtrl offline=new SBCtrl(new Keys(),live.st,0,Fixture.lineup(right),new int[3],983);
             for(int i=0;i<40;i++){offline.sb.money=100000;offline.action.add(0);offline.update();}
             Check.that(!offline.sb.le.isEmpty(),"offline fixture must spawn a real unit before debug comparison");
@@ -126,5 +127,66 @@ public final class NativeBattleUiTests {
             Check.that(CommonStatic.getConfig().ref,"single-player debug preference is preserved");
         } finally {CommonStatic.getConfig().ref=ref;CommonStatic.getConfig().twoRow=rows;CommonStatic.getConfig().performanceModeBattle=fps;}
     }
+    private static void roulettePresentationTests(BasisLU leftLu,BasisLU rightLu) throws Exception {
+        online.net.lobby.RoomRules rules=new online.net.lobby.RoomRules(4400,0,-1,false,online.net.lobby.RoomRules.SpecialMode.ROULETTE);
+        PvpStageBasis live=new PvpStageBasis(leftLu,rightLu,782,0,rules);
+        StageBasis own=live.left();
+        own.pvpRoulette.gauge=own.pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;
+        live.step(new InputFrame(live.time,0,0));
+        Check.that(own.pvpRoulette.spinning,"roulette presentation fixture starts spinning");
+
+        OnlineBattleField field=new OnlineBattleField(new Keys(),live.displayCopy(),1,value->{});
+        Box box=new Box(field);
+        int current=field.playerState().pvpRoulette.currentResult();
+
+        BufferedImage spinning=new BufferedImage(box.getWidth(),box.getHeight(),BufferedImage.TYPE_INT_ARGB);
+        Graphics2D sg=spinning.createGraphics();Trace spinTrace=new Trace(sg);
+        try{box.painter.draw(spinTrace);}finally{sg.dispose();}
+        Check.that(spinTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_reel",rouletteIcon(current))),
+                "on-field roulette animation renders the current 3DS icon");
+        Check.that(spinTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_reel",rouletteName(current))),
+                "on-field roulette animation renders the current 3DS effect name");
+
+        for(int i=0;i<PvpRouletteState.AUTO_SPIN_TICKS;i++)live.step(new InputFrame(live.time,0,0));
+        Check.that(!live.left().pvpRoulette.spinning,"roulette fixture auto-resolves after two seconds");
+        int result=live.left().pvpRoulette.lastResult;
+        field.publish(live.displayCopy());
+
+        BufferedImage resultImage=new BufferedImage(box.getWidth(),box.getHeight(),BufferedImage.TYPE_INT_ARGB);
+        Graphics2D rg=resultImage.createGraphics();Trace resultTrace=new Trace(rg);
+        try{box.painter.draw(resultTrace);}finally{rg.dispose();}
+        Check.that(resultTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_cutin",rouletteCutin(result))),
+                "resolved effect shows the original 3DS cut-in on the battlefield");
+        Check.that(resultTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_reel",rouletteEffect(result))),
+                "resolved effect shows the original 3DS activation icon on the battlefield");
+
+        Path spinPath=Paths.get("target/native-ui-roulette-spin.png");
+        Path resultPath=Paths.get("target/native-ui-roulette-result.png");
+        Files.createDirectories(spinPath.getParent());
+        ImageIO.write(spinning,"png",spinPath.toFile());
+        ImageIO.write(resultImage,"png",resultPath.toFile());
+    }
+
+    private static String rouletteIcon(int result){return new String[]{
+            "アイコン：ふっとばし","アイコン：癒やし","アイコン：生産回復","アイコン：にゃんこ砲",
+            "アイコン：生産短縮","アイコン：働き増加","アイコン：コストダウン","アイコン：お金マックス",
+            "アイコン：スロウ","アイコン：ストップ","アイコン：攻撃力アップ","アイコン：体力アップ",
+            "アイコン：移動アップ","アイコン：プチベビーラッシュ"}[result];}
+    private static String rouletteName(int result){return new String[]{
+            "効果名：ふっとばし","効果名：癒やし","効果名：生産回復","効果名：にゃんこ砲",
+            "効果名：生産短縮","効果名：働き増加","効果名：コストダウン","効果名：お金マックス",
+            "効果名：スロウ","効果名：ストップ","効果名：攻撃力アップ","効果名：体力アップ",
+            "効果名：移動アップ","効果名：プチベビーラッシュ"}[result];}
+    private static String rouletteEffect(int result){return new String[]{
+            "発動エフェクト：ふっとばし","発動エフェクト：癒やし","発動エフェクト：生産回復","発動エフェクト：にゃんこ砲",
+            "発動エフェクト：生産短縮","発動エフェクト：働き増加","発動エフェクト：コストダウン","発動エフェクト：お金マックス",
+            "発動エフェクト：スロウ","発動エフェクト：ストップ","発動エフェクト：攻撃力アップ","発動エフェクト：体力アップ",
+            "発動エフェクト：移動アップ","発動エフェクト：プチベビーラッシュ"}[result];}
+    private static String rouletteCutin(int result){return new String[]{
+            "ふっとばし発動!","にゃんこ回復ボーナス!","生産回復ボーナス!","にゃんこ砲発射!",
+            "生産短縮ボーナス!","働きネコ仕事効率UPボーナス!","コストダウンボーナス!","お金MAXボーナス!!",
+            "スロウ発動!","ストップ発動!","攻撃力UPボーナス!","体力UPボーナス!",
+            "移動スピードUPボーナス!","ぷちベビーラッシュ発動!"}[result];}
+
     public static void main(String[] args) throws Exception { run();System.out.println("Native BBPainter/BBCtrl regression passed"); }
 }

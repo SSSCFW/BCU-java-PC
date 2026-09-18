@@ -1,5 +1,8 @@
 package online.ui;
 
+import common.system.fake.FakeImage;
+import common.system.fake.ImageBuilder;
+
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -23,6 +26,7 @@ public final class Pvp3dsAssets {
             {2,8},{5,17},{9,29},{13,42},{18,60},{24,80},{33,106},{47,183}
     };
     private static final Map<String,Sheet> SHEETS=new HashMap<>();
+    private static final Map<String,FakeImage> FAKE_IMAGES=new HashMap<>();
     private static String lastError;
 
     private Pvp3dsAssets(){}
@@ -52,7 +56,18 @@ public final class Pvp3dsAssets {
         return s.image.getSubimage(r.x,r.y,r.width,r.height);
     }
 
-    static synchronized void clearForTests(){SHEETS.clear();}
+    /** Cached renderer-native view of an imgcut part for BattleBox/FakeGraphics. */
+    public static synchronized FakeImage fakeImage(String sheet,String label){
+        String key=sheet+"\n"+label;
+        FakeImage result=FAKE_IMAGES.get(key);
+        if(result!=null)return result;
+        if(ImageBuilder.builder==null)throw new IllegalStateException("ImageBuilder is not initialized");
+        result=ImageBuilder.builder.build(image(sheet,label));
+        FAKE_IMAGES.put(key,result);
+        return result;
+    }
+
+    static synchronized void clearForTests(){SHEETS.clear();FAKE_IMAGES.clear();}
 
     private static Sheet load(String name){
         try(InputStream raw=Pvp3dsAssets.class.getResourceAsStream(ROOT+name+".bctex");
