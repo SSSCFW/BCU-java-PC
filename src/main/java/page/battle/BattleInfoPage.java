@@ -96,7 +96,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
     private final JButton onlineResultOk=PvpBattleOverlay.okButton();
     private final PvpBattleOverlay onlineBackdrop=new PvpBattleOverlay();
     private final JPanel onlineBattleEnd=new JPanel(new BorderLayout());
-    private final JLabel onlineBattleEndLabel=PvpBattleOverlay.label("戦闘終了",52f);
+    private final JLabel onlineBattleEndLabel=PvpBattleOverlay.label("戦闘終了",38f);
     private Runnable onlineResultAck,pendingOnlineResultAck;
     private String pendingOnlineResultTitle,pendingOnlineResultDetail;
     private boolean onlineResultAcked,opponentRouletteSpinning,onlineBattleEnding,onlineBattleEndSoundDone,onlineResultShown,onlineLayoutPending;
@@ -216,7 +216,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
         onlineResult.add(resultCenter,BorderLayout.CENTER);onlineResult.add(onlineResultOk,BorderLayout.SOUTH);onlineResult.setVisible(false);add(onlineResult);
         onlineResultOk.addActionListener(e->{if(onlineResultAcked||onlineResultAck==null)return;onlineResultAcked=true;onlineResultOk.setEnabled(false);onlineResultDetail.setText("相手のOKを待っています…");onlineResultAck.run();});
         onlineBattleEnd.setBackground(new Color(18,20,26));onlineBattleEnd.setBorder(BorderFactory.createLineBorder(new Color(235,235,235),3));
-        onlineBattleEndLabel.setForeground(Color.WHITE);onlineBattleEndLabel.setFont(onlineBattleEndLabel.getFont().deriveFont(Font.BOLD,52f));
+        onlineBattleEndLabel.setForeground(Color.WHITE);onlineBattleEndLabel.setFont(onlineBattleEndLabel.getFont().deriveFont(Font.BOLD,38f));
         onlineBattleEnd.add(onlineBattleEndLabel,BorderLayout.CENTER);onlineBattleEnd.setVisible(false);add(onlineBattleEnd);
         add(onlineBackdrop);
         setComponentZOrder(onlineResult,0);setComponentZOrder(onlineBattleEnd,0);
@@ -576,15 +576,15 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
                 set(rouletteNotice,x,y,760,98,720,34);
                 set(rouletteDebugMax,x,y,210,134,300,46);
                 set(unitAbilityOverlay,x,y,500,95,1300,260);
-                set(onlineBattleEnd,x,y,650,430,1000,260);
-                set(onlineResult,x,y,650,430,1000,320);
+                set(onlineBattleEnd,x,y,790,485,720,170);
+                set(onlineResult,x,y,740,450,820,260);
             }else{
                 set(onlineTag,x,y,1330,310,250,30);
                 set(rouletteNotice,x,y,900,372,650,34);
                 set(rouletteDebugMax,x,y,710,372,300,46);
                 set(unitAbilityOverlay,x,y,760,320,680,230);
-                set(onlineBattleEnd,x,y,780,410,640,220);
-                set(onlineResult,x,y,750,390,700,320);
+                set(onlineBattleEnd,x,y,850,455,520,170);
+                set(onlineResult,x,y,805,425,610,250);
             }
         }
 		ct.setRowHeight(size(x, y, 50));
