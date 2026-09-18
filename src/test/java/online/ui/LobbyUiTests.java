@@ -215,6 +215,8 @@ public final class LobbyUiTests {
                     Check.equal(1,live.st.timeLimit,"battle uses host one-minute time limit");
                     Check.equal(common.util.Data.TRAIT_BLACK,live.leftTrait(),"guest random exclusions resolve left-side attribute to black");
                     Check.equal(common.util.Data.TRAIT_RED,live.rightTrait(),"host fixed attribute resolves right-side attribute to red");
+                    Check.that(((JLabel)field(nativePage,"eTraitIcon")).getIcon()!=null,"left castle HP has the selected attribute icon above it");
+                    Check.that(((JLabel)field(nativePage,"uTraitIcon")).getIcon()!=null,"right castle HP has the selected attribute icon above it");
                     PvpRouletteHud rouletteHud=(PvpRouletteHud)field(nativePage,"onlineSpecial");Check.that(rouletteHud.isVisible(),"native roulette HUD is visible in roulette mode");Check.that(rouletteHud.has3dsAssets(),"native battle page uses decoded 3DS roulette assets: "+Pvp3dsAssets.diagnostic());
                     Check.that(((JButton)field(nativePage,"rouletteDebugMax")).isVisible(),"host-enabled debug mode exposes roulette MAX button to both participants");
                     Check.that(live.b.lu.fs[0][0].unit.id.pack.contains("pvp"),"edited lineup remains isolated by match");
