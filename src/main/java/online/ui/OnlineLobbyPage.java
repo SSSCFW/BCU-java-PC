@@ -34,6 +34,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private final JPasswordField password=new JPasswordField(24);
     private final JComboBox<String> side=new JComboBox<>(new String[]{"味方側（右・ピンク）","敵側（左・青）"});
     private final JComboBox<BasisLU> lineup=new JComboBox<>();
+    private final BasisLU randomLineup=choice("ランダム"),randomVanillaLineup=choice("ランダム(バニラ)");
     private final JCheckBox development=new JCheckBox("信頼するLAN／暗号化VPNでWSを許可（公開回線はWSS）");
     private final JTextArea status=new JTextArea(5,50);
     private BattleInfoPage battlePage;
@@ -61,8 +62,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         JPanel header=new JPanel(new FlowLayout(FlowLayout.LEADING));header.add(back);header.add(new JLabel("オンライン対戦  /  2 PLAYERS  /  固定30TPS"));header.add(leave);
         content.add(header,BorderLayout.NORTH);content.add(setup,BorderLayout.CENTER);
         status.setEditable(false);status.setLineWrap(true);status.setWrapStyleWord(true);content.add(new JScrollPane(status),BorderLayout.SOUTH);
-        for(BasisSet set:BasisSet.list())for(BasisLU b:set.lb)lineup.addItem(b);
-        if(BasisSet.current()!=null)lineup.setSelectedItem(BasisSet.current().sele);
+        populateLineupChoices(lineup,BasisSet.current()==null?null:BasisSet.current().sele);
         row(0,"サーバー",server);row(1,"表示名",name);row(3,"城の位置（作成者）",side);row(4,"部屋ID（参加時）",room);row(5,"パスワード（任意・設定時8文字以上）",password);
         row(7,"",development);
         JPanel actions=new JPanel(new FlowLayout(FlowLayout.LEADING));actions.add(create);actions.add(join);row(8,"",actions);row(9,"友人用サーバー",friendServer);
@@ -75,6 +75,21 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         bindPreferences();
     }
     private void row(int row,String text,Component field){GridBagConstraints c=new GridBagConstraints();c.gridy=row;c.insets=new Insets(7,8,7,8);c.anchor=GridBagConstraints.WEST;c.gridx=0;setup.add(new JLabel(text),c);c.gridx=1;c.fill=GridBagConstraints.HORIZONTAL;c.weightx=1;setup.add(field,c);}
+    private static BasisLU choice(String name){BasisLU b=new BasisLU();b.name=name;return b;}
+    boolean isRandomLineupChoice(BasisLU value){return value==randomLineup||value==randomVanillaLineup;}
+    void populateLineupChoices(JComboBox<BasisLU> box,BasisLU selected){
+        box.removeAllItems();box.addItem(randomLineup);box.addItem(randomVanillaLineup);
+        for(BasisSet set:BasisSet.list())for(BasisLU b:set.lb)box.addItem(b);
+        if(selected!=null)box.setSelectedItem(selected);
+        if(box.getSelectedItem()==null&&box.getItemCount()>0)box.setSelectedIndex(0);
+    }
+    private BasisLU battleLineup() throws java.io.IOException {
+        BasisLU selected=(BasisLU)lineup.getSelectedItem();
+        if(selected==null)throw new java.io.IOException("編成を選択してください");
+        if(selected==randomLineup)return RandomLineupFactory.create(false);
+        if(selected==randomVanillaLineup)return RandomLineupFactory.create(true);
+        return selected;
+    }
     @Override protected JButton getBackButton(){return back;}
     @Override protected void resized(int w,int h){setBounds(0,0,w,h);content.setBounds(0,0,w,h);content.revalidate();}
     private void connect(boolean createRoom){
@@ -140,7 +155,8 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
             case "prepare":
                 if(playerId<=0)throw new java.io.IOException("No identity assignment");
                 if(roomLobby!=null)roomLobby.state(e);
-                localArchive=MatchBundle.export((BasisLU)lineup.getSelectedItem());temporary.add(localArchive);localBundle=MatchBundle.read(localArchive);
+                BasisLU selectedBattleLineup=battleLineup();
+                localArchive=MatchBundle.export(selectedBattleLineup);temporary.add(localArchive);localBundle=MatchBundle.read(localArchive);
                 roster=DuelRoster.read(e);slot=roster.indexOf(playerId);leftSlot=roster.leftIndex();prepared=true;
                 hostName=roster.name(0);guestName=roster.name(1);
                 hashes[slot]=Hashes.sha256(localArchive);mounted[slot]=localBundle.mount(match,playerId);
