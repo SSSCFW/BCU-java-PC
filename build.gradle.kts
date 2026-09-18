@@ -39,6 +39,15 @@ tasks.named<ProcessResources>("processResources") {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
+tasks.withType<org.gradle.jvm.tasks.Jar> {
+    manifest {
+        attributes(
+            "Main-Class" to "main.MainBCU",
+            "Add-Opens" to "java.base/java.lang java.desktop/sun.java2d java.desktop/sun.awt java.desktop/sun.awt.windows"
+        )
+    }
+}
+
 dependencies {
     implementation("org.java-websocket:Java-WebSocket:1.6.0")
     runtimeOnly("org.slf4j:slf4j-simple:2.0.16")
