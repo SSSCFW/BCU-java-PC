@@ -313,11 +313,12 @@ public final class PvpRouletteState extends BattleObj {
                 break;
             case MOVE_UP: if(moveLevel<4)moveLevel++;break;
             case BABY_RUSH:
-                // Tobidasu versus roulette: 10 seconds of zero production cooldown.
-                // This is intentionally NOT the full God "Baby Rush" miracle, so it does
-                // not alter worker level or money.
+                // PvP petit baby rush: ten seconds of zero production cooldown plus
+                // an immediate half-wallet refill, capped at the current wallet limit.
                 babyRushTicks=BABY_RUSH_TICKS;
                 clearCooldowns(owner);
+                int bonus=Math.max(0,owner.maxMoney/2);
+                owner.money=(int)Math.min((long)owner.maxMoney,(long)owner.money+bonus);
                 break;
             default: throw new IllegalArgumentException("Unknown roulette result");
         }
