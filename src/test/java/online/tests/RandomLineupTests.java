@@ -24,6 +24,34 @@ public final class RandomLineupTests {
         Check.that(RandomLineupFactory.candidates(false).stream().anyMatch(u->u==custom),"all-pack random includes user-pack units");
         Check.that(RandomLineupFactory.candidates(true).stream().allMatch(u->Identifier.DEF.equals(u.id.pack)),"vanilla random excludes user packs");
 
+        Unit spirit=new Unit(new Identifier<>(Identifier.DEF,Unit.class,212));
+        spirit.rarity=0;spirit.max=50;spirit.lv=common.CommonStatic.getBCAssets().defLv;
+        common.battle.data.CustomUnit spiritData=new common.battle.data.CustomUnit();
+        spiritData.hp=1000;spiritData.death=null;spiritData.price=0;spiritData.resp=30;spiritData.atks[0].atk=100;spiritData.atks[0].pre=1;
+        spirit.forms=new Form[]{new Form(spirit,0,"zero-spirit",Fixture.animation(Identifier.DEF,"zero-spirit"),spiritData)};
+        UserProfile.getBCData().units.set(212,spirit);
+
+        Unit summoner=new Unit(new Identifier<>(Identifier.DEF,Unit.class,213));
+        summoner.rarity=0;summoner.max=50;summoner.lv=common.CommonStatic.getBCAssets().defLv;
+        common.battle.data.CustomUnit summonerData=new common.battle.data.CustomUnit();
+        summonerData.hp=1000;summonerData.death=null;summonerData.price=100;summonerData.resp=30;summonerData.atks[0].atk=100;summonerData.atks[0].pre=1;
+        summonerData.rep.proc.SPIRIT.id=spirit.id;
+        summoner.forms=new Form[]{new Form(summoner,0,"summoner",Fixture.animation(Identifier.DEF,"summoner"),summonerData)};
+        UserProfile.getBCData().units.set(213,summoner);
+
+        Unit freeNormal=new Unit(new Identifier<>(Identifier.DEF,Unit.class,214));
+        freeNormal.rarity=0;freeNormal.max=50;freeNormal.lv=common.CommonStatic.getBCAssets().defLv;
+        common.battle.data.CustomUnit freeData=new common.battle.data.CustomUnit();
+        freeData.hp=1000;freeData.death=null;freeData.price=0;freeData.resp=30;freeData.atks[0].atk=100;freeData.atks[0].pre=1;
+        freeNormal.forms=new Form[]{new Form(freeNormal,0,"free-normal",Fixture.animation(Identifier.DEF,"free-normal"),freeData)};
+        UserProfile.getBCData().units.set(214,freeNormal);
+
+        List<Unit> vanillaCandidates=RandomLineupFactory.candidates(true);
+        Check.that(vanillaCandidates.stream().noneMatch(u->u==spirit),"zero-cost spirit target is excluded from vanilla random");
+        Check.that(vanillaCandidates.stream().anyMatch(u->u==summoner),"spirit summoner remains eligible");
+        Check.that(vanillaCandidates.stream().anyMatch(u->u==freeNormal),"ordinary zero-cost unit remains eligible");
+        Check.that(RandomLineupFactory.candidates(false).stream().noneMatch(u->u==spirit),"zero-cost spirit target is excluded from all-pack random");
+
         BasisLU vanilla=RandomLineupFactory.create(true,new Random(42));
         Set<String> ids=new HashSet<>();
         int count=0;
