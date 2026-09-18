@@ -178,7 +178,7 @@ public final class LobbyUiTests {
                 await(()->button("ready").isEnabled(),"explicit editable-lobby readiness");
                 edt(()->{screenshot(MainFrame.F.getRootPane(),host?"host":"guest");return null;});
                 edt(()->{button("ready").doClick();return null;});
-                await(()->field(page,"battle")!=null,"GUI battle starts");
+                await(()->field(page,"battle")!=null&&field(page,"battlePage")!=null&&MainFrame.getPanel()==field(page,"battlePage"),"GUI native battle page becomes current after 3DS asset load");
                 edt(()->{
                     CommonStatic.getConfig().performanceModeBattle=!host;
                     CommonStatic.getConfig().performanceModeAnimation=!host;
