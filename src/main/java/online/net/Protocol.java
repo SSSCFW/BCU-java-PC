@@ -6,10 +6,10 @@ import java.io.IOException;
 import java.util.Collections;
 
 public final class Protocol {
-    public static final int VERSION=7, TPS=30, INPUT_DELAY=3, HASH_INTERVAL=60, MAX_AHEAD=32;
+    public static final int VERSION=8, TPS=30, INPUT_DELAY=3, HASH_INTERVAL=60, MAX_AHEAD=32;
     public static final int MAX_TEXT=4096, CHUNK=65536, MAX_FRAME=CHUNK+1024;
     public static final long MAX_BUNDLE=32L*1024*1024;
-    public static final String ENGINE="bcu-pvp-7-roulette-hud-debug";
+    public static final String ENGINE="bcu-pvp-8-random-loadout-rules";
     private Protocol() {}
     public static Draft_6455 draft() { return new Draft_6455(Collections.emptyList(),MAX_FRAME); }
     public static JsonObject message(String type) { JsonObject o=new JsonObject(); o.addProperty("type",type); return o; }
