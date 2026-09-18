@@ -3,6 +3,9 @@ on:
   push:
     branches: [feature/online-pvp-30tps]
     paths: [.github/workflows/pvp-ui-source.yml]
+  pull_request:
+    branches: [slow_kotlin]
+    paths: ['src/test/java/online/ui/BattlePresentationTests.java']
 permissions:
   contents: read
 jobs:
