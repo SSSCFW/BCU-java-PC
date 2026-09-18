@@ -10,12 +10,13 @@ import java.util.Arrays;
 
 public class ELineUp extends BattleObj {
 
-	public final int[][] price, cool, maxC, tick, cdDownOrb, priceDownOrb;
+	public final int[][] price, basePrice, cool, maxC, tick, cdDownOrb, priceDownOrb;
 	private final StageBasis b;
 
 	protected ELineUp(LineUp lu, StageBasis sb) {
 		b = sb;
 		price = new int[2][5];
+		basePrice = new int[2][5];
 		cool = new int[2][5];
 		maxC = new int[2][5];
 		tick = new int[2][5];
@@ -59,6 +60,10 @@ public class ELineUp extends BattleObj {
 				}
 				if (!hasEveryOther)
 					tick[i][j] = -1;
+				// Preserve the fully calculated pre-roulette production cost.
+				// PvP COST_DOWN mutates price[][] in place, but defeat rewards must
+				// continue to use this original per-battle cost.
+				basePrice[i][j] = price[i][j];
 			}
 	}
 
