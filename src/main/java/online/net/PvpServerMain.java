@@ -13,7 +13,7 @@ public final class PvpServerMain {
                 System.out.println("Usage: java -cp 'bcu-pvp.jar:lib/*' online.net.PvpServerMain [pvp-server.properties]\n"
                         + "       online.net.PvpServerMain --check-config [pvp-server.properties]\n"
                         + "Default file: pvp-server.properties. TCP 8766 + UDP 8767. Use ';' instead of ':' on Windows.\n"
-                        + "Ctrl+C stops the server and deletes room caches. Public control traffic requires TLS/WSS.");
+                        + "Ctrl+C stops the server and deletes room caches. Plain WS is supported; use WSS when encryption is required.");
                 return;
             }
             boolean check = args.length > 0 && args[0].equals("--check-config");
