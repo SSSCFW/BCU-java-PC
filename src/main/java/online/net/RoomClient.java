@@ -27,6 +27,8 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
     private final Object state = new Object();
     private final Listener listener;
     private final boolean preferUdp;
+    /** 0 uses the port advertised by the server; nonzero overrides it for NAT/port-forwarding setups. */
+    private final int udpPortOverride;
     private final BlockingQueue<ResolvedFrame> frames = new ArrayBlockingQueue<>(128);
     private final AtomicInteger commands = new AtomicInteger();
     private final ExecutorService transfer = Executors.newSingleThreadExecutor(r -> daemon(r, "pvp-assets"));
@@ -55,10 +57,13 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
     private RoomRules rules=RoomRules.DEFAULT;
     private boolean started, completed, ended, reported, manifestSeen, readyRequested, readySent, resultAckSent;
 
-    public RoomClient(URI uri, boolean allowPrivateWs, Listener listener) throws IOException { this(uri, allowPrivateWs, true, listener); }
-    public RoomClient(URI uri, boolean allowPrivateWs, boolean preferUdp, Listener listener) throws IOException {
+    public RoomClient(URI uri, boolean allowPrivateWs, Listener listener) throws IOException { this(uri, allowPrivateWs, true, 0, listener); }
+    public RoomClient(URI uri, boolean allowPrivateWs, boolean preferUdp, Listener listener) throws IOException { this(uri, allowPrivateWs, preferUdp, 0, listener); }
+    public RoomClient(URI uri, boolean allowPrivateWs, boolean preferUdp, int udpPortOverride, Listener listener) throws IOException {
         super(validateUri(uri, allowPrivateWs), Protocol.draft(), null, 10000);
-        this.listener = listener; this.preferUdp = preferUdp; setConnectionLostTimeout(20); setTcpNoDelay(true);
+        if(udpPortOverride<0||udpPortOverride>65535)throw new IOException("UDP port override must be 0..65535");
+        this.listener = listener; this.preferUdp = preferUdp; this.udpPortOverride=udpPortOverride;
+        setConnectionLostTimeout(20); setTcpNoDelay(true);
     }
     private static Thread daemon(Runnable task, String name) { Thread t = new Thread(task, name); t.setDaemon(true); return t; }
     public static URI validateUri(URI uri, boolean privateWs) throws IOException {
@@ -185,7 +190,8 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
         finally { Arrays.fill(master, (byte) 0); }
     }
     protected InetSocketAddress udpEndpoint(String host, int offeredPort) throws IOException {
-        InetSocketAddress address = new InetSocketAddress(host.isEmpty() ? getURI().getHost() : host, offeredPort);
+        int port=udpPortOverride>0?udpPortOverride:offeredPort;
+        InetSocketAddress address = new InetSocketAddress(host.isEmpty() ? getURI().getHost() : host, port);
         if (address.isUnresolved()) throw new IOException("UDP endpoint not resolved"); return address;
     }
     private void select(String transport) {
