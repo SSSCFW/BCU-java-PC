@@ -66,11 +66,11 @@ public final class LobbyPreferencesTests {
         legacy.setProperty("guestTraitChoice",Integer.toString(common.util.Data.TRAIT_WHITE));
         legacy.setProperty("hostTraitExclusions",Integer.toString((1<<10)|3));
         legacy.setProperty("guestTraitExclusions",Integer.toString(1<<10));
-        try(java.io.Writer out=Files.newBufferedWriter(file)){legacy.store(out,"legacy white trait");}
-        LobbyPreferences whiteMigrated=LobbyPreferences.load(file,"fallback");
-        online.tests.Check.equal(PvpTraitRules.NONE,whiteMigrated.hostTraitChoice,"saved white host trait migrates to attribute-less");
-        online.tests.Check.equal(PvpTraitRules.NONE,whiteMigrated.guestTraitChoice,"saved white guest trait migrates to attribute-less");
-        online.tests.Check.equal(3,whiteMigrated.hostTraitExclusions,"removed white exclusion bit is stripped while valid exclusions remain");
-        online.tests.Check.equal(0,whiteMigrated.guestTraitExclusions,"removed white-only exclusion bit is stripped");
+        try(java.io.Writer out=Files.newBufferedWriter(file)){legacy.store(out,"white trait preserved");}
+        LobbyPreferences whitePreserved=LobbyPreferences.load(file,"fallback");
+        online.tests.Check.equal((int)common.util.Data.TRAIT_WHITE,whitePreserved.hostTraitChoice,"saved white host trait remains selectable");
+        online.tests.Check.equal((int)common.util.Data.TRAIT_WHITE,whitePreserved.guestTraitChoice,"saved white guest trait remains selectable");
+        online.tests.Check.equal((1<<10)|3,whitePreserved.hostTraitExclusions,"white random exclusion bit is preserved");
+        online.tests.Check.equal(1<<10,whitePreserved.guestTraitExclusions,"white-only random exclusion bit is preserved");
     }
 }
