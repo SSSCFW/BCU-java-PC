@@ -134,10 +134,10 @@ public final class PvpRouletteState extends BattleObj {
         if(castleDamage>0) {
             int before=targetGauge;
             addGauge(castleDamageGain(owner,previousCastle,castleDamage,world));
-            // Only a castle-damage event that actually fills the target gauge earns
-            // the shortened next roulette reel. Partial castle charge followed by
-            // passive/unit charge remains the normal two-second presentation.
-            if(before<MAX_GAUGE&&targetGauge>=MAX_GAUGE)castleDamageFastSpinReady=true;
+            // If castle damage contributed any gauge during this charge cycle, the
+            // next roulette uses the shortened reel even when passive/unit charge
+            // later supplies the final points to 100%.
+            if(targetGauge>before)castleDamageFastSpinReady=true;
         }
 
         // FUN_002559d4: passive charge every 60 native frames. At 30TPS that is
