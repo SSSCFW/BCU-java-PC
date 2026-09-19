@@ -31,6 +31,7 @@ public class Cannon extends AtkModelAb {
     private EUnit wall = null;
     public float pos;
     private int duration = 0;
+    private int pvpAttackMultiplier = 1;
 
     public Cannon(StageBasis sb, int type, int deco, int base) {
         super(sb);
@@ -46,6 +47,19 @@ public class Cannon extends AtkModelAb {
         anim = CommonStatic.getBCAssets().atks[id].getEAnim(NyType.BASE);
         preTime = NYPRE[id];
         CommonStatic.setSE(SE_CANNON[id][0]);
+    }
+
+    public void setPvpAttackMultiplier(int multiplier) {
+        pvpAttackMultiplier=Math.max(1,multiplier);
+    }
+
+    public int pendingPvpAttackMultiplier() {
+        return pvpAttackMultiplier;
+    }
+
+    private static int scaleAttack(int attack,int multiplier) {
+        long value=(long)attack*Math.max(1,multiplier);
+        return (int)Math.max(Integer.MIN_VALUE,Math.min(Integer.MAX_VALUE,value));
     }
 
     /**
@@ -177,9 +191,12 @@ public class Cannon extends AtkModelAb {
             if (wall != null)
                 wall.kill(Entity.KillMode.SELF_DESTRUCT);
             wall = null;
+            pvpAttackMultiplier=1;
             return;
         }
 
+        int shotAttackMultiplier=pvpAttackMultiplier;
+        pvpAttackMultiplier=1;
         Proc proc = Proc.blank();
 
         /**
@@ -203,7 +220,7 @@ public class Cannon extends AtkModelAb {
             float wid = NYRAN[0];
             float p = (float) (b.ownBase().pos + getDire() * (332.5 - wid / 2));
             int atk = b.b.t().getCanonAtk(StageLimit.isComboBanned(b.est.lim, Data.C_C_ATK)) * b.cannonMultiplier() / 100;
-            AttackCanon eatk = new AttackCanon(this, atk, traits, 0, proc, 0, 0, 1);
+            AttackCanon eatk = new AttackCanon(this, scaleAttack(atk,shotAttackMultiplier), traits, 0, proc, 0, 0, 1);
             new ContWaveCanon(new AttackWave(eatk.attacker, eatk, p, wid, WT_CANN | WT_WAVE), p, 0);
         } else if (id == 1) {
             // slow canon
@@ -212,7 +229,7 @@ public class Cannon extends AtkModelAb {
             float wid = NYRAN[1];
             int spe = 150;
             float p = b.ownBase().pos + getDire() * (wid / 2f - spe);
-            AttackCanon eatk = new AttackCanon(this, 0, traits, 0, proc, 0, 0, 1);
+            AttackCanon eatk = new AttackCanon(this, scaleAttack(0,shotAttackMultiplier), traits, 0, proc, 0, 0, 1);
             new ContExtend(eatk, p, wid, spe, 1, 32, 0, 9);
         } else if (id == 3) {
             // freeze canon
@@ -221,14 +238,14 @@ public class Cannon extends AtkModelAb {
             proc.STOP.time = (int) (b.b.t().getCannonMagnification(id, Data.BASE_TIME) * (100 + (StageLimit.isComboBanned(b.est.lim, C_STOP) ? 0 : b.b.getInc(C_STOP))) / 100.0);
             int atk = (int) (b.b.t().getCanonAtk(StageLimit.isComboBanned(b.est.lim, Data.C_C_ATK)) * b.b.t().getCannonMagnification(id, Data.BASE_ATK_MAGNIFICATION) / 100.0);
             float rad = NYRAN[3] / 2;
-            b.getAttack(new AttackCanon(this, atk, traits, 0, proc, pos - rad, pos + rad, duration));
+            b.getAttack(new AttackCanon(this, scaleAttack(atk,shotAttackMultiplier), traits, 0, proc, pos - rad, pos + rad, duration));
         } else if (id == 4) {
             // water canon
             traits.add(UserProfile.getBCData().traits.get(TRAIT_METAL));
             duration = 11;
             proc.CRIT.mult = -(int) (b.b.t().getCannonMagnification(id, Data.BASE_HEALTH_PERCENTAGE));
             float rad = NYRAN[4] / 2;
-            b.getAttack(new AttackCanon(this, 1, new ArrayList<>(), 0, proc, pos - rad, pos + rad, duration));
+            b.getAttack(new AttackCanon(this, scaleAttack(1,shotAttackMultiplier), new ArrayList<>(), 0, proc, pos - rad, pos + rad, duration));
         } else if (id == 5) {
             // zombie canon
             traits.add(UserProfile.getBCData().traits.get(TRAIT_ZOMBIE));
@@ -238,7 +255,7 @@ public class Cannon extends AtkModelAb {
             traits.set(0, UserProfile.getBCData().traits.get(TRAIT_ZOMBIE));
             float wid = NYRAN[5];
             float p = (float) (b.ownBase().pos + getDire() * (332.5 - wid / 2));
-            AttackCanon eatk = new AttackCanon(this, 0, traits, AB_ONLY | AB_ZKILL | AB_CKILL, proc, 0, 0, 1);
+            AttackCanon eatk = new AttackCanon(this, scaleAttack(0,shotAttackMultiplier), traits, AB_ONLY | AB_ZKILL | AB_CKILL, proc, 0, 0, 1);
             new ContWaveCanon(new AttackWave(eatk.attacker, eatk, p, wid, WT_CANN | WT_WAVE), p, 5);
         } else if (id == 6) {
             // blast canon
@@ -250,7 +267,7 @@ public class Cannon extends AtkModelAb {
             int atk = (int) (b.b.t().getCanonAtk(StageLimit.isComboBanned(b.est.lim, Data.C_C_ATK)) * b.b.t().getCannonMagnification(id, Data.BASE_ATK_MAGNIFICATION) / 100.0);
             float rad = b.b.t().getCannonMagnification(id, Data.BASE_RANGE);
             float newPos = getBreakerSpawnPoint(pos, rad);
-            b.getAttack(new AttackCanon(this, atk, traits, AB_CKILL, proc, newPos + getDire() * rad, newPos, duration));
+            b.getAttack(new AttackCanon(this, scaleAttack(atk,shotAttackMultiplier), traits, AB_CKILL, proc, newPos + getDire() * rad, newPos, duration));
 
             atka = CommonStatic.getBCAssets().atks[id].getEAnim(NyType.ATK);
             exta = CommonStatic.getBCAssets().atks[id].getEAnim(NyType.EXT);
@@ -261,7 +278,7 @@ public class Cannon extends AtkModelAb {
             float wid = NYRAN[7];
             int spe = 150;
             float p = b.ownBase().pos + getDire() * (wid / 2f - spe);
-            AttackCanon eatk = new AttackCanon(this, 0, traits, 0, proc, 0, 0, 1);
+            AttackCanon eatk = new AttackCanon(this, scaleAttack(0,shotAttackMultiplier), traits, 0, proc, 0, 0, 1);
             new ContExtend(eatk, p, wid, spe, 1, 32, 0, 9);
         }
     }
