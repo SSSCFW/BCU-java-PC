@@ -31,6 +31,8 @@ public class StageBasis extends BattleObj {
     public int pvpDirection = -1, pvpSeat = -1;
     public long pvpSequence;
     public PvpRouletteState pvpRoulette;
+    public boolean pvpCastleHitMoneyEnabled;
+    public int pvpCastleHitMoney;
     public final boolean isPvp() { return pvpRoot != null; }
     public final StageBasis world() { return pvpRoot == null ? this : pvpRoot; }
     public final int ownDirection() { return pvpDirection; }
@@ -40,6 +42,10 @@ public class StageBasis extends BattleObj {
         return !isPvp() || pvpDirection == direction ? this : pvpOther;
     }
     public final long allocateEntityId() { return ++world().pvpSequence; }
+    public final void onOwnCastleDamaged() {
+        if(!isPvp()||!pvpCastleHitMoneyEnabled||pvpCastleHitMoney<=0)return;
+        money=(int)Math.min((long)maxMoney,(long)money+pvpCastleHitMoney);
+    }
 
 
 	public static final int[] DELAY_BASE = new int[] { 0, 0, 0, 0 };
