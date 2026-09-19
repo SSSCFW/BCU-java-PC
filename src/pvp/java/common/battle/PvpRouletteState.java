@@ -99,60 +99,46 @@ public final class PvpRouletteState extends BattleObj {
             babyRushTicks--;
             clearCooldowns(owner);
         }
-        // FUN_0023bcc0 charges from castle HP actually lost since the previous update.
-        // FUN_001954d0 is called before the stored castle HP is replaced, therefore
-        // this event uses the PRE-DAMAGE castle ratio.
+        // Charging never stops at 100% or during roulette presentation. targetGauge
+        // may therefore contain one or more future spins while gauge remains the
+        // visible 0..1000 meter.
         long currentCastle=Math.max(0L,owner.ownBase().health);
         if(lastCastleHealth<0)lastCastleHealth=currentCastle;
         long previousCastle=lastCastleHealth;
         long castleDamage=Math.max(0L,previousCastle-currentCastle);
         lastCastleHealth=currentCastle;
 
-        if(pendingResult>=0) {
-            if(resultDelayTicks>0)resultDelayTicks--;
-            if(resultDelayTicks<=0) {
-                int result=pendingResult;pendingResult=-1;
-                apply(world,owner,result);
-                lastLevel=stockState(result);
-            }
-            return;
-        }
-
-        if(spinning) {
-            spinTicks++;
-            reelIndex=(reelIndex+1)%reel.length;
-            if(spinTicks>=spinDurationTicks)revealResult();
-            return;
-        }
-
-        // Once the visible gauge reaches 1000 the native state machine leaves the
-        // charge state. Keep observing castle HP, but do not bank charge for later.
-        if(gauge>=MAX_GAUGE) {
-            gauge=targetGauge=MAX_GAUGE;return;
-        }
-
         if(castleDamage>0) {
             int before=targetGauge;
             addGauge(castleDamageGain(owner,previousCastle,castleDamage,world));
-            // If castle damage contributed any gauge during this charge cycle, the
-            // next roulette uses the shortened reel even when passive/unit charge
-            // later supplies the final points to 100%.
             if(targetGauge>before)castleDamageFastSpinReady=true;
         }
 
-        // FUN_002559d4: passive charge every 60 native frames. At 30TPS that is
-        // once per 30 logic ticks. Base=10, then castle-HP and remaining-time factors.
         if(++chargeClock>=PvpStageBasis.TPS) {
             chargeClock-=PvpStageBasis.TPS;
             addGauge((int)(10.0*castleHealthFactor(owner)*matchTimeFactor(world)));
         }
 
-        // Visible gauge keeps the native +50/tick chase regardless of charge source.
-        if(gauge<targetGauge)gauge=Math.min(targetGauge,gauge+50);
+        int visibleTarget=Math.min(MAX_GAUGE,targetGauge);
+        if(gauge<visibleTarget)gauge=Math.min(visibleTarget,gauge+50);
+
+        // Result presentation is display-only now; the effect itself is committed
+        // at reel stop so a banked full gauge can immediately start another spin.
+        if(pendingResult>=0) {
+            if(resultDelayTicks>0)resultDelayTicks--;
+            if(resultDelayTicks<=0)pendingResult=-1;
+        }
+
+        if(spinning) {
+            spinTicks++;
+            reelIndex=(reelIndex+1)%reel.length;
+            if(spinTicks>=spinDurationTicks)revealResult(world,owner);
+        }
     }
 
     private void addGauge(int amount) {
-        if(amount>0)targetGauge=Math.min(MAX_GAUGE,targetGauge+amount);
+        if(amount<=0)return;
+        targetGauge=(int)Math.min((long)Integer.MAX_VALUE,(long)targetGauge+amount);
     }
 
     /**
@@ -180,7 +166,7 @@ public final class PvpRouletteState extends BattleObj {
      * Position factor is 1.5x at own castle, 0.5x at center, 0.1x at enemy castle.
      */
     public void unitDefeated(PvpStageBasis world,StageBasis owner,int deadDirection,float position,int internalPrice) {
-        if(spinning||gauge>=MAX_GAUGE||internalPrice<=0)return;
+        if(internalPrice<=0)return;
         boolean ownDeath=deadDirection==owner.ownDirection();
         int base=(int)Math.min(250L,(long)internalPrice*(ownDeath?10L:5L)/10000L);
         if(base<=0)return;
@@ -247,18 +233,26 @@ public final class PvpRouletteState extends BattleObj {
      * it resolves deterministically after roughly two seconds on both peers.
      */
     public boolean press(PvpStageBasis world, StageBasis owner) {
-        if(spinning || pendingResult>=0 || gauge<MAX_GAUGE)return false;
-        gauge=targetGauge=MAX_GAUGE;spinning=true;spinTicks=0;
+        if(spinning || gauge<MAX_GAUGE)return false;
+        // A new spin replaces the previous result card. The previous effect has
+        // already been applied at reel stop, so no gameplay result is discarded.
+        pendingResult=-1;resultDelayTicks=0;
+        gauge=MAX_GAUGE;spinning=true;spinTicks=0;
         spinDurationTicks=castleDamageFastSpinReady?Math.max(1,AUTO_SPIN_TICKS/2):AUTO_SPIN_TICKS;
         castleDamageFastSpinReady=false;
         return true;
     }
 
-    private void revealResult() {
+    private void revealResult(PvpStageBasis world,StageBasis owner) {
         int result=reel[reelIndex];
-        spinning=false;spinTicks=0;gauge=targetGauge=0;chargeClock=0;spinDurationTicks=AUTO_SPIN_TICKS;
-        lastResult=result;pendingResult=result;resultDelayTicks=RESULT_DISPLAY_TICKS;
-        lastLevel=previewLevel(result);
+        spinning=false;spinTicks=0;
+        targetGauge=Math.max(0,targetGauge-MAX_GAUGE);
+        gauge=Math.min(MAX_GAUGE,targetGauge);
+        spinDurationTicks=AUTO_SPIN_TICKS;
+        lastResult=result;
+        apply(world,owner,result);
+        lastLevel=stockState(result);
+        pendingResult=result;resultDelayTicks=RESULT_DISPLAY_TICKS;
     }
 
     private int previewLevel(int effect) {
