@@ -72,7 +72,7 @@ public class EUnit extends Entity {
 		super(b, de, ea, d0, b.b.t().getAtkMulti(), b.b.t().getDefMulti(), pc, level);
 		currentLayer = spawnLayer = b.getValueBetween(layer0, layer1);
 		traits = de.getTraits();
-		applyPvpAssignedTrait(b);
+		if(b.isPvp())pvpAssignedTrait=((PvpStageBasis)b.world()).traitForDirection(b.ownDirection());
 		lvl = level.getLv() + level.getPlusLv();
 		this.isOrbBoosted = isEveryOther;
 		this.index = index;
@@ -99,19 +99,6 @@ public class EUnit extends Entity {
 		level = null;
 		isSpirit = false;
 		isOrbBoosted = false;
-	}
-
-	private void applyPvpAssignedTrait(StageBasis b) {
-		if(!b.isPvp())return;
-		pvpAssignedTrait=((PvpStageBasis)b.world()).traitForDirection(b.ownDirection());
-		// PvP's selected player attribute is authoritative. Do not retain the
-		// source unit's native/white/custom traits, otherwise downstream damage
-		// and ability code can treat the unit as a mixed selected+untraited target.
-		traits=new ArrayList<>();
-		if(pvpAssignedTrait>=0) {
-			Trait selected=UserProfile.getBCData().traits.get(pvpAssignedTrait);
-			if(selected!=null)traits.add(selected);
-		}
 	}
 
 	private void processAbilityOrbs() {
