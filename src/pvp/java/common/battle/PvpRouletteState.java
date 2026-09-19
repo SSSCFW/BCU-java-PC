@@ -30,6 +30,7 @@ public final class PvpRouletteState extends BattleObj {
             8,8,8, 9,9,9, 10,10,10,10, 11,11,11,11, 12,12,12,12, 13,13
     };
     private static final double[] PERMANENT={1.0,1.5,2.5,4.5,8.0};
+    private static final double[] HP_PERMANENT={1.0,4.5,7.5,13.5,24.0};
     private static final int[] WORKER={100,150,200,300,500};
 
     private final int[] reel=new int[SOURCE_REEL.length];
@@ -79,7 +80,7 @@ public final class PvpRouletteState extends BattleObj {
     public int workerPercent(){return WORKER[Math.max(0,Math.min(4,workerLevel))];}
     public int productionDivisor(){return 1<<Math.max(0,Math.min(4,productionLevel));}
     public double attackMultiplier(){return multiplier(attackLevel);}
-    public double hpMultiplier(){return multiplier(hpLevel);}
+    public double hpMultiplier(){return HP_PERMANENT[Math.max(0,Math.min(4,hpLevel))];}
     public double moveMultiplier(){return multiplier(moveLevel);}
     public int stockState(int effect) {
         switch(effect){
