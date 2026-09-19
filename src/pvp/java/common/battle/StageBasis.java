@@ -47,8 +47,14 @@ public class StageBasis extends BattleObj {
     public final void onOwnCastleDamaged() {
         if(!isPvp()||!pvpCastleHitMoneyEnabled||pvpCastleHitMoney<=0)return;
         // StageBasis stores currency in hundredths; room rules/UI use displayed yen.
-        long reward=(long)pvpCastleHitMoney*100L;
-        money=(int)Math.min((long)maxMoney,(long)money+reward);
+        addPvpCappedMoney((long)pvpCastleHitMoney*100L);
+    }
+    public final int pvpMoneyCeiling() {
+        return isPvp()&&pvpMoneyOvercapLimit>maxMoney?pvpMoneyOvercapLimit:maxMoney;
+    }
+    public final void addPvpCappedMoney(long amount) {
+        if(amount<=0)return;
+        money=(int)Math.min((long)pvpMoneyCeiling(),Math.min((long)Integer.MAX_VALUE,(long)money+amount));
     }
     public final void grantPvpMoneyOvercap(int amount) {
         if(amount<=0)return;
