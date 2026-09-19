@@ -10,6 +10,7 @@ import common.util.anim.EAnimD;
 import common.util.pack.EffAnim;
 import common.util.unit.*;
 import online.sync.*;
+import online.net.lobby.RoomRules;
 import java.lang.reflect.Field;
 import java.util.*;
 
@@ -22,6 +23,7 @@ public final class CombatTests {
         Check.that(duel.le.get(0).health<initial,"real opposing units inflict damage");
         Check.equal(duel.le.get(0).health,duel.le.get(1).health,"same-unit combat is symmetric");
         defeatRewardTests();
+        castleHitMoneyTests();
         for(boolean mini:new boolean[]{false,true}) {
             PvpStageBasis b=duel(!mini,mini);
             EUnit left=(EUnit)b.le.stream().filter(e->e.dire==1).findFirst().get();
@@ -120,6 +122,27 @@ public final class CombatTests {
     selfRight.lastKilledBy.add((AttackSimple)model(selfLeft).getAttack(0));
     selfRight.kill(Entity.KillMode.SELF_DESTRUCT);
     Check.equal(0,selfDestruct.left().money,"self-destruction pays no defeat reward");
+}
+
+private static void castleHitMoneyTests() throws Exception {
+    Unit l=Fixture.unit("castle_hit_l",100000),r=Fixture.unit("castle_hit_r",100000);
+    RoomRules rules=new RoomRules(4400,0,3,true,RoomRules.SpecialMode.NONE,false,
+            online.net.lobby.PvpTraitRules.NONE,online.net.lobby.PvpTraitRules.NONE,0,0,
+            RoomRules.DEFAULT_TIME_LIMIT_MINUTES,RoomRules.DEFAULT_MAX_UNITS,true,5);
+    PvpStageBasis b=new PvpStageBasis(Fixture.lineup(l),Fixture.lineup(r),9901,0,rules);
+    b.left().money=b.right().money=100000;
+    b.step(new InputFrame(0,1,1));
+    EUnit attacker=unit(b,1);
+    StageBasis victim=b.right();
+    victim.money=0;
+    AttackSimple hit=(AttackSimple)model(attacker).getAttack(0);
+    victim.ownBase().damaged(hit);
+    Check.equal(5,victim.money,"one successful castle hit grants configured money once");
+    victim.ownBase().damaged((AttackSimple)model(attacker).getAttack(0));
+    Check.equal(10,victim.money,"each separate castle hit grants another configured bonus");
+    victim.money=Math.max(0,victim.maxMoney-2);
+    victim.ownBase().damaged((AttackSimple)model(attacker).getAttack(0));
+    Check.equal(victim.maxMoney,victim.money,"castle-hit money never exceeds wallet limit");
 }
 
 private static EUnit unit(PvpStageBasis b,int direction){return (EUnit)b.le.stream().filter(e->e.dire==direction).findFirst().get();}
