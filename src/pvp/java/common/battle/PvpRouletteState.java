@@ -36,7 +36,7 @@ public final class PvpRouletteState extends BattleObj {
     public long lastCastleHealth=-1;
     public boolean spinning;
     public int productionLevel, workerLevel, costLevel, attackLevel, hpLevel, moveLevel;
-    public int babyRushTicks;
+    public int babyRushTicks, castleDamageFastGauge;
 
     public PvpRouletteState(CopRand random) {
         // FUN_0025502c initializes all 43 slots to 0x0e (empty), then inserts each
@@ -128,11 +128,15 @@ public final class PvpRouletteState extends BattleObj {
         // Once the visible gauge reaches 1000 the native state machine leaves the
         // charge state. Keep observing castle HP, but do not bank charge for later.
         if(gauge>=MAX_GAUGE) {
-            gauge=targetGauge=MAX_GAUGE;return;
+            gauge=targetGauge=MAX_GAUGE;castleDamageFastGauge=0;return;
         }
 
-        if(castleDamage>0)
-            addGauge(castleDamageGain(owner,previousCastle,castleDamage,world));
+        if(castleDamage>0) {
+            int added=addGauge(castleDamageGain(owner,previousCastle,castleDamage,world));
+            // Only the gauge amount earned by taking castle damage gets the
+            // shortened fill presentation requested for the defending side.
+            castleDamageFastGauge=Math.min(MAX_GAUGE,castleDamageFastGauge+added);
+        }
 
         // FUN_002559d4: passive charge every 60 native frames. At 30TPS that is
         // once per 30 logic ticks. Base=10, then castle-HP and remaining-time factors.
@@ -141,12 +145,26 @@ public final class PvpRouletteState extends BattleObj {
             addGauge((int)(10.0*castleHealthFactor(owner)*matchTimeFactor(world)));
         }
 
-        // Native visible gauge follows target gauge by +50 per update.
-        if(gauge<targetGauge)gauge=Math.min(targetGauge,gauge+50);
+        // Ordinary charge keeps the native +50/tick presentation. The part of
+        // the target that came from castle damage may consume an extra 50/tick,
+        // halving only that portion's visible fill duration.
+        if(gauge<targetGauge) {
+            int gap=targetGauge-gauge;
+            castleDamageFastGauge=Math.max(0,Math.min(castleDamageFastGauge,gap));
+            int budget=castleDamageFastGauge>0?100:50;
+            int normalGap=Math.max(0,gap-castleDamageFastGauge);
+            int normalMove=Math.min(Math.min(normalGap,50),budget);
+            gauge+=normalMove;budget-=normalMove;
+            int fastMove=Math.min(castleDamageFastGauge,budget);
+            gauge+=fastMove;castleDamageFastGauge-=fastMove;
+        }
     }
 
-    private void addGauge(int amount) {
-        if(amount>0)targetGauge=Math.min(MAX_GAUGE,targetGauge+amount);
+    private int addGauge(int amount) {
+        if(amount<=0)return 0;
+        int before=targetGauge;
+        targetGauge=Math.min(MAX_GAUGE,targetGauge+amount);
+        return targetGauge-before;
     }
 
     /**
@@ -248,7 +266,7 @@ public final class PvpRouletteState extends BattleObj {
 
     private void revealResult() {
         int result=reel[reelIndex];
-        spinning=false;spinTicks=0;gauge=targetGauge=0;chargeClock=0;
+        spinning=false;spinTicks=0;gauge=targetGauge=0;chargeClock=0;castleDamageFastGauge=0;
         lastResult=result;pendingResult=result;resultDelayTicks=RESULT_DISPLAY_TICKS;
         lastLevel=previewLevel(result);
     }
