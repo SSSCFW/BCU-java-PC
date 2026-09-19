@@ -247,12 +247,19 @@ public final class MatchBundle {
                     if(!progress)throw new IOException("Cyclic pack dependency; make the pack graph acyclic before online play");
                 }
                 for(UserPack p:owned)if(!p.validate())throw new IOException("Invalid animation in shared pack");
-                BasisLU result=new BasisLU();JsonDecoder.inject(m.get("lineup"),BasisLU.class,result);
-                JsonDecoder.inject(m.get("treasure"),Treasure.class,result.t());
-                result.lu.renew();result.lu.coms.clear();
-                for(JsonElement c:m.getAsJsonArray("combos")) {
-                    @SuppressWarnings("unchecked") Identifier<Combo> id=JsonDecoder.decode(c,Identifier.class);
-                    Combo combo=id==null?null:id.get();if(combo==null)throw new IOException("Missing combo");result.lu.coms.add(combo);
+                // Rebuild active combos from the mounted lineup instead of resolving
+                // serialized combo IDs one-by-one. The temporary packs normally keep
+                // useCombos=false so one player's custom combos cannot leak into the
+                // other player's lineup. Enable ONLY this mounted bundle's packs while
+                // renewing, then immediately disable them again.
+                for(UserPack p:owned)p.useCombos=true;
+                BasisLU result;
+                try {
+                    result=new BasisLU();JsonDecoder.inject(m.get("lineup"),BasisLU.class,result);
+                    JsonDecoder.inject(m.get("treasure"),Treasure.class,result.t());
+                    result.lu.renew();
+                } finally {
+                    for(UserPack p:owned)p.useCombos=false;
                 }
                 validateLineup(result);lineup=result;
             }catch(Exception e){close();throw e;}
