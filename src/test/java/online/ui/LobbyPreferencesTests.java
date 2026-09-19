@@ -10,7 +10,8 @@ public final class LobbyPreferencesTests {
     public static void run() throws Exception {
         Path dir=Files.createTempDirectory("bcu-pvp-pref-test-"),file=dir.resolve("online-client.properties");
         RoomRules rules=new RoomRules(8123,RoomRules.RANDOM_BACKGROUND,3,true,RoomRules.SpecialMode.ROULETTE,true,
-                PvpTraitRules.RANDOM,common.util.Data.TRAIT_RED,5,2,RoomRules.UNLIMITED_TIME);
+                PvpTraitRules.RANDOM,common.util.Data.TRAIT_RED,5,2,RoomRules.UNLIMITED_TIME,
+                137,true,9);
         LobbyPreferences original=new LobbyPreferences("wss://example.invalid/pvp","tester")
                 .withHostRules(rules).withCastleHealth(37.5)
                 .withLocalSetup(1,LobbyPreferences.LINEUP_RANDOM_VANILLA,-1,-1);
@@ -28,6 +29,9 @@ public final class LobbyPreferencesTests {
         online.tests.Check.equal(5,loaded.hostTraitExclusions,"host random exclusions roundtrip");
         online.tests.Check.equal(2,loaded.guestTraitExclusions,"guest random exclusions roundtrip");
         online.tests.Check.equal(RoomRules.UNLIMITED_TIME,loaded.timeLimitMinutes,"unlimited time preference roundtrip");
+        online.tests.Check.equal(137,loaded.maxUnits,"maximum deployed unit preference roundtrip");
+        online.tests.Check.that(loaded.castleHitMoneyEnabled,"castle-hit money mode preference roundtrip");
+        online.tests.Check.equal(9,loaded.castleHitMoney,"castle-hit money amount preference roundtrip");
         online.tests.Check.equal(37.5,loaded.castleHealthMultiplier,"local castle multiplier preference roundtrip");
         online.tests.Check.equal(1,loaded.creatorSideIndex,"creator side preference roundtrip");
         online.tests.Check.equal(LobbyPreferences.LINEUP_RANDOM_VANILLA,loaded.lineupKind,"lineup choice preference roundtrip");
@@ -53,6 +57,9 @@ public final class LobbyPreferencesTests {
         online.tests.Check.equal(online.net.lobby.PvpBattleMusic.DEFAULT_ID,migrated.musicId,"legacy random/silent BGM migrates to the curated default");
         online.tests.Check.equal(8123,migrated.castleDistance,"legacy BGM migration preserves other room settings");
         online.tests.Check.equal(23,migrated.timeLimitMinutes,"legacy BGM migration preserves time limit");
+        online.tests.Check.equal(RoomRules.DEFAULT_MAX_UNITS,migrated.maxUnits,"legacy preferences use new default unit cap");
+        online.tests.Check.that(!migrated.castleHitMoneyEnabled,"legacy preferences keep castle-hit money mode disabled");
+        online.tests.Check.equal(RoomRules.DEFAULT_CASTLE_HIT_MONEY,migrated.castleHitMoney,"legacy preferences use default castle-hit money amount");
 
         legacy.setProperty("musicId",Integer.toString(online.net.lobby.PvpBattleMusic.DEFAULT_ID));
         legacy.setProperty("hostTraitChoice",Integer.toString(common.util.Data.TRAIT_WHITE));
