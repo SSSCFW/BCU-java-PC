@@ -191,7 +191,9 @@ public final class RoomLobbyPage extends Page {
         setExclusionEnabled(hostTraitExclude,hostCan&&selectedTrait(hostTrait)==PvpTraitRules.RANDOM);
         setExclusionEnabled(guestTraitExclude,hostCan&&selectedTrait(guestTrait)==PvpTraitRules.RANDOM);
         apply.setEnabled(hostCan&&dirty);
-        ready.setText(ownReady()?"準備を解除":"準備完了");ready.setEnabled(editable()&&!pending&&!closed&&(ownReady()||(!dirty&&!playerDirty&&lineup.getSelectedItem()!=null)));
+        BasisLU selected=(BasisLU)lineup.getSelectedItem();
+        ready.setText(ownReady()?"準備を解除":"準備完了");
+        ready.setEnabled(editable()&&!pending&&!closed&&(ownReady()||(!dirty&&!playerDirty&&owner.canReadyLineup(selected))));
         if(!editable()&&state!=null){ready.setText("共有・開始待ち…");edit.setEnabled(false);}
     }
 
@@ -235,7 +237,15 @@ public final class RoomLobbyPage extends Page {
     void toggleReady(){
         if(closed||!editable()||pending)return;
         stopMusicPreview();
-        if(!ownReady())try{distance.commitEdit();if(dirty)throw new IllegalArgumentException("変更したルールを先に適用してください");if(playerDirty)throw new IllegalArgumentException("城体力倍率を先に適用してください");if(lineup.getSelectedItem()==null)throw new IllegalArgumentException("編成を選択してください");PvpStageBasis.validateRulesAssets(client.roomRules());}catch(Exception e){message(e.getMessage());return;}
+        if(!ownReady())try{
+            distance.commitEdit();
+            if(dirty)throw new IllegalArgumentException("変更したルールを先に適用してください");
+            if(playerDirty)throw new IllegalArgumentException("城体力倍率を先に適用してください");
+            BasisLU selected=(BasisLU)lineup.getSelectedItem();
+            if(selected==null)throw new IllegalArgumentException("編成を選択してください");
+            if(!owner.canReadyLineup(selected))throw new IllegalArgumentException("編成には1体以上のキャラが必要です");
+            PvpStageBasis.validateRulesAssets(client.roomRules());
+        }catch(Exception e){message(e.getMessage());return;}
         pending=true;client.lobbyReady(!ownReady(),state.get("revision").getAsLong());refreshControls();
     }
 
