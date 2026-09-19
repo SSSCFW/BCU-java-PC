@@ -66,14 +66,14 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
         setConnectionLostTimeout(20); setTcpNoDelay(true);
     }
     private static Thread daemon(Runnable task, String name) { Thread t = new Thread(task, name); t.setDaemon(true); return t; }
-    public static URI validateUri(URI uri, boolean privateWs) throws IOException {
+    public static URI validateUri(URI uri, boolean allowPlainWs) throws IOException {
         if (uri == null || uri.getHost() == null || uri.getUserInfo() != null || uri.getFragment() != null)
             throw new IOException("Enter a ws(s) server URL without credentials/fragments");
         String host = uri.getHost();
         boolean local = host.equalsIgnoreCase("localhost") || host.equals("127.0.0.1") || host.equals("[::1]") || host.equals("::1");
         if ("wss".equalsIgnoreCase(uri.getScheme())) return uri;
-        if ("ws".equalsIgnoreCase(uri.getScheme()) && (local || (privateWs && privateLiteral(host)))) return uri;
-        throw new IOException("公開回線はWSSを使用してください。WSはlocalhost、または明示許可したLAN/VPNのIPアドレスのみです。");
+        if ("ws".equalsIgnoreCase(uri.getScheme()) && (local || allowPlainWs)) return uri;
+        throw new IOException("外部のws://接続には「平文WSを許可」を有効にしてください。暗号化する場合はwss://を使用してください。");
     }
     private static boolean privateLiteral(String host) {
         try {
