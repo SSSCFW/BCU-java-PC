@@ -56,10 +56,10 @@ public final class RandomLineupFactory {
         if(vanilla&&!Identifier.DEF.equals(unit.id.pack))return;
         Form form=bestForm(unit);
         if(form==null)return;
-        // Spirit forms are support entities, not normal lineup choices. Keep
-        // ordinary zero-cost units eligible, but exclude a zero-cost unit when
-        // another form explicitly references it as its SPIRIT summon target.
-        if(form.du.getPrice()==0&&spiritTargets.contains(key(unit.id)))return;
+        // Zero-cost support entities are not normal lineup choices. Keep ordinary
+        // zero-cost units eligible, but exclude SPIRIT summon targets and the
+        // Iron Wall cannon entity (the engine spawns default Unit 339 directly).
+        if(form.du.getPrice()==0&&(spiritTargets.contains(key(unit.id))||isIronWallCannonUnit(unit.id)))return;
         out.put(key(unit.id),unit);
     }
 
@@ -76,6 +76,10 @@ public final class RandomLineupFactory {
             if(form==null||form.du==null||form.du.getProc()==null||!form.du.getProc().SPIRIT.exists()||form.du.getProc().SPIRIT.id==null)continue;
             targets.add(key(form.du.getProc().SPIRIT.id));
         }
+    }
+
+    private static boolean isIronWallCannonUnit(Identifier<?> id){
+        return id!=null&&Identifier.DEF.equals(id.pack)&&id.id==339;
     }
 
     private static String key(Identifier<?> id){return id.pack+":"+id.id;}
