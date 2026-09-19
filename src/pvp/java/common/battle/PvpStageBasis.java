@@ -14,7 +14,7 @@ import java.util.*;
 /** Two independently owned player states, a single simulation world, no native CPU spawner. */
 public final class PvpStageBasis extends StageBasis {
     public static final int TPS = 30;
-    public static final double DEFAULT_CASTLE_HEALTH_MULTIPLIER=20.0;
+    public static final double DEFAULT_CASTLE_HEALTH_MULTIPLIER=40.0;
     public static final double MIN_CASTLE_HEALTH_MULTIPLIER=0.1, MAX_CASTLE_HEALTH_MULTIPLIER=1000.0;
     public final int pvpSpecialMode;
     public final boolean pvpDebugMode;
@@ -36,7 +36,7 @@ public final class PvpStageBasis extends StageBasis {
         return PvpTiming.inMatch(match, () -> {PvpStageBasis b=new PvpStageBasis(left,right,seed,leftSeat,rules,leftCastleMultiplier,rightCastleMultiplier,leftTrait,rightTrait);b.matchScope=match;return b;});
     }
     public static final int ARENA_LENGTH = 6000;
-    public static final int MAX_UNITS = 50;
+    public static final int MAX_UNITS = RoomRules.DEFAULT_MAX_UNITS;
 
     public PvpStageBasis(BasisLU left, BasisLU right, long seed, int leftSeat) {
         this(left,right,seed,leftSeat,RoomRules.DEFAULT);
@@ -71,6 +71,8 @@ public final class PvpStageBasis extends StageBasis {
         other.r = r; r.deterministicVisuals = true;
         pvpRoulette = new PvpRouletteState(r);
         other.pvpRoulette = new PvpRouletteState(r);
+        pvpCastleHitMoneyEnabled=other.pvpCastleHitMoneyEnabled=rules.castleHitMoneyEnabled;
+        pvpCastleHitMoney=other.pvpCastleHitMoney=rules.castleHitMoney;
         other.le = le; other.tempe = tempe; other.lw = lw; other.tlw = tlw; other.lea = lea; other.la = la;
         other.ebaseSmoke = ebaseSmoke; other.ubaseSmoke = ubaseSmoke;
         ebase = new ECastle(other, left); ebase.added(1,800);
@@ -80,7 +82,7 @@ public final class PvpStageBasis extends StageBasis {
         other.pvpRoulette.initializeCharge(other);
         pvpRoulette.initializeCharge(this);
         bgEffect = other.bgEffect = null;
-        maxNum = other.maxNum = MAX_UNITS;
+        maxNum = other.maxNum = rules.maxUnits;
         maxMoney = b.t().getMaxMon(work_lv, false);
         other.maxMoney = other.b.t().getMaxMon(other.work_lv, false);
     }
@@ -198,7 +200,8 @@ public final class PvpStageBasis extends StageBasis {
     public static RoomRules resolveRandomRules(RoomRules rules,long seed) {
         int background=rules.backgroundId==RoomRules.RANDOM_BACKGROUND?randomBackgroundId(seed):rules.backgroundId;
         RoomRules resolved=new RoomRules(rules.castleDistance,background,rules.musicId,rules.force60Fps,rules.specialMode,rules.debugMode,
-                rules.hostTraitChoice,rules.guestTraitChoice,rules.hostTraitExclusions,rules.guestTraitExclusions,rules.timeLimitMinutes);
+                rules.hostTraitChoice,rules.guestTraitChoice,rules.hostTraitExclusions,rules.guestTraitExclusions,rules.timeLimitMinutes,
+                rules.maxUnits,rules.castleHitMoneyEnabled,rules.castleHitMoney);
         validateRulesAssets(resolved);
         return resolved;
     }
@@ -222,7 +225,7 @@ public final class PvpStageBasis extends StageBasis {
     private static Stage arena(RoomRules rules) {
         validateRulesAssets(rules);
         ArenaMap map=new ArenaMap(); ArenaStage stage=new ArenaStage(map);
-        stage.names.put("Online PvP");stage.len=rules.castleDistance+1600;stage.max=MAX_UNITS;
+        stage.names.put("Online PvP");stage.len=rules.castleDistance+1600;stage.max=rules.maxUnits;
         stage.non_con=true;stage.drop=false;stage.health=60000;stage.timeLimit=rules.timeLimitMinutes;stage.data=new SCDef(0);
         stage.bg=new Identifier<>(Identifier.DEF,Background.class,rules.backgroundId);
         stage.mus0=stage.mus1=new Identifier<>(Identifier.DEF,Music.class,rules.musicId);
