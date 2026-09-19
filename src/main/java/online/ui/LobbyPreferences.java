@@ -110,13 +110,6 @@ final class LobbyPreferences {
         try{
             int music=integer(p,"musicId",RoomRules.DEFAULT.musicId);
             if(!PvpBattleMusic.isAllowed(music))music=PvpBattleMusic.DEFAULT_ID;
-            int hostTrait=integer(p,"hostTraitChoice",PvpTraitRules.NONE),guestTrait=integer(p,"guestTraitChoice",PvpTraitRules.NONE);
-            // Migrate preferences from builds where "white/untraited" was exposed
-            // as a selectable PvP attribute. It is no longer part of PvP choices.
-            if(hostTrait==common.util.Data.TRAIT_WHITE)hostTrait=PvpTraitRules.NONE;
-            if(guestTrait==common.util.Data.TRAIT_WHITE)guestTrait=PvpTraitRules.NONE;
-            int hostExclusions=integer(p,"hostTraitExclusions",0)&PvpTraitRules.ALL_EXCLUSIONS;
-            int guestExclusions=integer(p,"guestTraitExclusions",0)&PvpTraitRules.ALL_EXCLUSIONS;
             return new LobbyPreferences(server,name,
                     integer(p,"castleDistance",RoomRules.DEFAULT.castleDistance),
                     integer(p,"backgroundId",RoomRules.DEFAULT.backgroundId),
@@ -124,8 +117,8 @@ final class LobbyPreferences {
                     bool(p,"force60Fps",RoomRules.DEFAULT.force60Fps),
                     RoomRules.SpecialMode.valueOf(p.getProperty("specialMode",RoomRules.DEFAULT.specialMode.name())),
                     bool(p,"debugMode",RoomRules.DEFAULT.debugMode),
-                    hostTrait,guestTrait,
-                    hostExclusions,guestExclusions,
+                    integer(p,"hostTraitChoice",PvpTraitRules.NONE),integer(p,"guestTraitChoice",PvpTraitRules.NONE),
+                    integer(p,"hostTraitExclusions",0),integer(p,"guestTraitExclusions",0),
                     integer(p,"timeLimitMinutes",RoomRules.DEFAULT_TIME_LIMIT_MINUTES),
                     integer(p,"maxUnits",RoomRules.DEFAULT_MAX_UNITS),
                     bool(p,"castleHitMoneyEnabled",false),
