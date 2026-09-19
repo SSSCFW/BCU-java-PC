@@ -40,13 +40,13 @@ public final class RoomLobbyTests {
             JsonObject a=host.state(2),b=guest.state(2);long rev=a.get("revision").getAsLong();
             Check.equal("EDITING",a.get("phase").getAsString(),"both peers edit before ready");
             Check.equal(joined.get("playerId"),a.get("hostId"),"host identity assigned by server");
-            for(JsonElement p:a.getAsJsonArray("players"))Check.equal(20.0,p.getAsJsonObject().get("castleHealthMultiplier").getAsDouble(),"every player starts at 20x castle HP");
+            for(JsonElement p:a.getAsJsonArray("players"))Check.equal(40.0,p.getAsJsonObject().get("castleHealthMultiplier").getAsDouble(),"every player starts at 40x castle HP");
             host.castle(rev,12.5);a=host.state(2);b=guest.state(2);long castleRev=a.get("revision").getAsLong();
             Check.that(castleRev>rev,"personal castle HP setting increments room revision");
             int hostId=joined.get("playerId").getAsInt();
             for(JsonElement p:a.getAsJsonArray("players")) {
                 JsonObject player=p.getAsJsonObject();
-                Check.equal(player.get("id").getAsInt()==hostId?12.5:20.0,player.get("castleHealthMultiplier").getAsDouble(),"castle HP multiplier belongs to each player");
+                Check.equal(player.get("id").getAsInt()==hostId?12.5:40.0,player.get("castleHealthMultiplier").getAsDouble(),"castle HP multiplier belongs to each player");
             }
             rev=castleRev;
             guest.rules(rev,8000);Check.equal("HOST_ONLY",guest.take("notice").get("code").getAsString(),"guest cannot change host rules");
