@@ -13,7 +13,7 @@ import java.util.*;
  * (Level 1/2/3/MAX); together with the base state this is five states.
  */
 public final class PvpRouletteState extends BattleObj {
-    public static final int MAX_GAUGE=1000, TEMP_TICKS=150, BABY_RUSH_TICKS=10*PvpStageBasis.TPS,
+    public static final int MAX_GAUGE=1000, MAX_STORED_GAUGE=MAX_GAUGE*5, TEMP_TICKS=150, BABY_RUSH_TICKS=10*PvpStageBasis.TPS,
             BOOSTED_HEAL_SPAWN_TICKS=5*PvpStageBasis.TPS,
             AUTO_SPIN_TICKS=2*PvpStageBasis.TPS, RESULT_DISPLAY_TICKS=2*PvpStageBasis.TPS,
             REPEAT_DELAY_TICKS=PvpStageBasis.TPS/2, ORIGINAL_MATCH_SECONDS=180;
@@ -131,6 +131,11 @@ public final class PvpRouletteState extends BattleObj {
         if(pendingResult>=0) {
             if(resultDelayTicks>0)resultDelayTicks--;
             if(resultDelayTicks<=0) {
+                int result=pendingResult;
+                boolean boosted=lastResultCastleBoosted;
+                // Apply only after the result cut-in has completely disappeared.
+                apply(world,owner,result,boosted);
+                lastLevel=stockState(result);
                 pendingResult=-1;
                 repeatDelayTicks=REPEAT_DELAY_TICKS;
             }
@@ -147,7 +152,7 @@ public final class PvpRouletteState extends BattleObj {
 
     private void addGauge(int amount) {
         if(amount<=0)return;
-        targetGauge=(int)Math.min((long)Integer.MAX_VALUE,(long)targetGauge+amount);
+        targetGauge=(int)Math.min((long)MAX_STORED_GAUGE,(long)targetGauge+amount);
     }
 
     /**
@@ -257,12 +262,13 @@ public final class PvpRouletteState extends BattleObj {
         int result=reel[reelIndex];
         boolean boosted=castleDamageBoostedSpin;
         spinning=false;spinTicks=0;castleDamageBoostedSpin=false;
-        targetGauge=Math.max(0,targetGauge-MAX_GAUGE);
+        targetGauge=Math.max(0,Math.min(MAX_STORED_GAUGE,targetGauge)-MAX_GAUGE);
         gauge=Math.min(MAX_GAUGE,targetGauge);
         spinDurationTicks=AUTO_SPIN_TICKS;
         lastResult=result;lastResultCastleBoosted=boosted;
-        apply(world,owner,result,boosted);
-        lastLevel=stockState(result);
+        // Keep the result visible first. Permanent-result labels preview the level
+        // that will be committed when the cut-in disappears.
+        lastLevel=previewLevel(result);
         pendingResult=result;resultDelayTicks=RESULT_DISPLAY_TICKS;
     }
 
