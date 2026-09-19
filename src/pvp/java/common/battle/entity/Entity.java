@@ -1647,8 +1647,10 @@ public abstract class Entity extends AbEntity {
 
 		tokens.add(atk);
 
+		boolean pvpUnitAttack=isPvpUnitAttack(atk);
+		boolean defensiveMatch=defensiveTraitCompatible(atk);
 		Proc.PTC imuatk = getProc().IMUATK;
-		if (imuatk.exists() && (basis.isPvp() || atk.dire == -1 || receive(-1)) || traitCompatible(atk.trait, atk.attacker, false)) {
+		if (imuatk.exists() && (pvpUnitAttack ? defensiveMatch : (atk.dire == -1 || receive(-1) || defensiveMatch))) {
 			if (status[P_IMUATK][0] + status[P_IMUATK][1] == 0 && imuatk.perform(basis.r)) {
 				status[P_IMUATK][0] = (int) (imuatk.time * (1 + 0.2 / 3 * getFruit(atk.trait, atk.dire, -1)));
 				status[P_IMUATK][1] = status[P_IMUATK][2] = imuatk.cd;
@@ -1669,7 +1671,7 @@ public abstract class Entity extends AbEntity {
 
 		Proc.DMGCUT dmgcut = getProc().DMGCUT;
 
-		if (dmgcut.exists() && ((dmgcut.type.traitIgnore && status[P_CURSE][0] == 0) || traitCompatible(atk.trait, atk.attacker, false))
+		if (dmgcut.exists() && ((dmgcut.type.traitIgnore && status[P_CURSE][0] == 0) || defensiveMatch)
 				&& dmg < status[P_DMGCUT][0] && dmg > 0 && dmgcut.perform(basis.r)) {
 			anim.getEff(P_DMGCUT);
 
@@ -1686,7 +1688,7 @@ public abstract class Entity extends AbEntity {
 
 		Proc.DMGCAP dmgcap = getProc().DMGCAP;
 
-		if (dmgcap.exists() && ((dmgcap.type.traitIgnore && status[P_CURSE][0] == 0) || traitCompatible(atk.trait, atk.attacker, false)) && dmg > status[P_DMGCAP][0]
+		if (dmgcap.exists() && ((dmgcap.type.traitIgnore && status[P_CURSE][0] == 0) || defensiveMatch) && dmg > status[P_DMGCAP][0]
 				&& dmgcap.perform(basis.r)) {
 			anim.getEff(dmgcap.type.nullify ? DMGCAP_SUCCESS : DMGCAP_FAIL);
 			if (dmgcap.type.procs)
@@ -1909,10 +1911,32 @@ public abstract class Entity extends AbEntity {
 		return tba;
 	}
 
+	private boolean isPvpUnitAttack(AttackAb atk) {
+		return basis.isPvp() && this instanceof EUnit && atk != null && atk.attacker instanceof EUnit;
+	}
+
+	/**
+	 * Trait match for abilities owned by the DEFENDER (dodge, damage cut/cap).
+	 * EUnit overrides this in PvP because its legacy traits list is its offensive
+	 * target list, while the incoming attacker's PvP identity is stored separately.
+	 */
+	protected boolean defensiveTraitCompatible(AttackAb atk) {
+		return atk != null && traitCompatible(atk.trait, atk.attacker, false);
+	}
+
 	public boolean processProcs(AttackAb atk) {
-		// process proc part
-		if (!(traitCompatible(atk.trait, atk.attacker, false) || ((basis.isPvp() ? traitType()!=-1 : receive(-1)) && atk.SPtr) || ((basis.isPvp() ? traitType()!=1 : receive(1)) && !atk.SPtr)))
+		// In normal BCU an EUnit is always attacked by the enemy side, so the
+		// direction fallback below intentionally allows enemy procs on cats.
+		// PvP is EUnit-vs-EUnit: that fallback would make STOP/SLOW/WEAK/etc.
+		// trigger even when the attacker's target traits do not match the
+		// defender's synchronized PvP attribute. Unit-vs-unit PvP therefore
+		// requires the actual trait match and does not use the side fallback.
+		boolean offenseMatch=traitCompatible(atk.trait, atk.attacker, false);
+		if (isPvpUnitAttack(atk)) {
+			if(!offenseMatch)return false;
+		} else if (!(offenseMatch || ((basis.isPvp() ? traitType()!=-1 : receive(-1)) && atk.SPtr) || ((basis.isPvp() ? traitType()!=1 : receive(1)) && !atk.SPtr))) {
 			return false;
+		}
 
 		boolean cannonResist = atk.canon > 0 && getProc().IMUCANNON.exists() && (atk.canon & getProc().IMUCANNON.type) > 0;
 		int dire = data instanceof MaskEnemy ? 1 : -1;
