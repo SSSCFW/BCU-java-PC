@@ -8,6 +8,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: pvp-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   maven:
     runs-on: ubuntu-latest
@@ -19,10 +22,12 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
+          cache: maven
+          cache-dependency-path: pom.xml
       - name: Install Japanese fonts for visual regression tests
         run: |
           sudo apt-get update -qq
@@ -31,7 +36,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p diagnostics
-          mvn -B -ntp clean verify dependency:copy-dependencies -DoutputDirectory=target/lib 2>&1 | tee diagnostics/maven.log
+          mvn -B -ntp verify dependency:copy-dependencies -DoutputDirectory=target/lib 2>&1 | tee diagnostics/maven.log
       - name: Actual Swing lobby and same-PC two-client regression tests
         run: xvfb-run -a java -ea -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.ui.LobbyUiTests
       - name: Battle presentation, layering and contrast regression tests
@@ -54,7 +59,7 @@ jobs:
           retention-days: 14
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: failure()
         with:
           name: pvp-test-reports
           path: |
@@ -72,17 +77,24 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
-      - name: Gradle build and integration tests
+          cache: gradle
+          cache-dependency-path: |
+            build.gradle.kts
+            settings.gradle.kts
+            gradle/libs.versions.toml
+      - name: Gradle compile and package compatibility check
         run: |
           set -o pipefail
           mkdir -p diagnostics
-          ./gradlew --no-daemon check 2>&1 | tee diagnostics/gradle.log
+          # Maven runs the complete PvP test suite. Gradle independently compiles
+          # main + test sources and builds the JAR without executing AllTests twice.
+          ./gradlew --no-daemon --build-cache testClasses jar 2>&1 | tee diagnostics/gradle.log
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: failure()
         with:
           name: pvp-gradle-reports
           path: diagnostics/
