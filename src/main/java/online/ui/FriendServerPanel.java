@@ -24,14 +24,13 @@ public final class FriendServerPanel extends JPanel implements AutoCloseable {
     private final LocalTargetConsumer localTarget;
     private final AtomicBoolean closed = new AtomicBoolean();
     private ServerHost host;
-    private boolean busy, connectionActive;
+    private boolean busy, connectionActive, portsDirty, updatingPorts;
     public FriendServerPanel(Consumer<String> localUrl) { this((url,udp)->localUrl.accept(url)); }
     public FriendServerPanel(LocalTargetConsumer localTarget) {
         super(new BorderLayout(6,6)); this.localTarget = localTarget;
-        try {
-            ServerConfig saved=configured();
-            tcpPort.setValue(saved.controlPort);udpPort.setValue(saved.udpPort);
-        } catch (Exception ignored) { }
+        try { applyPorts(configured()); } catch (Exception ignored) { }
+        tcpPort.addChangeListener(e->{if(!updatingPorts)portsDirty=true;});
+        udpPort.addChangeListener(e->{if(!updatingPorts)portsDirty=true;});
         addresses.setEditable(false); addresses.setLineWrap(true); addresses.setWrapStyleWord(true);
         addresses.setText("同一PCで試す場合、サーバー起動は片方のBCUだけです。TCP/UDPは別々に変更できます。0はOSによる自動割当です。\n既定: TCP 8766 / UDP 8767。ルーター等は自動変更しません。");
         JPanel top=new JPanel(new FlowLayout(FlowLayout.LEADING,6,0));
@@ -59,6 +58,21 @@ public final class FriendServerPanel extends JPanel implements AutoCloseable {
         p.setProperty("udpPort",Integer.toString(((Number)udpPort.getValue()).intValue()));
         return ServerConfig.from(p);
     }
+    private ServerConfig selectedConfig() throws java.io.IOException {
+        ServerConfig selected=portsDirty?config():configured();
+        if(!portsDirty)applyPorts(selected);
+        return selected;
+    }
+    private void applyPorts(ServerConfig selected) {
+        updatingPorts=true;
+        try{tcpPort.setValue(selected.controlPort);udpPort.setValue(selected.udpPort);}
+        finally{updatingPorts=false;}
+    }
+    private void applyPorts(int tcp,int udp) {
+        updatingPorts=true;
+        try{tcpPort.setValue(tcp);udpPort.setValue(udp);}
+        finally{updatingPorts=false;}
+    }
     private void useLocal() {
         if (busy || connectionActive || closed.get()) return;
         try {
@@ -67,7 +81,7 @@ public final class FriendServerPanel extends JPanel implements AutoCloseable {
                 url = host.localControlUrl();
                 selectedUdpPort=host.server().udpPort();
             } else {
-                ServerConfig selected = config();
+                ServerConfig selected = selectedConfig();
                 if (selected.controlPort == 0) throw new java.io.IOException("自動割当ポートの場合は、起動済みサーバーに表示されたURLをコピーしてください。");
                 java.net.InetAddress bind = selected.controlAddress().getAddress();
                 if (bind == null) throw new java.io.IOException("サーバーのbindアドレスを解決できません。");
@@ -87,7 +101,7 @@ public final class FriendServerPanel extends JPanel implements AutoCloseable {
         new SwingWorker<ServerHost, Void>() {
             protected ServerHost doInBackground() throws Exception {
                 if (stopping != null) { stopping.close(); return null; }
-                return ServerHost.start(config());
+                return ServerHost.start(selectedConfig());
             }
             protected void done() {
                 busy = false;
@@ -98,7 +112,7 @@ public final class FriendServerPanel extends JPanel implements AutoCloseable {
                     if (host == null) addresses.setText("友人用サーバーを停止しました。");
                     else {
                         localTarget.accept(host.localControlUrl(),host.server().udpPort());
-                        tcpPort.setValue(host.server().getPort());udpPort.setValue(host.server().udpPort());
+                        applyPorts(host.server().getPort(),host.server().udpPort());
                         StringBuilder text = new StringBuilder("接続先候補（到達確認は別途必要）:\n");
                         for (String url : host.candidateUrls()) text.append(url).append('\n');
                         text.append("TCP ").append(host.server().getPort()).append(" / UDP ").append(host.server().udpPort());
