@@ -214,6 +214,18 @@ public class EUnit extends Entity {
 	}
 
 	@Override
+	protected boolean defensiveTraitCompatible(AttackAb atk){
+		if(!basis.isPvp()||atk==null||!(atk.attacker instanceof EUnit))
+			return super.defensiveTraitCompatible(atk);
+		List<Trait> incoming=((EUnit)atk.attacker).pvpAttributeTraits();
+		if(traits.contains(null))return true;
+		for(Trait trait:incoming)if(traits.contains(trait))return true;
+		if(Trait.isTargetTraited(incoming))
+			for(Trait trait:traits)if(trait!=null&&trait.targetType)return true;
+		return false;
+	}
+
+	@Override
 	public boolean traitCompatible(List<Trait> targetTraits, Entity attacker, boolean targetOnly) {
 		if(!basis.isPvp())return super.traitCompatible(targetTraits,attacker,targetOnly);
 		List<Trait> assigned=pvpAttributeTraits();
