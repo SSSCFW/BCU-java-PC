@@ -16,6 +16,8 @@ final class LobbyPreferences {
     static final int LINEUP_SAVED=0, LINEUP_RANDOM=1, LINEUP_RANDOM_VANILLA=2;
 
     final String serverAddress, displayName;
+    /** 0 means use the UDP port advertised by the server. */
+    final int udpPortOverride;
     final int castleDistance, backgroundId, musicId;
     final boolean force60Fps, debugMode, castleHitMoneyEnabled;
     final RoomRules.SpecialMode specialMode;
@@ -38,13 +40,24 @@ final class LobbyPreferences {
                      int hostTraitChoice,int guestTraitChoice,int hostTraitExclusions,int guestTraitExclusions,int timeLimitMinutes,
                      int maxUnits,boolean castleHitMoneyEnabled,int castleHitMoney,
                      double castleHealthMultiplier,int creatorSideIndex,int lineupKind,int lineupSetIndex,int lineupIndex) {
+        this(serverAddress,displayName,castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
+                hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
+                maxUnits,castleHitMoneyEnabled,castleHitMoney,castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,0);
+    }
+
+    LobbyPreferences(String serverAddress,String displayName,
+                     int castleDistance,int backgroundId,int musicId,boolean force60Fps,RoomRules.SpecialMode specialMode,boolean debugMode,
+                     int hostTraitChoice,int guestTraitChoice,int hostTraitExclusions,int guestTraitExclusions,int timeLimitMinutes,
+                     int maxUnits,boolean castleHitMoneyEnabled,int castleHitMoney,
+                     double castleHealthMultiplier,int creatorSideIndex,int lineupKind,int lineupSetIndex,int lineupIndex,int udpPortOverride) {
         RoomRules validated=new RoomRules(castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
                 hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
                 maxUnits,castleHitMoneyEnabled,castleHitMoney);
         PvpStageBasis.validateCastleHealthMultiplier(castleHealthMultiplier);
         if(creatorSideIndex<0||creatorSideIndex>1)throw new IllegalArgumentException("Invalid saved creator side");
         if(lineupKind<LINEUP_SAVED||lineupKind>LINEUP_RANDOM_VANILLA)throw new IllegalArgumentException("Invalid saved lineup kind");
-        this.serverAddress=serverAddress;this.displayName=displayName;
+        if(udpPortOverride<0||udpPortOverride>65535)throw new IllegalArgumentException("Invalid saved UDP port override");
+        this.serverAddress=serverAddress;this.displayName=displayName;this.udpPortOverride=udpPortOverride;
         this.castleDistance=validated.castleDistance;this.backgroundId=validated.backgroundId;this.musicId=validated.musicId;
         this.force60Fps=validated.force60Fps;this.specialMode=validated.specialMode;this.debugMode=validated.debugMode;
         this.hostTraitChoice=validated.hostTraitChoice;this.guestTraitChoice=validated.guestTraitChoice;
@@ -55,11 +68,12 @@ final class LobbyPreferences {
         this.lineupKind=lineupKind;this.lineupSetIndex=lineupSetIndex;this.lineupIndex=lineupIndex;
     }
 
-    LobbyPreferences withConnection(String server,String name){
-        return copy(server,name,castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
+    LobbyPreferences withConnection(String server,String name){return withConnection(server,name,udpPortOverride);}
+    LobbyPreferences withConnection(String server,String name,int udpPortOverride){
+        return new LobbyPreferences(server,name,castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
                 hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
                 maxUnits,castleHitMoneyEnabled,castleHitMoney,
-                castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex);
+                castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,udpPortOverride);
     }
 
     LobbyPreferences withHostRules(RoomRules rules){
@@ -89,14 +103,14 @@ final class LobbyPreferences {
                 maxUnits,castleHitMoneyEnabled,castleHitMoney);
     }
 
-    private static LobbyPreferences copy(String server,String name,
+    private LobbyPreferences copy(String server,String name,
                                          int distance,int background,int music,boolean force60,RoomRules.SpecialMode special,boolean debug,
                                          int hostTrait,int guestTrait,int hostExclude,int guestExclude,int time,
                                          int maxUnits,boolean castleHitMoneyEnabled,int castleHitMoney,
                                          double castle,int side,int lineupKind,int setIndex,int lineupIndex){
         return new LobbyPreferences(server,name,distance,background,music,force60,special,debug,
                 hostTrait,guestTrait,hostExclude,guestExclude,time,maxUnits,castleHitMoneyEnabled,castleHitMoney,
-                castle,side,lineupKind,setIndex,lineupIndex);
+                castle,side,lineupKind,setIndex,lineupIndex,udpPortOverride);
     }
 
     static LobbyPreferences load(Path file, String fallbackName) throws IOException {
@@ -125,7 +139,8 @@ final class LobbyPreferences {
                     integer(p,"castleHitMoney",RoomRules.DEFAULT_CASTLE_HIT_MONEY),
                     decimal(p,"castleHealthMultiplier",PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER),
                     integer(p,"creatorSideIndex",0),integer(p,"lineupKind",LINEUP_SAVED),
-                    integer(p,"lineupSetIndex",-1),integer(p,"lineupIndex",-1));
+                    integer(p,"lineupSetIndex",-1),integer(p,"lineupIndex",-1),
+                    integer(p,"udpPortOverride",0));
         }catch(IllegalArgumentException e){
             System.err.println("BCU online preferences: ignoring invalid saved PvP preferences: "+e.getMessage());
             return new LobbyPreferences(server,name);
@@ -138,6 +153,7 @@ final class LobbyPreferences {
         try{
             Properties p=new Properties();
             p.setProperty("serverAddress",serverAddress);p.setProperty("displayName",displayName);
+            p.setProperty("udpPortOverride",Integer.toString(udpPortOverride));
             p.setProperty("castleDistance",Integer.toString(castleDistance));p.setProperty("backgroundId",Integer.toString(backgroundId));
             p.setProperty("musicId",Integer.toString(musicId));p.setProperty("force60Fps",Boolean.toString(force60Fps));
             p.setProperty("specialMode",specialMode.name());p.setProperty("debugMode",Boolean.toString(debugMode));
