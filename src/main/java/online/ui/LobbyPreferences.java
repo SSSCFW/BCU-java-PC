@@ -17,9 +17,10 @@ final class LobbyPreferences {
 
     final String serverAddress, displayName;
     final int castleDistance, backgroundId, musicId;
-    final boolean force60Fps, debugMode;
+    final boolean force60Fps, debugMode, castleHitMoneyEnabled;
     final RoomRules.SpecialMode specialMode;
     final int hostTraitChoice, guestTraitChoice, hostTraitExclusions, guestTraitExclusions, timeLimitMinutes;
+    final int maxUnits, castleHitMoney;
     final double castleHealthMultiplier;
     final int creatorSideIndex, lineupKind, lineupSetIndex, lineupIndex;
 
@@ -28,15 +29,18 @@ final class LobbyPreferences {
                 RoomRules.DEFAULT.castleDistance,RoomRules.DEFAULT.backgroundId,RoomRules.DEFAULT.musicId,
                 RoomRules.DEFAULT.force60Fps,RoomRules.DEFAULT.specialMode,RoomRules.DEFAULT.debugMode,
                 PvpTraitRules.NONE,PvpTraitRules.NONE,0,0,RoomRules.DEFAULT_TIME_LIMIT_MINUTES,
+                RoomRules.DEFAULT_MAX_UNITS,false,RoomRules.DEFAULT_CASTLE_HIT_MONEY,
                 PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER,0,LINEUP_SAVED,-1,-1);
     }
 
     LobbyPreferences(String serverAddress,String displayName,
                      int castleDistance,int backgroundId,int musicId,boolean force60Fps,RoomRules.SpecialMode specialMode,boolean debugMode,
                      int hostTraitChoice,int guestTraitChoice,int hostTraitExclusions,int guestTraitExclusions,int timeLimitMinutes,
+                     int maxUnits,boolean castleHitMoneyEnabled,int castleHitMoney,
                      double castleHealthMultiplier,int creatorSideIndex,int lineupKind,int lineupSetIndex,int lineupIndex) {
         RoomRules validated=new RoomRules(castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
-                hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes);
+                hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
+                maxUnits,castleHitMoneyEnabled,castleHitMoney);
         PvpStageBasis.validateCastleHealthMultiplier(castleHealthMultiplier);
         if(creatorSideIndex<0||creatorSideIndex>1)throw new IllegalArgumentException("Invalid saved creator side");
         if(lineupKind<LINEUP_SAVED||lineupKind>LINEUP_RANDOM_VANILLA)throw new IllegalArgumentException("Invalid saved lineup kind");
@@ -45,7 +49,8 @@ final class LobbyPreferences {
         this.force60Fps=validated.force60Fps;this.specialMode=validated.specialMode;this.debugMode=validated.debugMode;
         this.hostTraitChoice=validated.hostTraitChoice;this.guestTraitChoice=validated.guestTraitChoice;
         this.hostTraitExclusions=validated.hostTraitExclusions;this.guestTraitExclusions=validated.guestTraitExclusions;
-        this.timeLimitMinutes=validated.timeLimitMinutes;
+        this.timeLimitMinutes=validated.timeLimitMinutes;this.maxUnits=validated.maxUnits;
+        this.castleHitMoneyEnabled=validated.castleHitMoneyEnabled;this.castleHitMoney=validated.castleHitMoney;
         this.castleHealthMultiplier=castleHealthMultiplier;this.creatorSideIndex=creatorSideIndex;
         this.lineupKind=lineupKind;this.lineupSetIndex=lineupSetIndex;this.lineupIndex=lineupIndex;
     }
@@ -53,38 +58,45 @@ final class LobbyPreferences {
     LobbyPreferences withConnection(String server,String name){
         return copy(server,name,castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
                 hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
+                maxUnits,castleHitMoneyEnabled,castleHitMoney,
                 castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex);
     }
 
     LobbyPreferences withHostRules(RoomRules rules){
         return copy(serverAddress,displayName,rules.castleDistance,rules.backgroundId,rules.musicId,rules.force60Fps,rules.specialMode,rules.debugMode,
                 rules.hostTraitChoice,rules.guestTraitChoice,rules.hostTraitExclusions,rules.guestTraitExclusions,rules.timeLimitMinutes,
+                rules.maxUnits,rules.castleHitMoneyEnabled,rules.castleHitMoney,
                 castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex);
     }
 
     LobbyPreferences withCastleHealth(double value){
         return copy(serverAddress,displayName,castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
                 hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
+                maxUnits,castleHitMoneyEnabled,castleHitMoney,
                 value,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex);
     }
 
     LobbyPreferences withLocalSetup(int side,int kind,int setIndex,int lineupIndex){
         return copy(serverAddress,displayName,castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
                 hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
+                maxUnits,castleHitMoneyEnabled,castleHitMoney,
                 castleHealthMultiplier,side,kind,setIndex,lineupIndex);
     }
 
     RoomRules hostRules(){
         return new RoomRules(castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
-                hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes);
+                hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
+                maxUnits,castleHitMoneyEnabled,castleHitMoney);
     }
 
     private static LobbyPreferences copy(String server,String name,
                                          int distance,int background,int music,boolean force60,RoomRules.SpecialMode special,boolean debug,
                                          int hostTrait,int guestTrait,int hostExclude,int guestExclude,int time,
+                                         int maxUnits,boolean castleHitMoneyEnabled,int castleHitMoney,
                                          double castle,int side,int lineupKind,int setIndex,int lineupIndex){
         return new LobbyPreferences(server,name,distance,background,music,force60,special,debug,
-                hostTrait,guestTrait,hostExclude,guestExclude,time,castle,side,lineupKind,setIndex,lineupIndex);
+                hostTrait,guestTrait,hostExclude,guestExclude,time,maxUnits,castleHitMoneyEnabled,castleHitMoney,
+                castle,side,lineupKind,setIndex,lineupIndex);
     }
 
     static LobbyPreferences load(Path file, String fallbackName) throws IOException {
@@ -115,6 +127,9 @@ final class LobbyPreferences {
                     hostTrait,guestTrait,
                     hostExclusions,guestExclusions,
                     integer(p,"timeLimitMinutes",RoomRules.DEFAULT_TIME_LIMIT_MINUTES),
+                    integer(p,"maxUnits",RoomRules.DEFAULT_MAX_UNITS),
+                    bool(p,"castleHitMoneyEnabled",false),
+                    integer(p,"castleHitMoney",RoomRules.DEFAULT_CASTLE_HIT_MONEY),
                     decimal(p,"castleHealthMultiplier",PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER),
                     integer(p,"creatorSideIndex",0),integer(p,"lineupKind",LINEUP_SAVED),
                     integer(p,"lineupSetIndex",-1),integer(p,"lineupIndex",-1));
@@ -136,6 +151,9 @@ final class LobbyPreferences {
             p.setProperty("hostTraitChoice",Integer.toString(hostTraitChoice));p.setProperty("guestTraitChoice",Integer.toString(guestTraitChoice));
             p.setProperty("hostTraitExclusions",Integer.toString(hostTraitExclusions));p.setProperty("guestTraitExclusions",Integer.toString(guestTraitExclusions));
             p.setProperty("timeLimitMinutes",Integer.toString(timeLimitMinutes));
+            p.setProperty("maxUnits",Integer.toString(maxUnits));
+            p.setProperty("castleHitMoneyEnabled",Boolean.toString(castleHitMoneyEnabled));
+            p.setProperty("castleHitMoney",Integer.toString(castleHitMoney));
             p.setProperty("castleHealthMultiplier",Double.toString(castleHealthMultiplier));
             p.setProperty("creatorSideIndex",Integer.toString(creatorSideIndex));
             p.setProperty("lineupKind",Integer.toString(lineupKind));p.setProperty("lineupSetIndex",Integer.toString(lineupSetIndex));p.setProperty("lineupIndex",Integer.toString(lineupIndex));
