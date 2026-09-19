@@ -21,7 +21,8 @@ public final class PvpRouletteAudioTests {
                 public void stopLoop(Sound sound){loops[1]++;}
             });
             detector.observe(world,direction);Check.that(events.isEmpty(),"initial snapshot does not replay old events");
-            PvpRouletteState own=world.playerFor(direction).pvpRoulette,other=world.playerFor(-direction).pvpRoulette;
+            StageBasis owner=world.playerFor(direction);
+            PvpRouletteState own=owner.pvpRoulette,other=world.playerFor(-direction).pvpRoulette;
             for(int i=1;i<=10;i++){
                 own.gauge=i*100;world.time++;
                 String before=BattleDigest.of(world);detector.observe(world,direction);detector.observe(world,direction);
@@ -51,7 +52,7 @@ public final class PvpRouletteAudioTests {
             Check.equal(1,Collections.frequency(events,Sound.ROULETTE_START),
                     "repeat wait itself does not replay roulette start SE");
             own.repeatDelayTicks=0;
-            Check.that(own.press(world,own),"repeat fixture starts once the half-second lock is gone");
+            Check.that(own.press(world,owner),"repeat fixture starts once the half-second lock is gone");
             detector.observe(world,direction);
             Check.equal(2,Collections.frequency(events,Sound.ROULETTE_START),
                     "next roulette plays its own start SE when activation begins");
