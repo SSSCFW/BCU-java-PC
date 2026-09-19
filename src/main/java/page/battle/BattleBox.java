@@ -462,7 +462,14 @@ public interface BattleBox {
 				float sy = gaugeY + gaugeH * i / 10f;
 				g.colRect(gaugeX, sy, gaugeW, Math.max(1f, hr * 0.65f), 0, 0, 0, 145);
 			}
-			if(state.gauge>=PvpRouletteState.MAX_GAUGE&&!state.spinning){
+			boolean auto = bf instanceof OnlineBattleField && ((OnlineBattleField)bf).autoRoulette();
+			if(auto){
+				try{
+					FakeImage badge=Pvp3dsAssets.textBadge("AUTO");
+					float bh=Math.max(17f,22f*hr),bw=bh*badge.getWidth()/Math.max(1f,badge.getHeight());
+					g.drawImage(badge,gaugeX+(gaugeW-bw)/2f,gaugeY-bh-Math.max(3f,3f*hr),bw,bh);
+				}catch(RuntimeException ignored){}
+			}else if(state.gauge>=PvpRouletteState.MAX_GAUGE&&!state.spinning){
 				try{
 					FakeImage tap=Pvp3dsAssets.tapImage();
 					float tw=Math.max(gaugeW*1.8f,52f*hr),th=tw*tap.getHeight()/Math.max(1f,tap.getWidth());
@@ -549,7 +556,7 @@ public interface BattleBox {
 			FakeImage lamp = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレット点灯中ランプ");
 			g.drawImage(lamp, x - 34f * scale, y + 10f * scale, 26f * scale, 25f * scale);
 
-			float progress = Math.min(1f, state.spinTicks / (float) PvpRouletteState.AUTO_SPIN_TICKS);
+			float progress = Math.min(1f, state.spinTicks / (float) Math.max(1, state.spinDurationTicks));
 			float barY = y + totalH + 8f * scale;
 			g.colRect(x, barY, totalW, 5f * scale, 40, 40, 40, 230);
 			g.colRect(x, barY, totalW * progress, 5f * scale, 255, 255, 255, 245);
