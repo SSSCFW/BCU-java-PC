@@ -10,26 +10,47 @@ plugins {
 
 repositories {
     mavenLocal()
+    mavenCentral()
     maven {
         url = uri("https://jogamp.org/deployment/maven/")
+        content { includeGroupByRegex("org\\.jogamp(\\..*)?") }
     }
+}
 
-    maven {
-        url = uri("https://repo.maven.apache.org/maven2/")
-    }
-    mavenCentral()
+// Preserve the upstream gitlink: compile a generated tree with our common overlays.
+val overlayPaths = fileTree("src/pvp/java").files.map { it.relativeTo(file("src/pvp/java")).invariantSeparatorsPath }
+val preparePvpSources by tasks.registering(Sync::class) {
+    from("src/main/java") { exclude(overlayPaths); exclude("**/.git") }
+    from("src/pvp/java")
+    into(layout.buildDirectory.dir("generated/sources/pvp"))
 }
 
 sourceSets {
     main {
+        java.setSrcDirs(listOf(layout.buildDirectory.dir("generated/sources/pvp")))
         resources {
-            srcDirs("src/main/java", "src/main/resources")
-            exclude("**/*.java")
+            setSrcDirs(listOf("src/main/java", "src/main/resources"))
+            exclude("**/*.java", "**/*.kt", "**/.git")
         }
+    }
+}
+// Kotlin and Java both register the default resources; package each path once.
+tasks.named<ProcessResources>("processResources") {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.withType<org.gradle.jvm.tasks.Jar> {
+    manifest {
+        attributes(
+            "Main-Class" to "main.MainBCU",
+            "Add-Opens" to "java.base/java.lang java.desktop/sun.java2d java.desktop/sun.awt java.desktop/sun.awt.windows"
+        )
     }
 }
 
 dependencies {
+    implementation("org.java-websocket:Java-WebSocket:1.6.0")
+    runtimeOnly("org.slf4j:slf4j-simple:2.0.16")
     api(libs.commons.codec.commons.codec)
     api(libs.commons.io.commons.io)
     api(libs.commons.logging.commons.logging)
@@ -74,5 +95,23 @@ tasks.withType<Javadoc> {
 }
 
 kotlin {
-    jvmToolchain(8)
+    jvmToolchain(21)
+    compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+    sourceSets.named("main") { kotlin.setSrcDirs(listOf(layout.buildDirectory.dir("generated/sources/pvp"))) }
 }
+
+tasks.named("compileKotlin") { dependsOn(preparePvpSources) }
+tasks.named("compileJava") { dependsOn(preparePvpSources) }
+val pvpTests by tasks.registering(JavaExec::class) {
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("online.tests.AllTests")
+    jvmArgs("-ea", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8")
+}
+// The suite deliberately uses a main-based runner (also invoked by Maven),
+// not JUnit annotations. Both `test` and `check` must execute it.
+tasks.named<Test>("test") {
+    dependsOn(pvpTests)
+    failOnNoDiscoveredTests.set(false)
+}
+tasks.named("check") { dependsOn(pvpTests) }

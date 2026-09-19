@@ -31,6 +31,7 @@ class EntityTable extends SortTable<Entity> {
 	private final boolean statistics;
 
 	private final int dir;
+	private boolean playerUnits;
 
 	protected EntityTable(int dire, boolean statistics) {
 		super(MainLocale.getLoc(MainLocale.INFO, statistics ? "us" : "u", statistics ? 4 : 3));
@@ -46,10 +47,16 @@ class EntityTable extends SortTable<Entity> {
 		sign = -1;
 	}
 
+	/** Both physical sides contain player Forms during PvP. */
+	void useUnitIcons() {
+		playerUnits = true;
+		setDefaultRenderer(Form.class, new UnitTCR(lnk));
+	}
+
 	@Override
 	public Class<?> getColumnClass(int c) {
 		if (lnk[c] == 1)
-			return dir == 1 ? Enemy.class : Form.class;
+			return dir == 1 && !playerUnits ? Enemy.class : Form.class;
 		else
 			return Object.class;
 	}

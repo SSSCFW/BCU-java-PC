@@ -6,16 +6,19 @@ import com.jogamp.opengl.GLException;
 import com.jogamp.opengl.util.glsl.ShaderCode;
 import com.jogamp.opengl.util.glsl.ShaderProgram;
 import com.jogamp.opengl.util.texture.TextureData;
+import common.system.fake.FakeImage;
 import jogl.GLStatic;
 import main.MainBCU;
 import org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.awt.image.BufferedImage;
 import java.nio.Buffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -56,6 +59,7 @@ public class ResManager {
 	private final GL2 gl;
 
 	private final Map<GLImage, Integer> mem = new HashMap<>();
+	private final Map<FakeImage, GLImage> compatibilityImages = new IdentityHashMap<>();
 
 	private ResManager(GL2 gl2) {
 		gl = gl2;
@@ -70,7 +74,30 @@ public class ResManager {
 			tex[i++] = x;
 		if (n > 0)
 			gl.glDeleteTextures(n, tex, 0);
+		compatibilityImages.clear();
 		gl.glDeleteProgram(prog);
+	}
+
+	/**
+	 * Some BCU auxiliary icons are deliberately loaded as AWT-only FIBI images
+	 * even while JOGL is enabled. Lazily mirror those images into a GL texture
+	 * and keep the mirror stable for this GL context.
+	 */
+	public GLImage image(FakeImage image) {
+		if (image == null)
+			return null;
+		Object nativeImage = image.gl();
+		if (nativeImage instanceof GLImage)
+			return (GLImage) nativeImage;
+		if (compatibilityImages.containsKey(image))
+			return compatibilityImages.get(image);
+		Object awtImage = image.bimg();
+		if (!(awtImage instanceof BufferedImage))
+			return null;
+		GLImage converted = GLImage.build((BufferedImage) awtImage);
+		if (converted != null)
+			compatibilityImages.put(image, converted);
+		return converted;
 	}
 
 	public int load(GLGraphics g, GLImage img) {

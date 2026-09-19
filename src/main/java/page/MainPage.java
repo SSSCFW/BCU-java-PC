@@ -54,6 +54,7 @@ public class MainPage extends Page {
 	private final JBTN auth = new JBTN(0, "author");
 	private final JBTN comp = new JBTN(0, "compare");
 	private final JBTN bckp = new JBTN(0, "backup");
+	private final JBTN online = new JBTN("オンライン対戦");
 	private final JBTN logs = new JBTN(0, "logs");
 
 	private final JBTN refr = new JBTN(0, "refrtips");
@@ -114,11 +115,13 @@ public class MainPage extends Page {
 		set(caic, x, y, 1500, 300, 200, 50);
 		set(camm, x, y, 1500, 400, 200, 50);
 		set(cama, x, y, 1500, 500, 200, 50);
+        set(online, x, y, 1500, 600, 300, 50);
 
 		set(tips, x, y, 600, 900, 1100, 200);
 	}
 
 	private void addListeners() {
+        online.setLnr(() -> new online.ui.OnlineLobbyPage(this));
 		vuni.setLnr(() -> new UnitViewPage(this));
 		vene.setLnr(() -> new EnemyViewPage(this));
 		vsta.setLnr(() -> new StageViewPage(this, MapColc.values()));
@@ -169,6 +172,7 @@ public class MainPage extends Page {
 	}
 
 	private void ini() {
+        add(online);
 		add(vuni);
 		vuni.setToolTipText(get(MainLocale.PAGE,"vunitip"));
 

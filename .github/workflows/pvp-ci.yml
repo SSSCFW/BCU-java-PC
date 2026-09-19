@@ -1,0 +1,260 @@
+name: PvP build
+on:
+  push:
+    branches: [feature/online-pvp-30tps]
+    paths: ['src/**', 'pom.xml', 'build.gradle.kts', 'tools/**', 'distribution/**', 'docs/**', '.github/workflows/**']
+  pull_request:
+    branches: [slow_kotlin]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pvp-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      zip_sha256: ${{ steps.package.outputs.zip_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: pom.xml
+      - name: Maven compile and package
+        run: |
+          set -o pipefail
+          mkdir -p diagnostics
+          # Compile production + test classes once. The expensive main-based PvP
+          # integration suite is executed in the parallel headless job below.
+          mvn -B -ntp -DskipTests package dependency:copy-dependencies -DoutputDirectory=target/lib 2>&1 | tee diagnostics/maven-build.log
+      - name: Portable distribution checks
+        id: package
+        run: |
+          python3 tools/test-package-pvp.py
+          bash tools/package-pvp.sh
+          java -cp 'target/bcu-pvp-portable/bcu-pvp.jar:target/bcu-pvp-portable/lib/*' online.net.PvpServerMain --check-config distribution/pvp-server.properties
+          echo "zip_sha256=$(cut -d' ' -f1 target/bcu-pvp-portable.zip.sha256)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pvp-ci-runtime
+          path: |
+            target/classes/
+            target/test-classes/
+            target/lib/
+            target/bcu-pvp.jar
+          retention-days: 1
+          if-no-files-found: error
+      # Upload FILES, not the already-created ZIP. Actions adds its own single ZIP wrapper.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bcu-pvp-portable
+          path: target/bcu-pvp-portable/
+          retention-days: 14
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: pvp-build-reports
+          path: diagnostics/
+          if-no-files-found: ignore
+
+  headless:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/download-artifact@v4
+        with:
+          name: pvp-ci-runtime
+          path: target
+      - name: Real-engine headless PvP integration tests
+        run: |
+          set -o pipefail
+          mkdir -p diagnostics
+          java -ea -Djava.awt.headless=true -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.tests.AllTests 2>&1 | tee diagnostics/headless.log
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: pvp-headless-reports
+          path: diagnostics/
+          if-no-files-found: ignore
+
+  swing:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Japanese fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - uses: actions/download-artifact@v4
+        with:
+          name: pvp-ci-runtime
+          path: target
+      - name: Actual Swing lobby and same-PC two-client regression tests
+        run: xvfb-run -a java -ea -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.ui.LobbyUiTests
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: pvp-swing-reports
+          path: |
+            target/native-ui-*.png
+            target/lobby-ui-logs/
+          if-no-files-found: ignore
+
+  presentation:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Japanese fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - uses: actions/download-artifact@v4
+        with:
+          name: pvp-ci-runtime
+          path: target
+      - name: Battle presentation, layering and contrast regression tests
+        run: |
+          for mode in layers muted publication result small-result resize-result late-result; do
+            xvfb-run -a java -ea -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.ui.BattlePresentationTests "$mode"
+          done
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: pvp-presentation-reports
+          path: target/presentation-regression/
+          if-no-files-found: ignore
+
+  gradle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            build.gradle.kts
+            settings.gradle.kts
+            gradle/libs.versions.toml
+      - name: Gradle compile and package compatibility check
+        run: |
+          set -o pipefail
+          mkdir -p diagnostics
+          # The complete test suite runs from the Maven-built classes above.
+          # Gradle independently validates source/test compilation and JAR creation.
+          ./gradlew --no-daemon --build-cache testClasses jar 2>&1 | tee diagnostics/gradle.log
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: pvp-gradle-reports
+          path: diagnostics/
+          if-no-files-found: ignore
+
+  release:
+    needs: [build, headless, swing, presentation, gradle]
+    if: >-
+      github.repository == 'SSSCFW/BCU-java-PC' &&
+      github.ref == 'refs/heads/feature/online-pvp-30tps' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: pvp-development-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: bcu-pvp-portable
+          path: target/bcu-pvp-portable
+      - name: Reconstruct and verify the exact tested ZIP
+        env:
+          EXPECTED_SHA256: ${{ needs.build.outputs.zip_sha256 }}
+        run: |
+          chmod +x target/bcu-pvp-portable/*.sh
+          python3 tools/zip-pvp-directory.py target/bcu-pvp-portable target/bcu-pvp-portable.zip
+          python3 tools/verify-pvp-package.py target/bcu-pvp-portable.zip
+          test "$(cut -d' ' -f1 target/bcu-pvp-portable.zip.sha256)" = "$EXPECTED_SHA256"
+          grep -Fx "Desktop: $GITHUB_SHA" target/bcu-pvp-portable/REVISION.txt
+      - name: Publish rolling development release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # A slower, older build must not overwrite a newer feature-branch release.
+          current=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/feature/online-pvp-30tps" --jq .object.sha)
+          if [ "$current" != "$GITHUB_SHA" ]; then
+            echo "Skipping publication: feature branch advanced to $current"
+            exit 0
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/pvp-dev" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/pvp-dev" -f sha="$GITHUB_SHA" -F force=true >/dev/null
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref=refs/tags/pvp-dev -f sha="$GITHUB_SHA" >/dev/null
+          fi
+          cat > release-notes.md <<NOTES
+          BCU PvP 開発テスト版（プロトコルv11）。戦闘はUDP優先、制御とキャラ共有はWebSocket/WSS。現在のゲームモードは1対1のみです。両クライアントとサーバーを同じv11版へ更新してください。
+
+          ビルドとテスト: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          Commit: $GITHUB_SHA
+
+          bcu-pvp-portable.zip を直接ダウンロードし、既存BCUフォルダーのコピーへ配置してください。Java 21が必要です。標準ゲームデータは含みません。
+          パスワードは空欄なら不要です。表示名・サーバーアドレスは自動保存されます。同一PCではサーバー起動は片方だけにして、もう片方は「このPCのサーバーを使う」から同じ部屋IDで参加してください。
+          入室後の専用ロビーで編成を変更でき、ホストが城間距離・背景・BGM・戦闘特殊機能（にゃんこ砲／対戦ルーレット／なし）・60FPS固定を設定できます。さらに各プレイヤーが自分の城体力倍率をdouble値で設定でき、初期値は20.0倍です。対戦ルーレットのゲージは3DS解析どおり自城HP割合で1秒ごとに加算し、100%になっても自動発動せず特殊ボタンで開始、約2秒の演出後に効果を自動確定します。3DS版14効果と永続Lv1/Lv2/Lv3/MAXを同期し、ぷちベビーラッシュは10秒間（300 logic tick）だけ再生産クールタイムを0にします。ルーレットのカラーアイコン・効果名・レベル表示・発動カットインは元の3DS BCTEXをimgcut座標で描画します。戦闘画面の「戻る」は部屋を維持したまま対戦ロビーへ戻り、戦闘終了時は両者に結果を表示して双方がOKを押すと同じロビーへ戻ります。ルーレット100%時はTAP!を表示し、ぷちベビーラッシュ残り時間と永続効果アイコンを戦闘HUDへ表示します。ホストがデバッグモードをONにすると両者がルーレットMAXボタンを使用できます。 編成には「ランダム」「ランダム(バニラ)」を追加し、背景は戦闘ごとのランダム選択に対応しています。対戦BGMは指定34曲だけを曲名付きで選択でき、ロビーで試聴・停止できます。相手のルーレット開始・結果確定も画面通知します。 ホストは両プレイヤーのキャラ属性（固定/ランダム＋除外）と1〜99分/無制限の時間制限を設定でき、属性設定は保存されます。属性はゲーム画面内の城HP直上へ表示し、PvPタイマーは小型化、ぷちベビーラッシュ残り時間はその直下へ表示します。オンライン通知は暗色背景で可読性を確保します。ルーレットは結果表示が消えてから効果を発動し、永続攻撃/体力/移動効果を出撃済み・今後生産するキャラへ反映します。ふっとばしはBCU本来のボス出現ショックウェーブとSEを使用します。戦闘中の編成アイコン長押しで対象属性・属性効果・波動/クリティカル等の能力を確認でき、PvP設定は非機密項目をすべて保存します。時間切れは残り城HPで勝敗判定します。にゃんこ砲の波動は左右ともピンク表示です。各自の音量はロビーと戦闘中に調整でき、生産や再生産完了の通知は自分側だけに鳴ります。
+          相手ユニットを通常撃破すると、そのユニットの出撃コストの50%を撃破側のお金へ加算します（端数切り捨て・所持金上限あり）。
+          友人用サーバーはゲーム内ボタン、または start-pvp-server.bat / start-pvp-server.sh で起動します。TCP 8766とUDP 8767を使用します。
+          公開回線の制御通信はWSS、LAN/VPNのWSは明示許可が必要です。3人以上の戦闘・観戦・再接続は未実装です。
+          NOTES
+          if gh release view pvp-dev >/dev/null 2>&1; then
+            gh release edit pvp-dev --prerelease --latest=false --title 'BCU PvP development' --notes-file release-notes.md --target "$GITHUB_SHA"
+          else
+            gh release create pvp-dev --verify-tag --prerelease --latest=false --title 'BCU PvP development' --notes-file release-notes.md
+          fi
+          gh release upload pvp-dev target/bcu-pvp-portable.zip target/bcu-pvp-portable.zip.sha256 --clobber
+          printf '### 直接ダウンロード\n[BCU PvP ZIP](%s/%s/releases/download/pvp-dev/bcu-pvp-portable.zip)\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" >> "$GITHUB_STEP_SUMMARY"

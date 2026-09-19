@@ -18,6 +18,12 @@ public class BCMusic extends Data {
 	private static final byte[][] CACHE = new byte[TOT][];
 	public final static Map<Identifier<Music>, byte[]> CACHE_CUSTOM = new LinkedHashMap<>();
 
+    /** Operation/notification gain is independent from battlefield effect gain. */
+    static boolean isUiSound(int id){return id==8||id==9||id==10||id==11||id==SE_SPEND_FAIL||id==SE_SPEND_SUC||id==SE_SPEND_REF||id==SE_CANNON_CHARGE||id==SE_DELAY_COOLDOWN;}
+    public static synchronized void setSoundEnabled(boolean enabled){
+        play=enabled;BCPlayer.refreshVolumes();online.ui.PvpSoundBank.refreshVolume();
+        if(enabled&&BG==null&&music!=null)play(music);
+    }
 	public static boolean play = true;
 	public static Identifier<Music> music = null;
 	public static int VOL_BG = 20, VOL_SE = 20, VOL_UI = 20;
@@ -36,7 +42,8 @@ public class BCMusic extends Data {
 	protected static Map<Integer, ArrayDeque<BCPlayer>> sounds = new HashMap<>();
 
 	@SuppressWarnings("UnusedAssignment")
-	public static void clear() {
+	public static synchronized void clear() {
+        BCPlayer.releaseAll();
 		for (ArrayDeque<BCPlayer> clips : sounds.values()) {
 			while (true) {
 				BCPlayer c = clips.poll();
@@ -112,7 +119,7 @@ public class BCMusic extends Data {
 	}
 
 	public static synchronized void clickSound() {
-		if (!play || VOL_SE == 0)
+		if (!play || VOL_UI == 0)
 			return;
 		try {
 			if (CACHE[11] == null)
@@ -241,22 +248,17 @@ public class BCMusic extends Data {
 		}
 	}
 
-	public static synchronized void setBGVol(int vol) {
-		VOL_BG = vol;
-
-		if (BG != null) {
-			BG.setVolume(vol);
-		}
-	}
+    public static synchronized void setBGVol(int vol) { VOL_BG=Math.max(0,Math.min(100,vol));BCPlayer.refreshVolumes(); }
 
 	public static synchronized void setSE(int ind) {
-		if (!play || VOL_SE == 0)
+        if(ind<0||ind>=TOT)return;
+		if (!play || (isUiSound(ind)?VOL_UI:VOL_SE) == 0)
 			return;
 		secall[ind] = true;
 	}
 
 	public static synchronized void setSE(Identifier<Music> mus) {
-		if (!play || VOL_SE == 0)
+		if (!play || mus==null)
 			return;
 
 		if (mus.pack.equals(Identifier.DEF)) {
@@ -264,6 +266,7 @@ public class BCMusic extends Data {
 			return;
 		}
 
+        if(VOL_SE==0)return;
 		try {
 			Music m = Identifier.get(mus);
 			if (m == null)
@@ -281,23 +284,8 @@ public class BCMusic extends Data {
 		}
 	}
 
-	public static synchronized void setSEVol(int vol) {
-		VOL_SE = vol;
-
-		for (ArrayDeque<BCPlayer> players : sounds.values()) {
-			players.forEach((player) -> player.setVolume(vol));
-		}
-	}
-
-	public static synchronized void setUIVol(int vol) {
-		VOL_UI = vol;
-
-		if(UI != null) {
-			for (BCPlayer bcPlayer : UI) {
-				bcPlayer.setVolume(vol);
-			}
-		}
-	}
+    public static synchronized void setSEVol(int vol) { VOL_SE=Math.max(0,Math.min(100,vol));BCPlayer.refreshVolumes();online.ui.PvpSoundBank.refreshVolume(); }
+    public static synchronized void setUIVol(int vol) { VOL_UI=Math.max(0,Math.min(100,vol));BCPlayer.refreshVolumes(); }
 
 	public static synchronized void stopAll() {
 		if (BG != null)
@@ -322,14 +310,14 @@ public class BCMusic extends Data {
 			switch (ind) {
 				case SE_SPEND_FAIL:
 					if(UI != null && !UI[INVALID].isPlaying()) {
-						if(!UI[TOUCH].isPlaying())
+						if(UI!=null&&UI[TOUCH]!=null&&!UI[TOUCH].isPlaying())
 							UI[TOUCH].start();
 						UI[INVALID].start();
 					}
 					break;
 				case SE_SPEND_SUC:
 				case SE_SPEND_REF:
-					if(!UI[TOUCH].isPlaying())
+					if(UI!=null&&UI[TOUCH]!=null&&!UI[TOUCH].isPlaying())
 						UI[TOUCH].start();
 
 					loadSound(ind, openFile(bytes), VOL_UI);
@@ -389,7 +377,7 @@ public class BCMusic extends Data {
 
 	private static void loadSound(int ind, Clip c) {
 		BCPlayer player = new BCPlayer(c, ind);
-		player.setVolume(VOL_SE);
+		player.setVolume(isUiSound(ind)?VOL_UI:VOL_SE);
 
 		player.start();
 	}

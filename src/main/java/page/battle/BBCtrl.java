@@ -7,6 +7,7 @@ import common.system.P;
 import common.system.fake.FakeImage;
 import common.util.unit.Form;
 import main.MainBCU;
+import online.ui.OnlineBattleField;
 import page.battle.BattleBox.BBPainter;
 import page.battle.BattleBox.OuterBox;
 import utilpc.PP;
@@ -39,6 +40,30 @@ public class BBCtrl extends BBPainter {
 		sbc = bas;
 	}
 
+	public synchronized Form formAt(Point p) {
+		BCAuxAssets aux=CommonStatic.getBCAssets();int w=box.getWidth(),h=box.getHeight();double hr=unir;
+		if(p==null||hr<=0)return null;
+		double term=hr*aux.slot[0].getImg().getWidth()*0.2;
+		if(CommonStatic.getConfig().twoRow){
+			double termh=hr*aux.slot[0].getImg().getHeight()*0.1;
+			for(int i=0;i<2;i++)for(int j=0;j<5;j++){
+				Form f=controlState().b.lu.fs[i][j];if(f==null)continue;
+				FakeImage img=f.anim.getUni().getImg();int iw=(int)(hr*img.getWidth()),ih=(int)(hr*img.getHeight());
+				int x=(w-iw*5)/2+iw*j+(int)(term*(j-2)),y=(int)(h-(2-i)*(ih+termh));
+				if(!new PP(p).out(new P(x,y),new P(x+iw,y+ih),0))return f;
+			}
+		}else{
+			int row=controlState().frontLineup;
+			for(int i=0;i<5;i++){
+				Form f=controlState().b.lu.fs[row][i];if(f==null)continue;
+				FakeImage img=f.anim.getUni().getImg();int iw=(int)(hr*img.getWidth()),ih=(int)(hr*img.getHeight());
+				int x=(w-iw*5)/2+iw*i+(int)(term*(i-2)+(row==0?0:term/2)),y=h-(int)(ih*1.1);
+				if(!new PP(p).out(new P(x,y),new P(x+iw,y+ih),0))return f;
+			}
+		}
+		return null;
+	}
+
 	@Override
 	public synchronized void click(Point p, int button) {
 		BCAuxAssets aux = CommonStatic.getBCAssets();
@@ -51,7 +76,7 @@ public class BBCtrl extends BBPainter {
 
 			for (int i = 0; i < 2; i++) {
 				for(int j = 0; j < 5; j++) {
-					Form f = sbc.sb.b.lu.fs[i][j];
+					Form f = controlState().b.lu.fs[i][j];
 					FakeImage img = f == null ? aux.slot[0].getImg() : f.anim.getUni().getImg();
 					int iw = (int) (hr * img.getWidth());
 					int ih = (int) (hr * img.getHeight());
@@ -65,14 +90,14 @@ public class BBCtrl extends BBPainter {
 			}
 		} else {
 			for (int i = 0; i < 5; i++) {
-				Form f = sbc.sb.b.lu.fs[sbc.sb.frontLineup][i];
+				Form f = controlState().b.lu.fs[controlState().frontLineup][i];
 				FakeImage img = f == null ? aux.slot[0].getImg() : f.anim.getUni().getImg();
 				int iw = (int) (hr * img.getWidth());
 				int ih = (int) (hr * img.getHeight());
-				int x = (w - iw * 5) / 2 + iw * i + (int) (term * (i -2) + (sbc.sb.frontLineup == 0 ? 0 : term/2));
+				int x = (w - iw * 5) / 2 + iw * i + (int) (term * (i -2) + (controlState().frontLineup == 0 ? 0 : term/2));
 				int y = h - (int) (ih * 1.1);
 				if (!new PP(p).out(new P(x, y), new P(x + iw, y + ih), 0))
-					sbc.action.add(i+sbc.sb.frontLineup*5);
+					sbc.action.add(i+controlState().frontLineup*5);
 				if (button != MouseEvent.BUTTON1)
 					sbc.action.add(10);
 			}
@@ -86,10 +111,14 @@ public class BBCtrl extends BBPainter {
 			sbc.action.add(-1);
 		iw = (int) (hr * right.getWidth());
 		ih = (int) (hr * right.getHeight());
-		if (!new PP(p).out(new P(w - iw, h - ih), new P(w, h), 0))
-			sbc.action.add(-2);
+		if (!new PP(p).out(new P(w - iw, h - ih), new P(w, h), 0)) {
+			if (button == MouseEvent.BUTTON3 && sbc instanceof OnlineBattleField && ((OnlineBattleField) sbc).rouletteMode())
+				((OnlineBattleField) sbc).toggleRouletteAuto();
+			else
+				sbc.action.add(-2);
+		}
 
-		if ((sbc.sb.conf[0] & 2) > 0) {
+		if ((controlState().conf[0] & 2) > 0) {
 			FakeImage bimg = aux.battle[2][1].getImg();
 			int cw = bimg.getWidth();
 			int ch = bimg.getHeight();
@@ -130,7 +159,7 @@ public class BBCtrl extends BBPainter {
 	}
 
 	private void checkDragUpDown() {
-		if(bf.sb.isOneLineup || bf.sb.ubase.health == 0 || dragInit == null || dragEnd == null || dragFrame == 0 || performed)
+		if(controlState().isOneLineup || controlState().ubase.health == 0 || dragInit == null || dragEnd == null || dragFrame == 0 || performed)
 			return;
 
 		final double MINIMUM_DISTANCE = box.getHeight() * 0.2;
