@@ -117,7 +117,8 @@ public final class PvpStageBasis extends StageBasis {
                 && player.pvpRoulette!=null && !player.pvpRoulette.spinning) {
             player.pvpRoulette.gauge=PvpRouletteState.MAX_GAUGE;
             player.pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;
-            player.pvpRoulette.castleDamageFastGauge=0;
+            player.pvpRoulette.castleDamageFastSpinReady=false;
+            player.pvpRoulette.spinDurationTicks=PvpRouletteState.AUTO_SPIN_TICKS;
             player.pvpRoulette.chargeClock=0;
         }
         if ((mask & InputFrame.SPECIAL) != 0) {
