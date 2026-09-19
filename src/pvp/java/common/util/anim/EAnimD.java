@@ -123,7 +123,16 @@ public class EAnimD<T extends Enum<T> & AnimI.AnimType<?, T>> extends EAnimI {
 	@Override
 	protected void performDeepCopy() {
 		super.performDeepCopy();
-		((EAnimD<?>) copy).setTime(f);
+		EAnimD<?> target = (EAnimD<?>) copy;
+		target.f = f;
+		if (f >= 0) {
+			// displayCopy() must preserve the exact runtime pose. setTime(f) uses
+			// rotate=true, which wraps f by the animation length and restarts finite
+			// tracks every time a PvP snapshot is cloned.
+			target.setup();
+			target.f = f;
+			target.ma.update(f, target, false);
+		}
 	}
 
 	/**
