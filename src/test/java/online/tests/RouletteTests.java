@@ -169,10 +169,10 @@ public final class RouletteTests {
         Check.that(passiveFilledOwner.pvpRoulette.press(passiveFilled,passiveFilledOwner),"passive-filled gauge starts roulette");
         Check.equal(PvpRouletteState.AUTO_SPIN_TICKS,passiveFilledOwner.pvpRoulette.spinDurationTicks,"non-castle roulette keeps the normal two-second reel");
 
-        Check.equal(1.5,PvpRouletteState.battlefieldFactor(castleOwner,castleOwner.ownBase().pos),"unit loss at own castle uses 1.5x position factor");
-        float middle=(castleOwner.ownBase().pos+castleOwner.playerFor(-castleOwner.ownDirection()).ownBase().pos)/2f;
-        Check.equal(0.5,PvpRouletteState.battlefieldFactor(castleOwner,middle),"unit loss at arena center uses 0.5x position factor");
-        Check.equal(0.1,PvpRouletteState.battlefieldFactor(castleOwner,castleOwner.playerFor(-castleOwner.ownDirection()).ownBase().pos),"unit loss at enemy castle uses 0.1x position factor");
+        Check.equal(1.5,PvpRouletteState.battlefieldFactor(castlePartialOwner,castlePartialOwner.ownBase().pos),"unit loss at own castle uses 1.5x position factor");
+        float middle=(castlePartialOwner.ownBase().pos+castlePartialOwner.playerFor(-castlePartialOwner.ownDirection()).ownBase().pos)/2f;
+        Check.equal(0.5,PvpRouletteState.battlefieldFactor(castlePartialOwner,middle),"unit loss at arena center uses 0.5x position factor");
+        Check.equal(0.1,PvpRouletteState.battlefieldFactor(castlePartialOwner,castlePartialOwner.playerFor(-castlePartialOwner.ownDirection()).ownBase().pos),"unit loss at enemy castle uses 0.1x position factor");
 
         PvpStageBasis manual=duel(RoomRules.SpecialMode.ROULETTE);
         StageBasis manualOwner=manual.right();
