@@ -34,9 +34,9 @@ public final class PvpRouletteState extends BattleObj {
     public int gauge, targetGauge, chargeClock, reelIndex, spinTicks, lastResult=-1, lastLevel;
     public int pendingResult=-1, resultDelayTicks;
     public long lastCastleHealth=-1;
-    public boolean spinning;
+    public boolean spinning, castleDamageFastSpinReady;
     public int productionLevel, workerLevel, costLevel, attackLevel, hpLevel, moveLevel;
-    public int babyRushTicks, castleDamageFastGauge;
+    public int babyRushTicks, spinDurationTicks=AUTO_SPIN_TICKS;
 
     public PvpRouletteState(CopRand random) {
         // FUN_0025502c initializes all 43 slots to 0x0e (empty), then inserts each
@@ -121,21 +121,23 @@ public final class PvpRouletteState extends BattleObj {
         if(spinning) {
             spinTicks++;
             reelIndex=(reelIndex+1)%reel.length;
-            if(spinTicks>=AUTO_SPIN_TICKS)revealResult();
+            if(spinTicks>=spinDurationTicks)revealResult();
             return;
         }
 
         // Once the visible gauge reaches 1000 the native state machine leaves the
         // charge state. Keep observing castle HP, but do not bank charge for later.
         if(gauge>=MAX_GAUGE) {
-            gauge=targetGauge=MAX_GAUGE;castleDamageFastGauge=0;return;
+            gauge=targetGauge=MAX_GAUGE;return;
         }
 
         if(castleDamage>0) {
-            int added=addGauge(castleDamageGain(owner,previousCastle,castleDamage,world));
-            // Only the gauge amount earned by taking castle damage gets the
-            // shortened fill presentation requested for the defending side.
-            castleDamageFastGauge=Math.min(MAX_GAUGE,castleDamageFastGauge+added);
+            int before=targetGauge;
+            addGauge(castleDamageGain(owner,previousCastle,castleDamage,world));
+            // Only a castle-damage event that actually fills the target gauge earns
+            // the shortened next roulette reel. Partial castle charge followed by
+            // passive/unit charge remains the normal two-second presentation.
+            if(before<MAX_GAUGE&&targetGauge>=MAX_GAUGE)castleDamageFastSpinReady=true;
         }
 
         // FUN_002559d4: passive charge every 60 native frames. At 30TPS that is
@@ -145,26 +147,12 @@ public final class PvpRouletteState extends BattleObj {
             addGauge((int)(10.0*castleHealthFactor(owner)*matchTimeFactor(world)));
         }
 
-        // Ordinary charge keeps the native +50/tick presentation. The part of
-        // the target that came from castle damage may consume an extra 50/tick,
-        // halving only that portion's visible fill duration.
-        if(gauge<targetGauge) {
-            int gap=targetGauge-gauge;
-            castleDamageFastGauge=Math.max(0,Math.min(castleDamageFastGauge,gap));
-            int budget=castleDamageFastGauge>0?100:50;
-            int normalGap=Math.max(0,gap-castleDamageFastGauge);
-            int normalMove=Math.min(Math.min(normalGap,50),budget);
-            gauge+=normalMove;budget-=normalMove;
-            int fastMove=Math.min(castleDamageFastGauge,budget);
-            gauge+=fastMove;castleDamageFastGauge-=fastMove;
-        }
+        // Visible gauge keeps the native +50/tick chase regardless of charge source.
+        if(gauge<targetGauge)gauge=Math.min(targetGauge,gauge+50);
     }
 
-    private int addGauge(int amount) {
-        if(amount<=0)return 0;
-        int before=targetGauge;
-        targetGauge=Math.min(MAX_GAUGE,targetGauge+amount);
-        return targetGauge-before;
+    private void addGauge(int amount) {
+        if(amount>0)targetGauge=Math.min(MAX_GAUGE,targetGauge+amount);
     }
 
     /**
@@ -261,12 +249,14 @@ public final class PvpRouletteState extends BattleObj {
     public boolean press(PvpStageBasis world, StageBasis owner) {
         if(spinning || pendingResult>=0 || gauge<MAX_GAUGE)return false;
         gauge=targetGauge=MAX_GAUGE;spinning=true;spinTicks=0;
+        spinDurationTicks=castleDamageFastSpinReady?Math.max(1,AUTO_SPIN_TICKS/2):AUTO_SPIN_TICKS;
+        castleDamageFastSpinReady=false;
         return true;
     }
 
     private void revealResult() {
         int result=reel[reelIndex];
-        spinning=false;spinTicks=0;gauge=targetGauge=0;chargeClock=0;castleDamageFastGauge=0;
+        spinning=false;spinTicks=0;gauge=targetGauge=0;chargeClock=0;spinDurationTicks=AUTO_SPIN_TICKS;
         lastResult=result;pendingResult=result;resultDelayTicks=RESULT_DISPLAY_TICKS;
         lastLevel=previewLevel(result);
     }
