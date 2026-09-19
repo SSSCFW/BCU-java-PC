@@ -572,14 +572,14 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
                 else set(onlineSpecial,x,y,1100,200,390,50);
             }
             if(jtb.isSelected()){
-                set(onlineTag,x,y,1760,60,250,30);
+                set(onlineTag,x,y,1510,10,180,30);
                 set(rouletteNotice,x,y,760,98,720,34);
                 set(rouletteDebugMax,x,y,210,134,300,46);
                 set(unitAbilityOverlay,x,y,500,95,1300,260);
                 set(onlineBattleEnd,x,y,790,565,720,170);
                 set(onlineResult,x,y,740,520,820,260);
             }else{
-                set(onlineTag,x,y,1330,310,250,30);
+                set(onlineTag,x,y,1510,255,130,30);
                 set(rouletteNotice,x,y,900,372,650,34);
                 set(rouletteDebugMax,x,y,710,372,300,46);
                 set(unitAbilityOverlay,x,y,760,320,680,230);
