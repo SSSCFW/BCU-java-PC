@@ -63,19 +63,22 @@ public final class FriendServerPanel extends JPanel implements AutoCloseable {
     private void useLocal() {
         if (busy || connectionActive || closed.get()) return;
         try {
-            String url;
-            if (host != null) url = host.localControlUrl();
-            else {
-                ServerConfig config = config();
-                if (config.controlPort == 0) throw new java.io.IOException("自動割当ポートの場合は、起動済みサーバーに表示されたURLをコピーしてください。");
-                java.net.InetAddress bind = config.controlAddress().getAddress();
+            String url;int selectedUdpPort;
+            if (host != null) {
+                url = host.localControlUrl();
+                selectedUdpPort=host.server().udpPort();
+            } else {
+                ServerConfig selected = config();
+                if (selected.controlPort == 0) throw new java.io.IOException("自動割当ポートの場合は、起動済みサーバーに表示されたURLをコピーしてください。");
+                java.net.InetAddress bind = selected.controlAddress().getAddress();
                 if (bind == null) throw new java.io.IOException("サーバーのbindアドレスを解決できません。");
                 String address = bind.isAnyLocalAddress() ? "127.0.0.1" : bind.getHostAddress();
                 if (address.indexOf(':') >= 0) address = "[" + address.replace("%", "%25") + "]";
-                url = "ws://" + address + ":" + config.controlPort;
+                url = "ws://" + address + ":" + selected.controlPort;
+                selectedUdpPort=selected.udpPort;
             }
-            localTarget.accept(url,config.udpPort);
-            addresses.setText("接続先を " + url + " / UDP " + config.udpPort + " に設定しました。\nサーバーは追加起動していません。表示名・編成を選び、共有に同意して部屋を作成、または部屋IDで参加してください。");
+            localTarget.accept(url,selectedUdpPort);
+            addresses.setText("接続先を " + url + " / UDP " + selectedUdpPort + " に設定しました。\nサーバーは追加起動していません。表示名・編成を選び、共有に同意して部屋を作成、または部屋IDで参加してください。");
         } catch (Exception e) { addresses.setText("接続先の設定失敗: " + e.getMessage()); }
     }
     private void toggle() {
