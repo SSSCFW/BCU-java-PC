@@ -19,12 +19,16 @@ public final class RoomRules {
     }
     public static final int MIN_DISTANCE=1000, MAX_DISTANCE=24000, RANDOM_BACKGROUND=-1, RANDOM_MUSIC=-2;
     public static final int DEFAULT_TIME_LIMIT_MINUTES=15, MIN_TIME_LIMIT_MINUTES=1, MAX_TIME_LIMIT_MINUTES=99, UNLIMITED_TIME=0;
-    public static final RoomRules DEFAULT=new RoomRules(4400,0,PvpBattleMusic.DEFAULT_ID,false,SpecialMode.CANNON,false,
-            PvpTraitRules.NONE,PvpTraitRules.NONE,0,0,DEFAULT_TIME_LIMIT_MINUTES);
+    public static final int DEFAULT_MAX_UNITS=100, MIN_MAX_UNITS=1, MAX_MAX_UNITS=250;
+    public static final int DEFAULT_CASTLE_HIT_MONEY=5, MIN_CASTLE_HIT_MONEY=0, MAX_CASTLE_HIT_MONEY=1_000_000;
+    public static final RoomRules DEFAULT=new RoomRules(4400,0,PvpBattleMusic.DEFAULT_ID,true,SpecialMode.CANNON,false,
+            PvpTraitRules.NONE,PvpTraitRules.NONE,0,0,DEFAULT_TIME_LIMIT_MINUTES,
+            DEFAULT_MAX_UNITS,false,DEFAULT_CASTLE_HIT_MONEY);
     public final int castleDistance, backgroundId, musicId;
-    public final boolean force60Fps, debugMode;
+    public final boolean force60Fps, debugMode, castleHitMoneyEnabled;
     public final SpecialMode specialMode;
     public final int hostTraitChoice, guestTraitChoice, hostTraitExclusions, guestTraitExclusions, timeLimitMinutes;
+    public final int maxUnits, castleHitMoney;
     public RoomRules(int distance,int background,int music,boolean force60) {
         this(distance,background,music,force60,SpecialMode.CANNON,false);
     }
@@ -37,15 +41,23 @@ public final class RoomRules {
     }
     public RoomRules(int distance,int background,int music,boolean force60,SpecialMode special,boolean debug,
                      int hostTrait,int guestTrait,int hostExclusions,int guestExclusions,int timeLimit) {
+        this(distance,background,music,force60,special,debug,hostTrait,guestTrait,hostExclusions,guestExclusions,timeLimit,
+                DEFAULT_MAX_UNITS,false,DEFAULT_CASTLE_HIT_MONEY);
+    }
+    public RoomRules(int distance,int background,int music,boolean force60,SpecialMode special,boolean debug,
+                     int hostTrait,int guestTrait,int hostExclusions,int guestExclusions,int timeLimit,
+                     int maxUnits,boolean castleHitMoneyEnabled,int castleHitMoney) {
         boolean backgroundValid=background==RANDOM_BACKGROUND||(background>=0&&background<=65535);
         boolean musicValid=PvpBattleMusic.isAllowed(music);
         boolean timeValid=timeLimit==UNLIMITED_TIME||(timeLimit>=MIN_TIME_LIMIT_MINUTES&&timeLimit<=MAX_TIME_LIMIT_MINUTES);
+        boolean maxUnitsValid=maxUnits>=MIN_MAX_UNITS&&maxUnits<=MAX_MAX_UNITS;
+        boolean hitMoneyValid=castleHitMoney>=MIN_CASTLE_HIT_MONEY&&castleHitMoney<=MAX_CASTLE_HIT_MONEY;
         PvpTraitRules.validate(hostTrait,hostExclusions);PvpTraitRules.validate(guestTrait,guestExclusions);
-        if(distance<MIN_DISTANCE||distance>MAX_DISTANCE||!backgroundValid||!musicValid||special==null||!timeValid)
-            throw new IllegalArgumentException("城間距離・背景/対戦BGM・特殊機能・時間制限の設定が無効です");
-        castleDistance=distance;backgroundId=background;musicId=music;force60Fps=force60;specialMode=special;debugMode=debug;
+        if(distance<MIN_DISTANCE||distance>MAX_DISTANCE||!backgroundValid||!musicValid||special==null||!timeValid||!maxUnitsValid||!hitMoneyValid)
+            throw new IllegalArgumentException("城間距離・背景/対戦BGM・特殊機能・時間制限・出撃上限・城被弾ボーナスの設定が無効です");
+        castleDistance=distance;backgroundId=background;musicId=music;force60Fps=true;specialMode=special;debugMode=debug;
         hostTraitChoice=hostTrait;guestTraitChoice=guestTrait;hostTraitExclusions=hostExclusions;guestTraitExclusions=guestExclusions;
-        timeLimitMinutes=timeLimit;
+        timeLimitMinutes=timeLimit;this.maxUnits=maxUnits;this.castleHitMoneyEnabled=castleHitMoneyEnabled;this.castleHitMoney=castleHitMoney;
     }
     public JsonObject json(){
         JsonObject o=new JsonObject();
@@ -55,6 +67,9 @@ public final class RoomRules {
         o.addProperty("hostTraitChoice",hostTraitChoice);o.addProperty("guestTraitChoice",guestTraitChoice);
         o.addProperty("hostTraitExclusions",hostTraitExclusions);o.addProperty("guestTraitExclusions",guestTraitExclusions);
         o.addProperty("timeLimitMinutes",timeLimitMinutes);
+        o.addProperty("maxUnits",maxUnits);
+        o.addProperty("castleHitMoneyEnabled",castleHitMoneyEnabled);
+        o.addProperty("castleHitMoney",castleHitMoney);
         return o;
     }
     public static RoomRules read(JsonObject parent)throws IOException{
@@ -69,7 +84,10 @@ public final class RoomRules {
                     o.has("guestTraitChoice")?Protocol.integer(o,"guestTraitChoice"):PvpTraitRules.NONE,
                     o.has("hostTraitExclusions")?Protocol.integer(o,"hostTraitExclusions"):0,
                     o.has("guestTraitExclusions")?Protocol.integer(o,"guestTraitExclusions"):0,
-                    o.has("timeLimitMinutes")?Protocol.integer(o,"timeLimitMinutes"):DEFAULT_TIME_LIMIT_MINUTES);
+                    o.has("timeLimitMinutes")?Protocol.integer(o,"timeLimitMinutes"):DEFAULT_TIME_LIMIT_MINUTES,
+                    o.has("maxUnits")?Protocol.integer(o,"maxUnits"):DEFAULT_MAX_UNITS,
+                    o.has("castleHitMoneyEnabled")&&Protocol.bool(o,"castleHitMoneyEnabled"),
+                    o.has("castleHitMoney")?Protocol.integer(o,"castleHitMoney"):DEFAULT_CASTLE_HIT_MONEY);
         } catch(IllegalArgumentException e){throw new IOException(e.getMessage(),e);}
     }
     @Override public boolean equals(Object value){
@@ -79,10 +97,11 @@ public final class RoomRules {
                 &&force60Fps==r.force60Fps&&specialMode==r.specialMode&&debugMode==r.debugMode
                 &&hostTraitChoice==r.hostTraitChoice&&guestTraitChoice==r.guestTraitChoice
                 &&hostTraitExclusions==r.hostTraitExclusions&&guestTraitExclusions==r.guestTraitExclusions
-                &&timeLimitMinutes==r.timeLimitMinutes;
+                &&timeLimitMinutes==r.timeLimitMinutes&&maxUnits==r.maxUnits
+                &&castleHitMoneyEnabled==r.castleHitMoneyEnabled&&castleHitMoney==r.castleHitMoney;
     }
     public int resolvedHostTrait(long seed){return PvpTraitRules.resolve(hostTraitChoice,hostTraitExclusions,seed,0x13579bdf2468ace0L);}
     public int resolvedGuestTrait(long seed){return PvpTraitRules.resolve(guestTraitChoice,guestTraitExclusions,seed,0x02468ace13579bdfL);}
     @Override public int hashCode(){return Objects.hash(castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
-            hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes);}
+            hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,maxUnits,castleHitMoneyEnabled,castleHitMoney);}
 }
