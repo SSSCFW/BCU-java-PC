@@ -590,7 +590,7 @@ public abstract class Entity extends AbEntity {
 				e.kbTime += 1;
 
 			// Z-kill icon
-			if (e.health <= 0 && e.zx.tempZK && e.traits.contains(UserProfile.getBCData().traits.get(TRAIT_ZOMBIE))) {
+			if (e.health <= 0 && e.zx.tempZK && e.identityTraits().contains(UserProfile.getBCData().traits.get(TRAIT_ZOMBIE))) {
 				EAnimD<DefEff> eae = effas().A_Z_STRONG.getEAnim(DefEff.DEF);
 				e.basis.lea.add(new EAnimCont(e.pos, e.currentLayer, eae));
 				e.basis.world().leaSort = true;
@@ -1242,7 +1242,7 @@ public abstract class Entity extends AbEntity {
 				if (em.kb.kbType == INT_WARP)
 					continue;
 				REVIVE.TYPE conf = em.getProc().REVIVE.type;
-				if (!conf.revive_non_zombie && e.traits.contains(UserProfile.getBCData().traits.get(TRAIT_ZOMBIE)))
+				if (!conf.revive_non_zombie && e.identityTraits().contains(UserProfile.getBCData().traits.get(TRAIT_ZOMBIE)))
 					continue;
 				int type = conf.range_type;
 				if (type == 0 && (em.touchable() & (TCH_N | TCH_EX)) == 0)
@@ -1389,6 +1389,15 @@ public abstract class Entity extends AbEntity {
 	 * trait of enemy, also target trait of unit, uses list
 	 */
 	public List<Trait> traits;
+
+	/**
+	 * Traits that describe THIS entity as an attack target. For normal BCU units
+	 * the legacy traits field doubles as a unit's attack-target list, so PvP
+	 * EUnit overrides this to expose only its synchronized player attribute.
+	 */
+	protected List<Trait> identityTraits() {
+		return traits;
+	}
 
 	/**
 	 * attack model
@@ -2348,10 +2357,11 @@ public abstract class Entity extends AbEntity {
 		if (targetOnly && isBase) return true;
 		if (t.contains(null))
 			return true;
+		List<Trait> identity=identityTraits();
 		for (Trait trait : t)
-			if (traits.contains(trait))
+			if (identity.contains(trait))
 				return true;
-		if (Trait.isTargetTraited(traits))
+		if (Trait.isTargetTraited(identity))
 			for (int i = 0; i < t.size(); i++)
 				if (t.get(i).targetType)
 					return true;
@@ -2620,7 +2630,7 @@ public abstract class Entity extends AbEntity {
 	private float getFruit(List<Trait> trait, int dire, int e) {
 		if (basis.isPvp()) {
             if (this.dire == dire) return 0;
-            ArrayList<Trait> shared = new ArrayList<>(trait); shared.retainAll(traits);
+            ArrayList<Trait> shared = new ArrayList<>(trait); shared.retainAll(identityTraits());
             return (e == 1 ? basis.playerFor(dire) : basis).b.t().getFruit(shared);
         }
 		if (!receive(dire) || receive(e))
