@@ -74,11 +74,18 @@ public final class RouletteTests {
         Check.equal(Math.round(oldHealth*24.0),enemy.health,"HP Level MAX immediately scales deployed unit current HP to 24x");
 
         int baseDisplayedAtk=enemy.getAtk();
+        Check.equal(1.0,right.pvpRoulette.attackMultiplier(),"unboosted attack remains 1x");
         right.pvpRoulette.forceResult(b,right,PvpRouletteState.ATTACK_UP);
-        Check.equal((int)Math.round(baseDisplayedAtk*1.5),enemy.getAtk(),"attack-up immediately changes deployed-unit status attack");
-        right.pvpRoulette.attackLevel=0;
-        for(int i=0;i<5;i++)right.pvpRoulette.forceResult(b,right,PvpRouletteState.ATTACK_UP);
-        Check.equal(8.0,right.pvpRoulette.attackMultiplier(),"attack Level MAX is 8x");
+        Check.equal(2.7,right.pvpRoulette.attackMultiplier(),"attack Lv1 is 1.8x the former 1.5x multiplier");
+        Check.equal((int)Math.round(baseDisplayedAtk*2.7),enemy.getAtk(),"attack-up immediately changes deployed-unit status attack to 2.7x");
+        right.pvpRoulette.forceResult(b,right,PvpRouletteState.ATTACK_UP);
+        Check.equal(4.5,right.pvpRoulette.attackMultiplier(),"attack Lv2 is 4.5x");
+        right.pvpRoulette.forceResult(b,right,PvpRouletteState.ATTACK_UP);
+        Check.equal(8.1,right.pvpRoulette.attackMultiplier(),"attack Lv3 is 8.1x");
+        right.pvpRoulette.forceResult(b,right,PvpRouletteState.ATTACK_UP);
+        Check.equal(14.4,right.pvpRoulette.attackMultiplier(),"attack MAX is 14.4x");
+        right.pvpRoulette.forceResult(b,right,PvpRouletteState.ATTACK_UP);
+        Check.equal(4,right.pvpRoulette.attackLevel,"attack boost caps at Level MAX");
         for(int i=0;i<5;i++)right.pvpRoulette.forceResult(b,right,PvpRouletteState.MOVE_UP);
         Check.equal(8.0,right.pvpRoulette.moveMultiplier(),"move Level MAX is 8x");
 
@@ -152,7 +159,7 @@ public final class RouletteTests {
         castlePartialOwner.pvpRoulette.initializeCharge(castlePartialOwner);
         castlePartialOwner.ownBase().health-=100000;
         castlePartialOwner.pvpRoulette.advance(castlePartial,castlePartialOwner);
-        Check.equal(300,castlePartialOwner.pvpRoulette.targetGauge,"taking 100000 castle damage adds floor(damage*3/1000) before comeback factors");
+        Check.equal(390,castlePartialOwner.pvpRoulette.targetGauge,"castle-damage roulette charge is 1.3x the recovered native amount");
         Check.equal(50,castlePartialOwner.pvpRoulette.gauge,"castle damage does not change the native gauge-fill animation speed");
         Check.that(castlePartialOwner.pvpRoulette.castleDamageFastSpinReady,"partial castle charge arms the shortened next roulette");
 
