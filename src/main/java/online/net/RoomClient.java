@@ -356,6 +356,7 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
         commands.getAndUpdate(old -> (old | (bit & 4095)) ^ (bit & ~4095));
     }
     public ResolvedFrame pollResolvedFrame() { return frames.poll(); }
+    public int resolvedFrameBacklog() { return frames.size(); }
     public int playerId() { synchronized (state) { return playerId; } }
     public String realtimeTransport() { synchronized (state) { return selected == null ? "PROBING" : selected; } }
     public ReliabilityWindow.Metrics udpMetrics() { synchronized (state) { return udp == null ? null : udp.metrics(); } }
