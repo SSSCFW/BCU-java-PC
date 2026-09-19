@@ -66,6 +66,7 @@ public final class PlayerTraitTests {
                 PvpTraitRules.ALL_EXCLUSIONS^(1<<PvpTraitRules.optionIndex(Data.TRAIT_BLACK)),15);
         Check.that(randomRules.resolvedHostTrait(12345L)!=Data.TRAIT_RED,"random host trait honors exclusions");
         Check.that(randomRules.resolvedHostTrait(12345L)!=Data.TRAIT_WHITE,"random PvP attribute never resolves to white/untraited");
+        Check.that(randomRules.resolvedHostTrait(12345L)!=PvpTraitRules.NONE,"random PvP attribute never resolves to attribute-less");
         Check.equal((int)Data.TRAIT_BLACK,randomRules.resolvedGuestTrait(12345L),"random guest trait can be constrained to one allowed attribute");
 
         int limit=1*60*PvpStageBasis.TPS;
