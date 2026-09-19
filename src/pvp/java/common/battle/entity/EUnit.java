@@ -193,6 +193,11 @@ public class EUnit extends Entity {
 
 	public int pvpAssignedTrait(){return pvpAssignedTrait;}
 
+	@Override
+	protected List<Trait> identityTraits(){
+		return basis.isPvp()?pvpAttributeTraits():traits;
+	}
+
 	public List<Trait> pvpAttributeTraits(){
 		if(!basis.isPvp()||pvpAssignedTrait<0)return java.util.Collections.emptyList();
 		Trait trait=UserProfile.getBCData().traits.get(pvpAssignedTrait);
