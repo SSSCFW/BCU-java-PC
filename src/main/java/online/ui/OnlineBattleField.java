@@ -23,6 +23,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     private final int direction;
     private int frontRow, changeFrame = -1;
     private boolean goingUp, interactive = true, halfAdvanced, renderedSincePublish, battleUiHidden;
+    private boolean autoRoulette, autoRouletteQueued;
     /** Online PvP presentation is always 60 FPS; simulation remains fixed at 30 TPS. */
     public void force60Fps(boolean value){/* retained for protocol/UI compatibility */}
     public int renderFps(){return 60;}
@@ -79,6 +80,8 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     public boolean battleUiHidden(){return battleUiHidden;}
     public boolean debugMode(){return ((PvpStageBasis)sb).debugMode();}
     public boolean rouletteMode(){return ((PvpStageBasis)sb).specialMode()==online.net.lobby.RoomRules.SpecialMode.ROULETTE;}
+    public boolean autoRoulette(){return autoRoulette;}
+    public void toggleRouletteAuto(){if(rouletteMode()){autoRoulette=!autoRoulette;autoRouletteQueued=false;}}
     public void debugRouletteMax(){
         if(interactive&&debugMode()&&rouletteMode())send.accept(InputFrame.DEBUG_ROULETTE_MAX);
     }
@@ -101,8 +104,18 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
             default: break;
         }
         if ((action.contains(-2) || specialPressed) && world.specialMode()!=online.net.lobby.RoomRules.SpecialMode.NONE) {
-            if(action.contains(-2)||specialReady)send.accept(InputFrame.SPECIAL);
+            if(action.contains(-2)||specialReady){
+                send.accept(InputFrame.SPECIAL);
+                if(world.specialMode()==online.net.lobby.RoomRules.SpecialMode.ROULETTE)autoRouletteQueued=true;
+            }
             if(specialPressed)keys.remove(-1, 1);
+        }
+        if(world.specialMode()==online.net.lobby.RoomRules.SpecialMode.ROULETTE){
+            if(!specialReady)autoRouletteQueued=false;
+            else if(autoRoulette&&!autoRouletteQueued){
+                send.accept(InputFrame.SPECIAL);
+                autoRouletteQueued=true;
+            }
         }
         boolean twoRows = CommonStatic.getConfig().twoRow;
         if (!twoRows && !own.isOneLineup && changeFrame < 0) {
@@ -137,20 +150,21 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
                 if(own.pvpRoulette.spinning) {
                     int remain=Math.max(0,own.pvpRoulette.spinDurationTicks-own.pvpRoulette.spinTicks);
                     double seconds=remain/(double)PvpStageBasis.TPS;
-                    return String.format(java.util.Locale.ROOT,"対戦ルーレット 回転中 / %.1f秒 / %s",seconds,
-                            PvpRouletteState.NAMES[own.pvpRoulette.currentResult()]);
+                    return String.format(java.util.Locale.ROOT,"対戦ルーレット 回転中 / %.1f秒 / %s%s",seconds,
+                            PvpRouletteState.NAMES[own.pvpRoulette.currentResult()],rouletteAutoText());
                 }
-                if(own.pvpRoulette.gauge>=PvpRouletteState.MAX_GAUGE)return "対戦ルーレット 100% / 発動可能";
+                if(own.pvpRoulette.gauge>=PvpRouletteState.MAX_GAUGE)return "対戦ルーレット 100% / 発動可能"+rouletteAutoText();
                 String last="";
                 if(own.pvpRoulette.lastResult>=0) {
                     int lv=own.pvpRoulette.lastLevel;
                     String level=lv<=0?"":(lv>=4?" MAX":" Lv"+lv);
                     last=" / 前回: "+PvpRouletteState.NAMES[own.pvpRoulette.lastResult]+level;
                 }
-                return "対戦ルーレット "+own.pvpRoulette.gauge/10+"%"+last;
+                return "対戦ルーレット "+own.pvpRoulette.gauge/10+"%"+last+rouletteAutoText();
             default:return "";
         }
     }
+    private String rouletteAutoText(){return autoRoulette?" / 自動ON":"";}
     private void syncSpecialHud() {
         PvpStageBasis world=(PvpStageBasis)sb;
         StageBasis own=playerState();
