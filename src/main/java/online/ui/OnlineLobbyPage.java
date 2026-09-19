@@ -92,7 +92,14 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         if(selected==null)throw new java.io.IOException("編成を選択してください");
         if(selected==randomLineup)return RandomLineupFactory.create(false);
         if(selected==randomVanillaLineup)return RandomLineupFactory.create(true);
+        if(!canReadyLineup(selected))throw new java.io.IOException("編成には1体以上のキャラが必要です");
         return selected;
+    }
+    boolean canReadyLineup(BasisLU selected){
+        if(selected==null)return false;
+        if(isRandomLineupChoice(selected))return true;
+        for(Form[] row:selected.lu.fs)for(Form form:row)if(form!=null)return true;
+        return false;
     }
     @Override protected JButton getBackButton(){return back;}
     @Override protected void resized(int w,int h){setBounds(0,0,w,h);content.setBounds(0,0,w,h);content.revalidate();}
