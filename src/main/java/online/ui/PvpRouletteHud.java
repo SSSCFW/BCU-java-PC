@@ -115,9 +115,11 @@ public final class PvpRouletteHud extends JComponent {
                 g.setFont(g.getFont().deriveFont(Font.BOLD,13f));
                 g.drawString(online.specialStatus(),8,30);
             }
-            int gauge=Math.max(0,Math.min(PvpRouletteState.MAX_GAUGE,state.gauge));
+            double progress=state.spinning
+                    ?Math.min(1.0,state.spinTicks/(double)Math.max(1,state.spinDurationTicks))
+                    :Math.max(0.0,Math.min(1.0,state.gauge/(double)PvpRouletteState.MAX_GAUGE));
             g.setColor(new Color(0,0,0,180));g.fillRect(48,45,250,4);
-            g.setColor(Color.WHITE);g.fillRect(48,45,250*gauge/PvpRouletteState.MAX_GAUGE,4);
+            g.setColor(Color.WHITE);g.fillRect(48,45,(int)Math.round(250*progress),4);
         }catch(RuntimeException ex){
             assetsReady=false;
             g.setColor(Color.WHITE);
