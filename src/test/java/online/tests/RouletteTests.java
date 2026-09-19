@@ -98,6 +98,8 @@ public final class RouletteTests {
         right.pvpRoulette.advance(b,right);
         Check.equal(77,right.elu.cool[0][0],"petit baby rush stops forcing cooldown to zero after ten seconds");
 
+        boostedCastleDamageEffects();
+
         // Gauge follows the reverse-engineered castle-HP cadence and waits for explicit SPECIAL at 100%.
         // Native charge: once per second, full HP=1x, half HP=2x, near-zero HP approaches 5x.
         PvpStageBasis charge=duel(RoomRules.SpecialMode.ROULETTE);
@@ -166,6 +168,8 @@ public final class RouletteTests {
         Check.equal(PvpRouletteState.MAX_GAUGE,castleFilledOwner.pvpRoulette.gauge,"castle hit can finish the visible roulette gauge");
         Check.that(castleFilledOwner.pvpRoulette.castleDamageFastSpinReady,"only castle damage that fills the gauge arms the short reel");
         Check.that(castleFilledOwner.pvpRoulette.press(castleFilled,castleFilledOwner),"castle-filled gauge starts roulette normally");
+        Check.that(castleFilledOwner.pvpRoulette.castleDamageBoostedSpin,
+                "shortened castle-damage reel is marked for boosted effects");
         Check.equal(PvpRouletteState.AUTO_SPIN_TICKS/2,castleFilledOwner.pvpRoulette.spinDurationTicks,"castle-filled roulette reel is exactly half duration");
         for(int i=0;i<PvpRouletteState.AUTO_SPIN_TICKS/2-1;i++)castleFilledOwner.pvpRoulette.advance(castleFilled,castleFilledOwner);
         Check.that(castleFilledOwner.pvpRoulette.spinning,"short castle-damage reel remains visible until its half-duration threshold");
@@ -248,6 +252,107 @@ public final class RouletteTests {
         Check.equal(-1,manualOwner.pvpRoulette.pendingResult,"pending result card clears after its display window");
         Check.that(manualOwner.pvpRoulette.gauge>0,"charge earned during spin/result is retained after consuming one full gauge");
     }
+    private static void boostedCastleDamageEffects() throws Exception {
+        // STOP: twice the normal five-second duration.
+        PvpStageBasis stopBattle=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis stopOwner=stopBattle.left();
+        EUnit stopTarget=unit(stopBattle,-1);
+        stopOwner.pvpRoulette.forceResult(stopBattle,stopOwner,PvpRouletteState.STOP,true);
+        Check.equal(PvpRouletteState.TEMP_TICKS*2,stopTarget.status[common.util.Data.P_STOP][0],
+                "castle-damage STOP lasts twice as long");
+
+        // SLOW: triple duration plus 50% attack for the exact same duration.
+        PvpStageBasis slowBattle=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis slowOwner=slowBattle.left();
+        EUnit slowTarget=unit(slowBattle,-1);
+        int attackBefore=slowTarget.getAtk();
+        slowOwner.pvpRoulette.forceResult(slowBattle,slowOwner,PvpRouletteState.SLOW,true);
+        Check.equal(PvpRouletteState.TEMP_TICKS*3,slowTarget.status[common.util.Data.P_SLOW][0],
+                "castle-damage SLOW lasts three times as long");
+        Check.equal(PvpRouletteState.TEMP_TICKS*3,slowTarget.status[common.util.Data.P_WEAK][0],
+                "castle-damage SLOW gives attack-down for the same duration");
+        Check.equal(50,slowTarget.status[common.util.Data.P_WEAK][1],
+                "castle-damage SLOW reduces attack to 50 percent");
+        Check.equal(attackBefore/2,slowTarget.getAtk(),"castle-damage SLOW immediately halves displayed attack");
+
+        // CANNON: the shot produced by this roulette activation carries a one-shot x10 attack multiplier.
+        PvpStageBasis cannonBattle=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis cannonOwner=cannonBattle.left();
+        cannonOwner.pvpRoulette.forceResult(cannonBattle,cannonOwner,PvpRouletteState.CANNON,true);
+        Check.equal(10,cannonOwner.canon.pendingPvpAttackMultiplier(),
+                "castle-damage cannon queues a ten-times attack multiplier");
+
+        // KNOCKBACK: compare equal fixtures at midfield to avoid castle-edge clamping.
+        PvpStageBasis normalKb=duel(RoomRules.SpecialMode.ROULETTE),boostedKb=duel(RoomRules.SpecialMode.ROULETTE);
+        EUnit normalKbTarget=unit(normalKb,-1),boostedKbTarget=unit(boostedKb,-1);
+        normalKbTarget.pos=normalKbTarget.lastPosition=normalKb.st.len/2f;
+        boostedKbTarget.pos=boostedKbTarget.lastPosition=boostedKb.st.len/2f;
+        float normalStart=normalKbTarget.pos,boostedStart=boostedKbTarget.pos;
+        normalKb.left().pvpRoulette.forceResult(normalKb,normalKb.left(),PvpRouletteState.KNOCKBACK,false);
+        boostedKb.left().pvpRoulette.forceResult(boostedKb,boostedKb.left(),PvpRouletteState.KNOCKBACK,true);
+        normalKb.step(new InputFrame(normalKb.time,0,0));boostedKb.step(new InputFrame(boostedKb.time,0,0));
+        float normalMove=Math.abs(normalKbTarget.pos-normalStart),boostedMove=Math.abs(boostedKbTarget.pos-boostedStart);
+        Check.that(normalMove>0&&boostedMove>=normalMove*1.9f,
+                "castle-damage knockback travels approximately twice the normal boss-shock distance");
+
+        // Petit baby rush: keep the normal rush and immediately max worker wallet and cash.
+        PvpStageBasis babyBattle=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis babyOwner=babyBattle.right();
+        babyOwner.work_lv=1;babyOwner.money=0;
+        babyOwner.pvpRoulette.forceResult(babyBattle,babyOwner,PvpRouletteState.BABY_RUSH,true);
+        Check.equal(8,babyOwner.work_lv,"castle-damage petit baby rush maxes worker level");
+        Check.equal(babyOwner.maxMoney,babyOwner.money,"castle-damage petit baby rush also fills the new max wallet");
+        Check.equal(PvpRouletteState.BABY_RUSH_TICKS,babyOwner.pvpRoulette.babyRushTicks,
+                "castle-damage petit baby rush keeps the normal ten-second production rush");
+
+        // Production recovery: normal cooldown reset plus 4500 visible yen, capped normally.
+        PvpStageBasis recoveryBattle=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis recoveryOwner=recoveryBattle.right();
+        recoveryOwner.elu.cool[0][0]=77;recoveryOwner.money=0;
+        recoveryOwner.pvpRoulette.forceResult(recoveryBattle,recoveryOwner,PvpRouletteState.PRODUCTION_RECOVERY,true);
+        Check.equal(0,recoveryOwner.elu.cool[0][0],"castle-damage production recovery still clears cooldown");
+        Check.equal((int)Math.min((long)recoveryOwner.maxMoney,4500L*100L),recoveryOwner.money,
+                "castle-damage production recovery grants 4500 visible yen without exceeding wallet cap");
+
+        // Cost down: price reduction plus 30% progress on every currently-running cooldown.
+        PvpStageBasis costBattle=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis costOwner=costBattle.right();
+        int priceBefore=costOwner.elu.price[0][0];
+        costOwner.elu.cool[0][0]=100;
+        costOwner.pvpRoulette.forceResult(costBattle,costOwner,PvpRouletteState.COST_DOWN,true);
+        Check.equal(Math.max(1,priceBefore/2),costOwner.elu.price[0][0],"castle-damage cost-down keeps normal price halving");
+        Check.equal(70,costOwner.elu.cool[0][0],"castle-damage cost-down advances current cooldown by 30 percent");
+
+        // Heal: existing heal plus a five-second x2 max-HP window for newly deployed cats.
+        PvpStageBasis healBattle=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis healOwner=healBattle.left();
+        EUnit beforeSpawn=unit(healBattle,1);
+        long baseSpawnHp=beforeSpawn.maxH;
+        healOwner.pvpRoulette.forceResult(healBattle,healOwner,PvpRouletteState.HEAL,true);
+        Check.equal(PvpRouletteState.BOOSTED_HEAL_SPAWN_TICKS,healOwner.pvpRoulette.healSpawnBoostTicks,
+                "castle-damage heal opens a five-second spawn HP window");
+        healOwner.unitRespawnTime=0;healOwner.elu.cool[0][0]=0;healOwner.money=healOwner.maxMoney;
+        healBattle.step(new InputFrame(healBattle.time,1,0));
+        Check.that(healBattle.le.stream().filter(e->e instanceof EUnit&&e.dire==1&&e!=beforeSpawn)
+                        .map(e->(EUnit)e).anyMatch(e->e.maxH==baseSpawnHp*2),
+                "cats deployed during boosted-heal window spawn with double HP");
+
+        // Money MAX: add one full current wallet maximum and preserve only that one-time over-cap.
+        PvpStageBasis moneyBattle=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis moneyOwner=moneyBattle.right();
+        moneyOwner.money=Math.max(1,moneyOwner.maxMoney/3);
+        int beforeMoney=moneyOwner.money,maximum=moneyOwner.maxMoney;
+        moneyOwner.pvpRoulette.forceResult(moneyBattle,moneyOwner,PvpRouletteState.MONEY_MAX,true);
+        Check.equal((int)Math.min((long)Integer.MAX_VALUE,(long)beforeMoney+maximum),moneyOwner.money,
+                "castle-damage money MAX adds the current wallet maximum instead of merely filling it");
+        Check.that(moneyOwner.money>maximum&&moneyOwner.pvpMoneyOvercapLimit==moneyOwner.money,
+                "castle-damage money MAX may exceed the normal wallet limit");
+        moneyOwner.clampMoney();
+        Check.that(moneyOwner.money>maximum,"roulette over-cap survives the normal end-of-tick clamp");
+        moneyOwner.money=maximum-1;moneyOwner.clampMoney();
+        Check.equal(0,moneyOwner.pvpMoneyOvercapLimit,"over-cap privilege ends once money falls back under normal maximum");
+    }
+
     private static void modeTests() throws Exception {
         PvpStageBasis none=duel(RoomRules.SpecialMode.NONE);
         none.left().cannon=none.left().maxCannon;
