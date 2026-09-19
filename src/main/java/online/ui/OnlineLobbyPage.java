@@ -30,6 +30,7 @@ import java.util.concurrent.*;
 public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private static final long serialVersionUID=1L;
     private static final long BATTLE_STEP_NANOS=1_000_000_000L/Protocol.TPS;
+    private static final int MAX_PRESENTATION_BACKLOG=1;
     private final JPanel content=new JPanel(new BorderLayout(12,12));
     private final JPanel setup=new JPanel(new GridBagLayout());
     private final JButton back=new JButton("戻る"),create=new JButton("部屋を作成"),join=new JButton("部屋に参加"),ready=new JButton("準備完了"),leave=new JButton("退出"),copyRoom=new JButton("部屋IDをコピー");
@@ -235,10 +236,14 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         if(disposed||battle==null)return;
         try{
             long now=System.nanoTime();
-            // Never apply several authoritative ticks in one EDT callback. The network
-            // queue already absorbs jitter; presenting a 2-5 tick burst made walking
-            // animations visibly skip, and synchronous JOGL paints amplified it.
-            if(!resultSent&&now>=nextBattleStep){
+            // Keep one authoritative tick per EDT callback so animation is never
+            // burst-applied. If rendering/JOGL stalls long enough for resolved frames
+            // to accumulate, temporarily consume one tick every 5ms callback until the
+            // backlog is back to a single frame. Otherwise a one-second stall becomes
+            // a permanent one-second input/display delay for the rest of the match.
+            int backlog=client.resolvedFrameBacklog();
+            boolean catchingUp=backlog>MAX_PRESENTATION_BACKLOG;
+            if(!resultSent&&battleStepDue(now,nextBattleStep,backlog)){
                 ResolvedFrame frame=client.pollResolvedFrame();
                 if(frame!=null){
                     final InputFrame tickFrame=roster.toDuel(frame);
@@ -254,9 +259,11 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                         client.result(battle.time,battle.winner(),BattleDigest.of(battle));
                         message("試合終了。両者の結果を照合しています…");
                     }
-                    // Advance to the first future 30 TPS slot instead of trying to
-                    // render missed ticks back-to-back after EDT/network stalls.
-                    nextBattleStep=advanceDeadline(nextBattleStep,System.nanoTime(),BATTLE_STEP_NANOS);
+                    long after=System.nanoTime();
+                    // During catch-up the backlog itself authorizes the next 5ms
+                    // callback. Once caught up, resume the ordinary 30TPS cadence.
+                    nextBattleStep=catchingUp?after+BATTLE_STEP_NANOS:
+                            advanceDeadline(nextBattleStep,after,BATTLE_STEP_NANOS);
                 }
             }
             if(battlePage==null)return;
@@ -270,6 +277,9 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 nextPaint=advanceDeadline(nextPaint,System.nanoTime(),interval);
             }
         }catch(Exception e){failed("同期処理を停止しました: "+e.getMessage());}
+    }
+    static boolean battleStepDue(long now,long deadline,int backlog){
+        return backlog>MAX_PRESENTATION_BACKLOG||now>=deadline;
     }
     static long advanceDeadline(long deadline,long now,long interval){
         if(interval<=0)throw new IllegalArgumentException("interval");
