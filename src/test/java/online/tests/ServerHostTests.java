@@ -51,13 +51,13 @@ public final class ServerHostTests {
             try(DatagramSocket rebound=new DatagramSocket(new InetSocketAddress("127.0.0.1",free))){Check.equal(free,rebound.getLocalPort(),"startup failure also closes UDP socket");}
         }
         URI lan=new URI("ws://192.168.1.10:8766");
-        Check.rejects(()->RoomClient.validateUri(lan,false),"LAN plaintext still requires explicit approval");
-        Check.equal(lan,RoomClient.validateUri(lan,true),"explicit private LAN accepted");
-        Check.equal("wss",RoomClient.validateUri(new URI("wss://example.com"),false).getScheme(),"public WSS accepted");
-        Check.rejects(()->RoomClient.validateUri(new URI("ws://8.8.8.8:8766"),true),"private-network flag never permits public plaintext");
-        Check.rejects(()->RoomClient.validateUri(new URI("ws://example.com:8766"),true),"no DNS-based private trust bypass");
-        Check.equal("100.64.0.1",RoomClient.validateUri(new URI("ws://100.64.0.1:8766"),true).getHost(),"private VPN range allowed explicitly");
-        Check.rejects(()->RoomClient.validateUri(new URI("ws://100.128.0.1:8766"),true),"CGNAT range boundary enforced");
+        Check.rejects(()->RoomClient.validateUri(lan,false),"non-loopback plaintext still requires explicit approval");
+        Check.equal(lan,RoomClient.validateUri(lan,true),"explicit plain WS accepts private LAN");
+        Check.equal("wss",RoomClient.validateUri(new URI("wss://example.com"),false).getScheme(),"public WSS accepted without opt-in");
+        Check.equal("8.8.8.8",RoomClient.validateUri(new URI("ws://8.8.8.8:8766"),true).getHost(),"explicit plain WS accepts public IPv4");
+        Check.equal("example.com",RoomClient.validateUri(new URI("ws://example.com:8766"),true).getHost(),"explicit plain WS accepts public DNS host");
+        Check.rejects(()->RoomClient.validateUri(new URI("ws://8.8.8.8:8766"),false),"public plaintext remains blocked without opt-in");
+        Check.equal("100.64.0.1",RoomClient.validateUri(new URI("ws://100.64.0.1:8766"),true).getHost(),"explicit plain WS accepts VPN range");
         SwingUtilities.invokeAndWait(()->{FriendServerPanel panel=new FriendServerPanel(url->{});Check.that(panel.getComponentCount()>=2,"embedded server panel constructed headless");panel.close();});
     }
 }
