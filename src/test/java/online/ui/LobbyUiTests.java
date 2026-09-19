@@ -120,7 +120,7 @@ public final class LobbyUiTests {
                 Check.that(!Files.exists(late),"late bundle callback cleans its temporary file");break;
             }
             case "room-info": {
-                startHost();setup("Host","test-password");create();await(()->button("copyRoom").isEnabled(),"room creation");
+                ServerHost host=startHost();setup("Host","test-password");create();await(()->button("copyRoom").isEnabled(),"room creation");
                 await(()->!((RoomClient)field(page,"client")).realtimeTransport().equals("PROBING"),"transport selection");
                 Thread.sleep(150);
                 Check.that(status().contains(edt(()->text("room").getText())),"transport status must retain the room ID");
@@ -131,6 +131,12 @@ public final class LobbyUiTests {
                 });
                 await(()->!((Boolean)field(field(page,"roomLobby"),"pending")),"empty lineup selection acknowledgement");
                 Check.that(!edt(()->button("ready").isEnabled()),"zero-unit saved lineup cannot become ready");
+
+                page.failed("synthetic prepare failure");
+                await(()->MainFrame.getPanel()==page&&button("create").isEnabled(),"prepare failure returns to reusable connection page");
+                Check.that(edt(()->field(field(page,"friendServer"),"host"))==host,"prepare failure must retain embedded friend server");
+                create();await(()->button("copyRoom").isEnabled(),"room can be created again after prepare failure");
+                Check.that(edt(()->field(field(page,"friendServer"),"host"))==host,"retry uses the same embedded friend server");
                 break;
             }
             case "local-button": {
