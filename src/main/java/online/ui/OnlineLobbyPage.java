@@ -40,7 +40,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private final JComboBox<String> side=new JComboBox<>(new String[]{"味方側（右・ピンク）","敵側（左・青）"});
     private final JComboBox<BasisLU> lineup=new JComboBox<>();
     private final BasisLU randomLineup=choice("ランダム"),randomVanillaLineup=choice("ランダム(バニラ)");
-    private final JCheckBox development=new JCheckBox("信頼するLAN／暗号化VPNでWSを許可（公開回線はWSS）");
+    private final JCheckBox development=new JCheckBox("平文WSを許可（外部サーバーの ws:// 接続を含む・通信は暗号化されません）");
     private final JTextArea status=new JTextArea(5,50);
     private BattleInfoPage battlePage;
     private RoomLobbyPage roomLobby;
