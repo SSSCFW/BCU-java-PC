@@ -11,10 +11,11 @@ permissions:
 concurrency:
   group: pvp-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
-  maven:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     outputs:
       zip_sha256: ${{ steps.package.outputs.zip_sha256 }}
     steps:
@@ -28,29 +29,30 @@ jobs:
           java-version: '21'
           cache: maven
           cache-dependency-path: pom.xml
-      - name: Install Japanese fonts for visual regression tests
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y fonts-noto-cjk
-      - name: Clean build and real-engine integration tests
+      - name: Maven compile and package
         run: |
           set -o pipefail
           mkdir -p diagnostics
-          mvn -B -ntp verify dependency:copy-dependencies -DoutputDirectory=target/lib 2>&1 | tee diagnostics/maven.log
-      - name: Actual Swing lobby and same-PC two-client regression tests
-        run: xvfb-run -a java -ea -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.ui.LobbyUiTests
-      - name: Battle presentation, layering and contrast regression tests
-        run: |
-          for mode in layers muted publication result small-result resize-result late-result; do
-            xvfb-run -a java -ea -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.ui.BattlePresentationTests "$mode"
-          done
-      - name: Portable distribution and regression checks
+          # Compile production + test classes once. The expensive main-based PvP
+          # integration suite is executed in the parallel headless job below.
+          mvn -B -ntp -DskipTests package dependency:copy-dependencies -DoutputDirectory=target/lib 2>&1 | tee diagnostics/maven-build.log
+      - name: Portable distribution checks
         id: package
         run: |
           python3 tools/test-package-pvp.py
           bash tools/package-pvp.sh
           java -cp 'target/bcu-pvp-portable/bcu-pvp.jar:target/bcu-pvp-portable/lib/*' online.net.PvpServerMain --check-config distribution/pvp-server.properties
           echo "zip_sha256=$(cut -d' ' -f1 target/bcu-pvp-portable.zip.sha256)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pvp-ci-runtime
+          path: |
+            target/classes/
+            target/test-classes/
+            target/lib/
+            target/bcu-pvp.jar
+          retention-days: 1
+          if-no-files-found: error
       # Upload FILES, not the already-created ZIP. Actions adds its own single ZIP wrapper.
       - uses: actions/upload-artifact@v4
         with:
@@ -61,17 +63,107 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: pvp-test-reports
+          name: pvp-build-reports
+          path: diagnostics/
+          if-no-files-found: ignore
+
+  headless:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/download-artifact@v4
+        with:
+          name: pvp-ci-runtime
+          path: target
+      - name: Real-engine headless PvP integration tests
+        run: |
+          set -o pipefail
+          mkdir -p diagnostics
+          java -ea -Djava.awt.headless=true -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.tests.AllTests 2>&1 | tee diagnostics/headless.log
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: pvp-headless-reports
+          path: diagnostics/
+          if-no-files-found: ignore
+
+  swing:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Japanese fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - uses: actions/download-artifact@v4
+        with:
+          name: pvp-ci-runtime
+          path: target
+      - name: Actual Swing lobby and same-PC two-client regression tests
+        run: xvfb-run -a java -ea -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.ui.LobbyUiTests
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: pvp-swing-reports
           path: |
-            diagnostics/
-            target/surefire-reports/
             target/native-ui-*.png
             target/lobby-ui-logs/
-            target/presentation-regression/
           if-no-files-found: ignore
+
+  presentation:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Japanese fonts
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - uses: actions/download-artifact@v4
+        with:
+          name: pvp-ci-runtime
+          path: target
+      - name: Battle presentation, layering and contrast regression tests
+        run: |
+          for mode in layers muted publication result small-result resize-result late-result; do
+            xvfb-run -a java -ea -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.ui.BattlePresentationTests "$mode"
+          done
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: pvp-presentation-reports
+          path: target/presentation-regression/
+          if-no-files-found: ignore
+
   gradle:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -90,16 +182,18 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p diagnostics
-          # Maven runs the complete PvP test suite. Gradle independently compiles
-          # main + test sources and builds the JAR without executing AllTests twice.
+          # The complete test suite runs from the Maven-built classes above.
+          # Gradle independently validates source/test compilation and JAR creation.
           ./gradlew --no-daemon --build-cache testClasses jar 2>&1 | tee diagnostics/gradle.log
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: pvp-gradle-reports
           path: diagnostics/
+          if-no-files-found: ignore
+
   release:
-    needs: [maven, gradle]
+    needs: [build, headless, swing, presentation, gradle]
     if: >-
       github.repository == 'SSSCFW/BCU-java-PC' &&
       github.ref == 'refs/heads/feature/online-pvp-30tps' &&
@@ -121,7 +215,7 @@ jobs:
           path: target/bcu-pvp-portable
       - name: Reconstruct and verify the exact tested ZIP
         env:
-          EXPECTED_SHA256: ${{ needs.maven.outputs.zip_sha256 }}
+          EXPECTED_SHA256: ${{ needs.build.outputs.zip_sha256 }}
         run: |
           chmod +x target/bcu-pvp-portable/*.sh
           python3 tools/zip-pvp-directory.py target/bcu-pvp-portable target/bcu-pvp-portable.zip
