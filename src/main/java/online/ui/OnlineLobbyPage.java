@@ -3,6 +3,7 @@ package online.ui;
 import com.google.gson.JsonObject;
 import common.CommonStatic;
 import common.battle.*;
+import common.util.unit.Form;
 import online.GameFingerprint;
 import online.bundle.*;
 import online.net.*;
