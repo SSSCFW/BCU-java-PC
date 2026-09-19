@@ -46,11 +46,21 @@ public final class RandomLineupTests {
         freeNormal.forms=new Form[]{new Form(freeNormal,0,"free-normal",Fixture.animation(Identifier.DEF,"free-normal"),freeData)};
         UserProfile.getBCData().units.set(214,freeNormal);
 
+        Unit ironWall=new Unit(new Identifier<>(Identifier.DEF,Unit.class,339));
+        ironWall.rarity=0;ironWall.max=50;ironWall.lv=common.CommonStatic.getBCAssets().defLv;
+        common.battle.data.CustomUnit wallData=new common.battle.data.CustomUnit();
+        wallData.hp=1000;wallData.death=null;wallData.price=0;wallData.resp=30;wallData.atks[0].atk=100;wallData.atks[0].pre=1;
+        ironWall.forms=new Form[]{new Form(ironWall,0,"iron-wall-cannon",Fixture.animation(Identifier.DEF,"iron-wall-cannon"),wallData)};
+        UserProfile.getBCData().units.set(339,ironWall);
+
         List<Unit> vanillaCandidates=RandomLineupFactory.candidates(true);
         Check.that(vanillaCandidates.stream().noneMatch(u->u==spirit),"zero-cost spirit target is excluded from vanilla random");
         Check.that(vanillaCandidates.stream().anyMatch(u->u==summoner),"spirit summoner remains eligible");
         Check.that(vanillaCandidates.stream().anyMatch(u->u==freeNormal),"ordinary zero-cost unit remains eligible");
-        Check.that(RandomLineupFactory.candidates(false).stream().noneMatch(u->u==spirit),"zero-cost spirit target is excluded from all-pack random");
+        Check.that(vanillaCandidates.stream().noneMatch(u->u==ironWall),"zero-cost Iron Wall cannon unit is excluded from vanilla random");
+        List<Unit> allCandidates=RandomLineupFactory.candidates(false);
+        Check.that(allCandidates.stream().noneMatch(u->u==spirit),"zero-cost spirit target is excluded from all-pack random");
+        Check.that(allCandidates.stream().noneMatch(u->u==ironWall),"zero-cost Iron Wall cannon unit is excluded from all-pack random");
 
         BasisLU vanilla=RandomLineupFactory.create(true,new Random(42));
         Set<String> ids=new HashSet<>();
