@@ -4,6 +4,7 @@ import common.CommonStatic;
 import common.battle.*;
 import common.battle.entity.*;
 import common.battle.data.*;
+import common.util.anim.*;
 import common.util.unit.*;
 import online.sync.InputFrame;
 
@@ -51,9 +52,30 @@ public final class CoreTests {
         Check.equal(online.sync.BattleDigest.of(p30),online.sync.BattleDigest.of(p60),"full state digest is FPS independent");
         Check.equal(summary(p30),summary(p60),"30 vs 60 render settings preserve simulation");
         Check.equal(p30.left().money,p30.right().money,"symmetric economy after 360 ticks");
+        animationClonePreservesRuntimePose();
         CommonStatic.getConfig().performanceModeAnimation=false;
         CommonStatic.getConfig().performanceModeBattle=false;
     }
+    private static void animationClonePreservesRuntimePose() {
+        AnimCI animation=Fixture.animation("clone_pose","anim");
+        animation.check();
+        MaAnim walk=animation.getMaAnim(AnimU.UType.WALK);
+        Part track=new Part(0,4);
+        track.ints[2]=2;
+        track.n=2;
+        track.moves=new int[][]{{0,0,0,0},{10,100,0,0}};
+        track.validate();
+        walk.n=1;walk.parts=new Part[]{track};walk.validate();
+
+        EAnimU live=animation.getEAnim(AnimU.UType.WALK);
+        for(int i=0;i<26;i++)live.update(false);
+        Check.equal(100f,live.ent[0].getValRaw(4),"finite walk track reaches and holds its final runtime pose");
+        EAnimU copy=(EAnimU)live.clone();
+        Check.equal(live.ind(),copy.ind(),"display clone preserves the unwrapped animation clock");
+        Check.equal(live.ent[0].getValRaw(4),copy.ent[0].getValRaw(4),
+                "display clone preserves the current finite-track pose instead of wrapping to frame zero");
+    }
+
     public static String summary(PvpStageBasis b) {
         StringBuilder s=new StringBuilder();s.append(b.time).append(':').append(b.left().money).append(':').append(b.right().money);
         for(Entity e:b.le)s.append('|').append(e.dire).append(',').append(e.pos).append(',').append(e.health);
