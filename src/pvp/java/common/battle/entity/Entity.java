@@ -1399,6 +1399,14 @@ public abstract class Entity extends AbEntity {
 		return traits;
 	}
 
+	/** Applies a deterministic PvP attack-down token using the engine's normal weak-status processor. */
+	public void applyPvpWeak(int ticks,int attackPercent) {
+		if(ticks<=0)return;
+		int percent=Math.max(0,Math.min(100,attackPercent));
+		weaks.add(new int[]{ticks,percent});
+		anim.getEff(P_WEAK);
+	}
+
 	/**
 	 * attack model
 	 */
