@@ -122,7 +122,11 @@ public final class RoomLobbyPage extends Page {
         for(int option:PvpTraitRules.OPTIONS)if(option!=PvpTraitRules.NONE)box.addItem(new TraitChoice(option));
     }
     private static void buildExclusions(JCheckBox[] boxes,JPanel panel){
-        for(int i=0;i<boxes.length;i++){boxes[i]=new JCheckBox(PvpTraitRules.LABELS[i]);panel.add(boxes[i]);}
+        for(int i=0;i<boxes.length;i++){
+            boxes[i]=new JCheckBox(PvpTraitRules.LABELS[i]);
+            // NONE is a deliberate fixed choice, not a random trait candidate.
+            if(PvpTraitRules.OPTIONS[i]!=PvpTraitRules.NONE)panel.add(boxes[i]);
+        }
     }
     private static int selectedTrait(JComboBox<TraitChoice> box){TraitChoice value=(TraitChoice)box.getSelectedItem();return value==null?PvpTraitRules.NONE:value.value;}
     private static void selectTrait(JComboBox<TraitChoice> box,int trait){for(int i=0;i<box.getItemCount();i++)if(box.getItemAt(i).value==trait){box.setSelectedIndex(i);return;}box.setSelectedIndex(0);}
