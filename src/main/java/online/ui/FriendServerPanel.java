@@ -34,10 +34,9 @@ public final class FriendServerPanel extends JPanel implements AutoCloseable {
         } catch (Exception ignored) { }
         addresses.setEditable(false); addresses.setLineWrap(true); addresses.setWrapStyleWord(true);
         addresses.setText("同一PCで試す場合、サーバー起動は片方のBCUだけです。TCP/UDPは別々に変更できます。0はOSによる自動割当です。\n既定: TCP 8766 / UDP 8767。ルーター等は自動変更しません。");
-        JPanel ports=new JPanel(new FlowLayout(FlowLayout.LEADING,6,0));
-        ports.add(new JLabel("TCPポート"));ports.add(tcpPort);ports.add(new JLabel("UDPポート"));ports.add(udpPort);
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0)); actions.add(toggle); actions.add(useLocal);
-        JPanel top=new JPanel();top.setLayout(new BoxLayout(top,BoxLayout.Y_AXIS));top.add(ports);top.add(actions);
+        JPanel top=new JPanel(new FlowLayout(FlowLayout.LEADING,6,0));
+        top.add(new JLabel("TCPポート"));top.add(tcpPort);top.add(new JLabel("UDPポート"));top.add(udpPort);
+        top.add(toggle);top.add(useLocal);
         add(top, BorderLayout.NORTH); add(new JScrollPane(addresses), BorderLayout.CENTER);
         toggle.addActionListener(e -> toggle());
         useLocal.addActionListener(e -> useLocal());
