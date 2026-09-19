@@ -64,8 +64,8 @@ public final class ServerHost implements AutoCloseable {
         text.append("\nMode: DUEL_1V1 (2 players); technical capacity: ").append(config.maxParticipantsPerRoom);
         text.append("; input delay: ").append(config.inputDelayTicks).append(" ticks\n");
         for (String url : candidateUrls()) text.append(url).append('\n');
-        text.append(config.friendsMode ? "Friends mode: WS only on loopback, trusted LAN or an encrypted private VPN.\n" : "Public mode: configure a TLS/WSS reverse proxy before accepting Internet clients.\n");
-        text.append("Private IP alone does not encrypt WS. Public Internet requires WSS; forward UDP separately.\n");
+        text.append(config.friendsMode ? "Friends mode: plain WS is available; clients must explicitly allow it outside loopback.\n" : "Public mode: plain WS is available when clients explicitly allow it; WSS is recommended for encryption.\n");
+        text.append("Plain WS is not encrypted. Use WSS when passwords, shared assets or traffic must be protected; forward UDP separately.\n");
         text.append("No router, firewall, TLS or VPN settings were changed.");
         return text.toString();
     }
