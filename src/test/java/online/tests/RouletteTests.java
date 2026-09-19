@@ -58,10 +58,20 @@ public final class RouletteTests {
         Check.that(right.elu.cool[0][0]<=5,"four production-shortening levels repeatedly halve current cooldown");
 
         long oldMax=enemy.maxH,oldHealth=enemy.health;
-        for(int i=0;i<5;i++)right.pvpRoulette.forceResult(b,right,PvpRouletteState.HP_UP);
+        Check.equal(1.0,right.pvpRoulette.hpMultiplier(),"unboosted HP remains 1x");
+        right.pvpRoulette.forceResult(b,right,PvpRouletteState.HP_UP);
+        Check.equal(4.5,right.pvpRoulette.hpMultiplier(),"HP Lv1 is 4.5x");
+        right.pvpRoulette.forceResult(b,right,PvpRouletteState.HP_UP);
+        Check.equal(7.5,right.pvpRoulette.hpMultiplier(),"HP Lv2 is 7.5x");
+        right.pvpRoulette.forceResult(b,right,PvpRouletteState.HP_UP);
+        Check.equal(13.5,right.pvpRoulette.hpMultiplier(),"HP Lv3 is 13.5x");
+        right.pvpRoulette.forceResult(b,right,PvpRouletteState.HP_UP);
+        Check.equal(24.0,right.pvpRoulette.hpMultiplier(),"HP MAX is 24x");
+        right.pvpRoulette.forceResult(b,right,PvpRouletteState.HP_UP);
         Check.equal(4,right.pvpRoulette.hpLevel,"HP boost caps at Level MAX");
-        Check.equal(Math.round(oldMax*8.0),enemy.maxH,"HP Level MAX is 8x from 3DS table");
-        Check.equal(Math.round(oldHealth*8.0),enemy.health,"HP Level MAX immediately scales deployed unit current HP");
+        Check.equal(24.0,right.pvpRoulette.hpMultiplier(),"HP Level MAX is triple the former 8x multiplier");
+        Check.equal(Math.round(oldMax*24.0),enemy.maxH,"HP Level MAX is now 24x");
+        Check.equal(Math.round(oldHealth*24.0),enemy.health,"HP Level MAX immediately scales deployed unit current HP to 24x");
 
         int baseDisplayedAtk=enemy.getAtk();
         right.pvpRoulette.forceResult(b,right,PvpRouletteState.ATTACK_UP);
