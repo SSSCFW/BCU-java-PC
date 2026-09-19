@@ -30,15 +30,20 @@ public final class PvpTraitRules {
         for(int option:OPTIONS)valid|=choice==option;
         if(!valid)throw new IllegalArgumentException("無効なプレイヤー属性です");
         if((exclusionMask&~ALL_EXCLUSIONS)!=0)throw new IllegalArgumentException("無効な属性除外設定です");
-        if(choice==RANDOM&&exclusionMask==ALL_EXCLUSIONS)
-            throw new IllegalArgumentException("ランダム属性では最低1つは候補を残してください");
+        if(choice==RANDOM){
+            boolean available=false;
+            for(int i=0;i<OPTIONS.length;i++)
+                if(OPTIONS[i]!=NONE&&(exclusionMask&(1<<i))==0){available=true;break;}
+            if(!available)throw new IllegalArgumentException("ランダム属性では最低1つは実属性を残してください");
+        }
     }
 
     public static int resolve(int choice,int exclusionMask,long seed,long salt){
         validate(choice,exclusionMask);
         if(choice!=RANDOM)return choice;
         List<Integer> candidates=new ArrayList<>();
-        for(int i=0;i<OPTIONS.length;i++)if((exclusionMask&(1<<i))==0)candidates.add(OPTIONS[i]);
+        for(int i=0;i<OPTIONS.length;i++)
+            if(OPTIONS[i]!=NONE&&(exclusionMask&(1<<i))==0)candidates.add(OPTIONS[i]);
         if(candidates.isEmpty())throw new IllegalArgumentException("ランダム属性の候補がありません");
         return candidates.get(new Random(seed^salt).nextInt(candidates.size()));
     }
