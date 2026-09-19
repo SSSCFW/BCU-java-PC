@@ -142,7 +142,16 @@ public final class RouletteTests {
         castlePartialOwner.pvpRoulette.advance(castlePartial,castlePartialOwner);
         Check.equal(300,castlePartialOwner.pvpRoulette.targetGauge,"taking 100000 castle damage adds floor(damage*3/1000) before comeback factors");
         Check.equal(50,castlePartialOwner.pvpRoulette.gauge,"castle damage does not change the native gauge-fill animation speed");
-        Check.that(!castlePartialOwner.pvpRoulette.castleDamageFastSpinReady,"partial castle charge does not shorten a later roulette");
+        Check.that(castlePartialOwner.pvpRoulette.castleDamageFastSpinReady,"partial castle charge arms the shortened next roulette");
+
+        // Finish the same gauge with non-castle charge. The castle contribution must
+        // still shorten the reel even though it did not provide the final points.
+        castlePartialOwner.pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;
+        while(castlePartialOwner.pvpRoulette.gauge<PvpRouletteState.MAX_GAUGE)
+            castlePartialOwner.pvpRoulette.advance(castlePartial,castlePartialOwner);
+        Check.that(castlePartialOwner.pvpRoulette.press(castlePartial,castlePartialOwner),"mixed castle/passive-filled gauge starts roulette");
+        Check.equal(PvpRouletteState.AUTO_SPIN_TICKS/2,castlePartialOwner.pvpRoulette.spinDurationTicks,
+                "partial castle contribution keeps the next reel at half duration");
 
         PvpStageBasis castleFilled=duel(RoomRules.SpecialMode.ROULETTE);
         StageBasis castleFilledOwner=castleFilled.right();
