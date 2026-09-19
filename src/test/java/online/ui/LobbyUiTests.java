@@ -459,7 +459,7 @@ public final class LobbyUiTests {
         for(String scenario:Arrays.asList("finish","timeout")){
             Path pair=Files.createDirectories(root.resolve(scenario));
             Process a=spawn(scenario+"-host",pair.resolve("host"),pair,logs),b=spawn(scenario+"-guest",pair.resolve("guest"),pair,logs);
-            try{finish(a,scenario+"-host",logs);finish(b,scenario+"-guest",logs);}finally{a.destroyForcibly();b.destroyForcibly();}
+            try{finishPair(a,scenario+"-host",b,scenario+"-guest",logs);}finally{a.destroyForcibly();b.destroyForcibly();}
             for(String role:Arrays.asList("host","guest"))for(String phase:Arrays.asList("ending","result")){
                 String name="room-"+scenario+"-"+role+"-"+phase+".png";
                 Files.copy(pair.resolve(name),logs.resolve(name),StandardCopyOption.REPLACE_EXISTING);
@@ -473,6 +473,16 @@ public final class LobbyUiTests {
         for(String item:System.getProperty("java.class.path").split(java.util.regex.Pattern.quote(java.io.File.pathSeparator)))cp.add(Paths.get(item).toAbsolutePath().toString());
         return new ProcessBuilder(Paths.get(System.getProperty("java.home"),"bin","java").toString(),"-ea","-Dfile.encoding=UTF-8","-Dstdout.encoding=UTF-8","-Dstderr.encoding=UTF-8","-cp",cp.toString(),LobbyUiTests.class.getName(),mode,user.toString(),shared.toString())
                 .directory(cwd.toFile()).redirectErrorStream(true).redirectOutput(logs.resolve(mode+".log").toFile()).start();
+    }
+    private static void finishPair(Process a,String amode,Process b,String bmode,Path logs)throws Exception{
+        Throwable failure=null;
+        try{finish(a,amode,logs);}catch(Throwable t){failure=t;}
+        try{finish(b,bmode,logs);}catch(Throwable t){if(failure==null)failure=t;else failure.addSuppressed(t);}
+        if(failure!=null){
+            if(failure instanceof Exception)throw (Exception)failure;
+            if(failure instanceof Error)throw (Error)failure;
+            throw new RuntimeException(failure);
+        }
     }
     private static void finish(Process p,String mode,Path logs)throws Exception{
         if(!p.waitFor(mode.startsWith("timeout")?110:40,TimeUnit.SECONDS)){p.destroyForcibly();throw new AssertionError("GUI timeout: "+mode);}
