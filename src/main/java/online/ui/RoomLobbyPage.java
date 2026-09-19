@@ -31,7 +31,7 @@ public final class RoomLobbyPage extends Page {
     private final JButton back=new JButton("部屋から退出"),edit=new JButton("編成を編集"),apply=new JButton("ルールを適用"),
             applyPlayer=new JButton("自分設定を適用"),ready;
     private final JComboBox<BasisLU> lineup;
-    private final JCheckBox force60=new JCheckBox("全員の表示を60FPSに揃える（戦闘処理は30TPS）"),
+    private final JCheckBox force60=new JCheckBox("表示: 60FPS固定（戦闘処理は30TPS）"),
             debugMode=new JCheckBox("デバッグモード（全員にルーレットMAXボタンを表示）"),
             unlimitedTime=new JCheckBox("無制限");
     private final JComboBox<RoomRules.SpecialMode> special=new JComboBox<>(RoomRules.SpecialMode.values());
@@ -106,7 +106,8 @@ public final class RoomLobbyPage extends Page {
         distance.addChangeListener(e->rulesChanged());background.addActionListener(e->rulesChanged());
         music.addActionListener(e->{if(!loading)stopMusicPreview();rulesChanged();});
         musicPreview.addActionListener(e->previewMusic());musicStop.addActionListener(e->stopMusicPreview());
-        special.addActionListener(e->rulesChanged());force60.addActionListener(e->rulesChanged());debugMode.addActionListener(e->rulesChanged());
+        force60.setSelected(true);force60.setEnabled(false);
+        special.addActionListener(e->rulesChanged());debugMode.addActionListener(e->rulesChanged());
         timeLimit.addChangeListener(e->rulesChanged());unlimitedTime.addActionListener(e->{rulesChanged();refreshControls();});
         hostTrait.addActionListener(e->{rulesChanged();refreshControls();});guestTrait.addActionListener(e->{rulesChanged();refreshControls();});
         for(JCheckBox box:hostTraitExclude)box.addActionListener(e->rulesChanged());
@@ -159,7 +160,7 @@ public final class RoomLobbyPage extends Page {
         loading=true;
         try{
             if(!dirty||!host()||!editable()){
-                distance.setValue(rules.castleDistance);force60.setSelected(rules.force60Fps);special.setSelectedItem(rules.specialMode);debugMode.setSelected(rules.debugMode);
+                distance.setValue(rules.castleDistance);force60.setSelected(true);special.setSelectedItem(rules.specialMode);debugMode.setSelected(rules.debugMode);
                 for(int i=0;i<background.getItemCount();i++)if(background.getItemAt(i).id()==rules.backgroundId)background.setSelectedIndex(i);
                 for(int i=0;i<music.getItemCount();i++)if(music.getItemAt(i).id()==rules.musicId)music.setSelectedIndex(i);
                 selectTrait(hostTrait,rules.hostTraitChoice);selectTrait(guestTrait,rules.guestTraitChoice);
@@ -185,7 +186,7 @@ public final class RoomLobbyPage extends Page {
     private void refreshControls(){
         boolean can=editable()&&!ownReady()&&!pending&&!closed,hostCan=can&&host();
         lineup.setEnabled(can);edit.setEnabled(can&&lineup.getSelectedItem()!=null&&!owner.isRandomLineupChoice((BasisLU)lineup.getSelectedItem()));castleHealthMultiplier.setEnabled(can);applyPlayer.setEnabled(can&&playerDirty);
-        distance.setEnabled(hostCan);background.setEnabled(hostCan);music.setEnabled(hostCan);special.setEnabled(hostCan);force60.setEnabled(hostCan);debugMode.setEnabled(hostCan);
+        distance.setEnabled(hostCan);background.setEnabled(hostCan);music.setEnabled(hostCan);special.setEnabled(hostCan);force60.setEnabled(false);debugMode.setEnabled(hostCan);
         musicPreview.setEnabled(!closed&&music.getSelectedItem()!=null);musicStop.setEnabled(!closed&&musicPreviewing);
         hostTrait.setEnabled(hostCan);guestTrait.setEnabled(hostCan);unlimitedTime.setEnabled(hostCan);timeLimit.setEnabled(hostCan&&!unlimitedTime.isSelected());
         setExclusionEnabled(hostTraitExclude,hostCan&&selectedTrait(hostTrait)==PvpTraitRules.RANDOM);
@@ -225,7 +226,7 @@ public final class RoomLobbyPage extends Page {
             int hostChoice=selectedTrait(hostTrait),guestChoice=selectedTrait(guestTrait);
             int hostMask=exclusionMask(hostTraitExclude),guestMask=exclusionMask(guestTraitExclude);
             int limit=unlimitedTime.isSelected()?RoomRules.UNLIMITED_TIME:((Number)timeLimit.getValue()).intValue();
-            RoomRules r=new RoomRules((Integer)distance.getValue(),b.id(),m.id(),force60.isSelected(),(RoomRules.SpecialMode)special.getSelectedItem(),debugMode.isSelected(),
+            RoomRules r=new RoomRules((Integer)distance.getValue(),b.id(),m.id(),true,(RoomRules.SpecialMode)special.getSelectedItem(),debugMode.isSelected(),
                     hostChoice,guestChoice,hostMask,guestMask,limit);
             PvpStageBasis.validateRulesAssets(r);owner.rememberHostRules(r);
             pending=true;dirty=false;client.setRoomRules(r,state.get("revision").getAsLong());refreshControls();
