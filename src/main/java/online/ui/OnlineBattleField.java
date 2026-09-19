@@ -100,11 +100,12 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
         PvpStageBasis world=(PvpStageBasis)sb;
         switch(world.specialMode()) {
             case CANNON: specialReady=own.cannon==own.maxCannon; break;
-            case ROULETTE: specialReady=own.pvpRoulette!=null&&!own.pvpRoulette.spinning&&own.pvpRoulette.gauge>=PvpRouletteState.MAX_GAUGE; break;
+            case ROULETTE: specialReady=own.pvpRoulette!=null&&own.pvpRoulette.canPress(); break;
             default: break;
         }
         if ((action.contains(-2) || specialPressed) && world.specialMode()!=online.net.lobby.RoomRules.SpecialMode.NONE) {
-            if(action.contains(-2)||specialReady){
+            boolean allowed=world.specialMode()!=online.net.lobby.RoomRules.SpecialMode.ROULETTE||specialReady;
+            if(allowed){
                 send.accept(InputFrame.SPECIAL);
                 if(world.specialMode()==online.net.lobby.RoomRules.SpecialMode.ROULETTE)autoRouletteQueued=true;
             }
@@ -152,6 +153,12 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
                     double seconds=remain/(double)PvpStageBasis.TPS;
                     return String.format(java.util.Locale.ROOT,"対戦ルーレット 回転中 / %.1f秒 / %s%s",seconds,
                             PvpRouletteState.NAMES[own.pvpRoulette.currentResult()],rouletteAutoText());
+                }
+                if(own.pvpRoulette.pendingResult>=0)
+                    return "対戦ルーレット 100% / 結果演出中"+rouletteAutoText();
+                if(own.pvpRoulette.repeatDelayTicks>0) {
+                    double seconds=own.pvpRoulette.repeatDelayTicks/(double)PvpStageBasis.TPS;
+                    return String.format(java.util.Locale.ROOT,"対戦ルーレット 100%% / 次回まで %.1f秒%s",seconds,rouletteAutoText());
                 }
                 if(own.pvpRoulette.gauge>=PvpRouletteState.MAX_GAUGE)return "対戦ルーレット 100% / 発動可能"+rouletteAutoText();
                 String last="";
