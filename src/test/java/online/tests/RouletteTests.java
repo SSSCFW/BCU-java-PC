@@ -187,11 +187,43 @@ public final class RouletteTests {
         Check.equal(0.5,PvpRouletteState.battlefieldFactor(castlePartialOwner,middle),"unit loss at arena center uses 0.5x position factor");
         Check.equal(0.1,PvpRouletteState.battlefieldFactor(castlePartialOwner,castlePartialOwner.playerFor(-castlePartialOwner.ownDirection()).ownBase().pos),"unit loss at enemy castle uses 0.1x position factor");
 
+        // Charge continues at 100%, during the reel, and while the result card is visible.
+        PvpStageBasis banked=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis bankedOwner=banked.right();
+        bankedOwner.pvpRoulette.gauge=bankedOwner.pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;
+        bankedOwner.pvpRoulette.chargeClock=PvpStageBasis.TPS-1;
+        bankedOwner.pvpRoulette.initializeCharge(bankedOwner);
+        bankedOwner.pvpRoulette.advance(banked,bankedOwner);
+        Check.that(bankedOwner.pvpRoulette.targetGauge>PvpRouletteState.MAX_GAUGE,
+                "roulette banks charge even while the visible gauge is already MAX");
+        Check.that(bankedOwner.pvpRoulette.press(banked,bankedOwner),"banked full gauge starts normally");
+        int duringSpin=bankedOwner.pvpRoulette.targetGauge;
+        bankedOwner.pvpRoulette.chargeClock=PvpStageBasis.TPS-1;
+        bankedOwner.pvpRoulette.advance(banked,bankedOwner);
+        Check.that(bankedOwner.pvpRoulette.targetGauge>duringSpin,
+                "roulette continues banking charge during the spinning presentation");
+
+        PvpStageBasis instant=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis instantOwner=instant.right();
+        instantOwner.pvpRoulette.gauge=PvpRouletteState.MAX_GAUGE;
+        instantOwner.pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE*2;
+        Check.that(instantOwner.pvpRoulette.press(instant,instantOwner),"first spin starts with another full spin banked");
+        instantOwner.pvpRoulette.spinDurationTicks=1;
+        instantOwner.pvpRoulette.advance(instant,instantOwner);
+        Check.equal(PvpRouletteState.MAX_GAUGE,instantOwner.pvpRoulette.gauge,
+                "finishing a spin immediately exposes a banked full next gauge");
+        Check.that(instantOwner.pvpRoulette.pendingResult>=0,"result card is still visible after reel stop");
+        Check.that(instantOwner.pvpRoulette.press(instant,instantOwner),
+                "a banked full gauge may start again immediately without waiting for the result card");
+        Check.equal(-1,instantOwner.pvpRoulette.pendingResult,"new spin replaces the previous result presentation");
+
         PvpStageBasis manual=duel(RoomRules.SpecialMode.ROULETTE);
         StageBasis manualOwner=manual.right();
         manualOwner.pvpRoulette.gauge=PvpRouletteState.MAX_GAUGE;
         manualOwner.pvpRoulette.targetGauge=PvpRouletteState.MAX_GAUGE;
         for(int i=0;i<PvpStageBasis.TPS;i++)manualOwner.pvpRoulette.advance(manual,manualOwner);
+        Check.that(manualOwner.pvpRoulette.targetGauge>PvpRouletteState.MAX_GAUGE,
+                "passive charge is banked while waiting at MAX");
         Check.that(!manualOwner.pvpRoulette.spinning,"full roulette gauge never starts without player SPECIAL");
         Check.that(manualOwner.pvpRoulette.press(manual,manualOwner),"SPECIAL starts a full roulette gauge");
         Check.that(manualOwner.pvpRoulette.spinning,"manual SPECIAL starts the visible reel");
@@ -205,14 +237,16 @@ public final class RouletteTests {
         manualOwner.pvpRoulette.advance(manual,manualOwner);
         Check.that(!manualOwner.pvpRoulette.spinning,"roulette reveals its result after roughly two seconds");
         Check.equal(PvpRouletteState.ATTACK_UP,manualOwner.pvpRoulette.lastResult,"test reel reveals attack-up");
-        Check.equal(0,manualOwner.pvpRoulette.attackLevel,"revealed result does not apply while its message is visible");
-        Check.equal(PvpRouletteState.RESULT_DISPLAY_TICKS,manualOwner.pvpRoulette.resultDelayTicks,"effect waits for the result-message window");
-        for(int i=0;i<PvpRouletteState.RESULT_DISPLAY_TICKS-1;i++)manualOwner.pvpRoulette.advance(manual,manualOwner);
-        Check.equal(0,manualOwner.pvpRoulette.attackLevel,"effect remains pending until result message disappears");
+        Check.equal(1,manualOwner.pvpRoulette.attackLevel,"roulette effect applies immediately when the reel stops");
+        Check.equal(PvpRouletteState.RESULT_DISPLAY_TICKS,manualOwner.pvpRoulette.resultDelayTicks,"result card keeps its normal display window");
+        int pendingTarget=manualOwner.pvpRoulette.targetGauge;
+        manualOwner.pvpRoulette.chargeClock=PvpStageBasis.TPS-1;
         manualOwner.pvpRoulette.advance(manual,manualOwner);
-        Check.equal(1,manualOwner.pvpRoulette.attackLevel,"effect activates after the result message disappears");
-        Check.equal(-1,manualOwner.pvpRoulette.pendingResult,"pending result clears after activation");
-        Check.equal(0,manualOwner.pvpRoulette.gauge,"resolved roulette consumes the full gauge");
+        Check.that(manualOwner.pvpRoulette.targetGauge>pendingTarget,"gauge continues charging while result presentation is visible");
+        for(int i=1;i<PvpRouletteState.RESULT_DISPLAY_TICKS;i++)manualOwner.pvpRoulette.advance(manual,manualOwner);
+        Check.equal(1,manualOwner.pvpRoulette.attackLevel,"result effect is not applied twice when the card disappears");
+        Check.equal(-1,manualOwner.pvpRoulette.pendingResult,"pending result card clears after its display window");
+        Check.that(manualOwner.pvpRoulette.gauge>0,"charge earned during spin/result is retained after consuming one full gauge");
     }
     private static void modeTests() throws Exception {
         PvpStageBasis none=duel(RoomRules.SpecialMode.NONE);
