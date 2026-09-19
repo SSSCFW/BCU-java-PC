@@ -2,6 +2,9 @@ package online.tests;
 
 import common.battle.*;
 import common.battle.entity.EUnit;
+import common.battle.entity.Entity;
+import common.battle.attack.AtkModelEntity;
+import common.battle.attack.AttackSimple;
 import common.util.Data;
 import common.util.unit.Trait;
 import common.util.unit.Unit;
@@ -10,6 +13,7 @@ import online.net.lobby.RoomRules;
 import online.sync.InputFrame;
 
 import java.util.Collections;
+import java.lang.reflect.Field;
 
 public final class PlayerTraitTests {
     public static void run() throws Exception {
@@ -86,6 +90,8 @@ public final class PlayerTraitTests {
         Check.equal(PvpTraitRules.NONE,PvpTraitRules.resolve(PvpTraitRules.RANDOM,noneOnly,12345L,77L),
                 "random PvP trait keeps the original attribute-less candidate behavior");
 
+        effectTargetingTests(rules,red,black,white);
+
         int limit=1*60*PvpStageBasis.TPS;
         PvpStageBasis timed=new PvpStageBasis(left,right,9983,0,rules,1.0,1.0);
         timed.time=limit;timed.left().time=limit;
@@ -101,5 +107,59 @@ public final class PlayerTraitTests {
         PvpStageBasis unlimited=new PvpStageBasis(left,right,9984,0,unlimitedRules,1.0,1.0);
         unlimited.time=99*60*PvpStageBasis.TPS;
         Check.equal(-2,unlimited.winner(),"unlimited room never ends from elapsed time alone");
+    }
+
+    private static void effectTargetingTests(RoomRules rules,Trait red,Trait black,Trait white) throws Exception {
+        // Offensive proc targeting: a red-only STOP must not affect black or white.
+        Check.that(!stopApplies(rules,red,Data.TRAIT_BLACK,1001),"red-target STOP does not affect black PvP identity");
+        Check.that(!stopApplies(rules,red,Data.TRAIT_WHITE,1002),"red-target STOP does not affect white PvP identity");
+        Check.that(stopApplies(rules,red,Data.TRAIT_RED,1003),"red-target STOP affects red PvP identity");
+        Check.that(!stopApplies(rules,white,Data.TRAIT_RED,1004),"white-target STOP does not affect red PvP identity");
+        Check.that(stopApplies(rules,white,Data.TRAIT_WHITE,1005),"white-target STOP affects white PvP identity");
+
+        // Defensive trait abilities compare the defender's target list against the
+        // ATTACKER's synchronized identity. This catches the old PvP dodge bypass.
+        Check.that(!dodgeArms(rules,red,Data.TRAIT_BLACK,1101),"red-target dodge does not trigger against black attacker");
+        Check.that(dodgeArms(rules,red,Data.TRAIT_RED,1102),"red-target dodge triggers against red attacker");
+    }
+
+    private static boolean stopApplies(RoomRules rules,Trait attackTarget,int defenderTrait,long seed) throws Exception {
+        Unit attacker=FixtureNativeUi.unit("trait_stop_a_"+seed,0xffaa3300);
+        Unit defender=FixtureNativeUi.unit("trait_stop_d_"+seed,0xff0033aa);
+        common.battle.data.CustomUnit ad=(common.battle.data.CustomUnit)attacker.forms[0].du;
+        common.battle.data.CustomUnit dd=(common.battle.data.CustomUnit)defender.forms[0].du;
+        ad.price=dd.price=1;ad.traits.add(attackTarget);
+        ad.rep.proc.STOP.prob=100;ad.rep.proc.STOP.time=30;
+        PvpStageBasis battle=new PvpStageBasis(Fixture.lineup(attacker),Fixture.lineup(defender),seed,0,rules,1.0,1.0,
+                Data.TRAIT_BLACK,defenderTrait);
+        battle.left().money=battle.right().money=999999;
+        battle.step(new InputFrame(0,1,1));
+        EUnit source=unit(battle,1),target=unit(battle,-1);
+        target.damaged((AttackSimple)model(source).getAttack(0));
+        return target.status[Data.P_STOP][0]>0;
+    }
+
+    private static boolean dodgeArms(RoomRules rules,Trait defenderTargets,int attackerTrait,long seed) throws Exception {
+        Unit attacker=FixtureNativeUi.unit("trait_dodge_a_"+seed,0xffaa6600);
+        Unit defender=FixtureNativeUi.unit("trait_dodge_d_"+seed,0xff0066aa);
+        common.battle.data.CustomUnit ad=(common.battle.data.CustomUnit)attacker.forms[0].du;
+        common.battle.data.CustomUnit dd=(common.battle.data.CustomUnit)defender.forms[0].du;
+        ad.price=dd.price=1;dd.traits.add(defenderTargets);
+        dd.rep.proc.IMUATK.prob=100;dd.rep.proc.IMUATK.time=30;dd.rep.proc.IMUATK.cd=30;
+        PvpStageBasis battle=new PvpStageBasis(Fixture.lineup(attacker),Fixture.lineup(defender),seed,0,rules,1.0,1.0,
+                attackerTrait,Data.TRAIT_BLACK);
+        battle.left().money=battle.right().money=999999;
+        battle.step(new InputFrame(0,1,1));
+        EUnit source=unit(battle,1),target=unit(battle,-1);
+        target.damaged((AttackSimple)model(source).getAttack(0));
+        return target.status[Data.P_IMUATK][0]>0;
+    }
+
+    private static EUnit unit(PvpStageBasis battle,int direction){
+        return (EUnit)battle.le.stream().filter(e->e instanceof EUnit&&e.dire==direction).findFirst().orElseThrow(AssertionError::new);
+    }
+
+    private static AtkModelEntity model(Entity entity)throws Exception{
+        Field field=Entity.class.getDeclaredField("aam");field.setAccessible(true);return (AtkModelEntity)field.get(entity);
     }
 }
