@@ -134,19 +134,40 @@ public final class RouletteTests {
         normalFillOwner.pvpRoulette.advance(normalFill,normalFillOwner);
         Check.equal(50,normalFillOwner.pvpRoulette.gauge,"ordinary roulette gauge presentation remains +50 per tick");
 
-        PvpStageBasis castleGain=duel(RoomRules.SpecialMode.ROULETTE);
-        StageBasis castleOwner=castleGain.right();
-        castleOwner.pvpRoulette.gauge=castleOwner.pvpRoulette.targetGauge=castleOwner.pvpRoulette.chargeClock=0;
-        castleOwner.pvpRoulette.initializeCharge(castleOwner);
-        castleOwner.ownBase().health-=100000;
-        castleOwner.pvpRoulette.advance(castleGain,castleOwner);
-        Check.equal(300,castleOwner.pvpRoulette.targetGauge,"taking 100000 castle damage adds floor(damage*3/1000) before comeback factors");
-        Check.equal(100,castleOwner.pvpRoulette.gauge,"castle-damage gauge fill runs at double presentation speed");
-        castleOwner.pvpRoulette.advance(castleGain,castleOwner);
-        Check.equal(200,castleOwner.pvpRoulette.gauge,"castle-damage-only fast fill continues at +100 per tick");
-        castleOwner.pvpRoulette.advance(castleGain,castleOwner);
-        Check.equal(300,castleOwner.pvpRoulette.gauge,"castle-damage fill completes in half the ordinary six-tick duration");
-        Check.equal(0,castleOwner.pvpRoulette.castleDamageFastGauge,"castle-damage acceleration is consumed once the earned gauge is visible");
+        PvpStageBasis castlePartial=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis castlePartialOwner=castlePartial.right();
+        castlePartialOwner.pvpRoulette.gauge=castlePartialOwner.pvpRoulette.targetGauge=castlePartialOwner.pvpRoulette.chargeClock=0;
+        castlePartialOwner.pvpRoulette.initializeCharge(castlePartialOwner);
+        castlePartialOwner.ownBase().health-=100000;
+        castlePartialOwner.pvpRoulette.advance(castlePartial,castlePartialOwner);
+        Check.equal(300,castlePartialOwner.pvpRoulette.targetGauge,"taking 100000 castle damage adds floor(damage*3/1000) before comeback factors");
+        Check.equal(50,castlePartialOwner.pvpRoulette.gauge,"castle damage does not change the native gauge-fill animation speed");
+        Check.that(!castlePartialOwner.pvpRoulette.castleDamageFastSpinReady,"partial castle charge does not shorten a later roulette");
+
+        PvpStageBasis castleFilled=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis castleFilledOwner=castleFilled.right();
+        castleFilledOwner.pvpRoulette.gauge=castleFilledOwner.pvpRoulette.targetGauge=950;
+        castleFilledOwner.pvpRoulette.chargeClock=0;castleFilledOwner.pvpRoulette.initializeCharge(castleFilledOwner);
+        castleFilledOwner.ownBase().health-=100000;
+        castleFilledOwner.pvpRoulette.advance(castleFilled,castleFilledOwner);
+        Check.equal(PvpRouletteState.MAX_GAUGE,castleFilledOwner.pvpRoulette.gauge,"castle hit can finish the visible roulette gauge");
+        Check.that(castleFilledOwner.pvpRoulette.castleDamageFastSpinReady,"only castle damage that fills the gauge arms the short reel");
+        Check.that(castleFilledOwner.pvpRoulette.press(castleFilled,castleFilledOwner),"castle-filled gauge starts roulette normally");
+        Check.equal(PvpRouletteState.AUTO_SPIN_TICKS/2,castleFilledOwner.pvpRoulette.spinDurationTicks,"castle-filled roulette reel is exactly half duration");
+        for(int i=0;i<PvpRouletteState.AUTO_SPIN_TICKS/2-1;i++)castleFilledOwner.pvpRoulette.advance(castleFilled,castleFilledOwner);
+        Check.that(castleFilledOwner.pvpRoulette.spinning,"short castle-damage reel remains visible until its half-duration threshold");
+        castleFilledOwner.pvpRoulette.advance(castleFilled,castleFilledOwner);
+        Check.that(!castleFilledOwner.pvpRoulette.spinning,"castle-damage roulette resolves after one second at 30TPS");
+
+        PvpStageBasis passiveFilled=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis passiveFilledOwner=passiveFilled.right();
+        passiveFilledOwner.pvpRoulette.gauge=passiveFilledOwner.pvpRoulette.targetGauge=990;
+        passiveFilledOwner.pvpRoulette.chargeClock=PvpStageBasis.TPS-1;passiveFilledOwner.pvpRoulette.initializeCharge(passiveFilledOwner);
+        passiveFilledOwner.pvpRoulette.advance(passiveFilled,passiveFilledOwner);
+        Check.equal(PvpRouletteState.MAX_GAUGE,passiveFilledOwner.pvpRoulette.gauge,"passive charge can finish the gauge");
+        Check.that(!passiveFilledOwner.pvpRoulette.castleDamageFastSpinReady,"passive gauge completion never arms the short reel");
+        Check.that(passiveFilledOwner.pvpRoulette.press(passiveFilled,passiveFilledOwner),"passive-filled gauge starts roulette");
+        Check.equal(PvpRouletteState.AUTO_SPIN_TICKS,passiveFilledOwner.pvpRoulette.spinDurationTicks,"non-castle roulette keeps the normal two-second reel");
 
         Check.equal(1.5,PvpRouletteState.battlefieldFactor(castleOwner,castleOwner.ownBase().pos),"unit loss at own castle uses 1.5x position factor");
         float middle=(castleOwner.ownBase().pos+castleOwner.playerFor(-castleOwner.ownDirection()).ownBase().pos)/2f;
