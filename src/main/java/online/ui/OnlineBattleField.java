@@ -155,8 +155,8 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
                             PvpRouletteState.NAMES[own.pvpRoulette.currentResult()],rouletteAutoText());
                 }
                 if(own.pvpRoulette.pendingResult>=0)
-                    return "対戦ルーレット 100% / 結果演出中"+rouletteAutoText();
-                if(own.pvpRoulette.repeatDelayTicks>0) {
+                    return "対戦ルーレット "+own.pvpRoulette.gauge/10+"% / 結果演出中"+rouletteAutoText();
+                if(own.pvpRoulette.repeatDelayTicks>0&&own.pvpRoulette.gauge>=PvpRouletteState.MAX_GAUGE) {
                     double seconds=own.pvpRoulette.repeatDelayTicks/(double)PvpStageBasis.TPS;
                     return String.format(java.util.Locale.ROOT,"対戦ルーレット 100%% / 次回まで %.1f秒%s",seconds,rouletteAutoText());
                 }
