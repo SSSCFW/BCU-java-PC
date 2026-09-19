@@ -4,6 +4,7 @@ import common.battle.entity.Entity;
 import common.battle.entity.EUnit;
 import common.util.BattleObj;
 import common.util.CopRand;
+import common.util.stage.StageLimit;
 import java.util.*;
 
 /**
@@ -13,6 +14,7 @@ import java.util.*;
  */
 public final class PvpRouletteState extends BattleObj {
     public static final int MAX_GAUGE=1000, TEMP_TICKS=150, BABY_RUSH_TICKS=10*PvpStageBasis.TPS,
+            BOOSTED_HEAL_SPAWN_TICKS=5*PvpStageBasis.TPS,
             AUTO_SPIN_TICKS=2*PvpStageBasis.TPS, RESULT_DISPLAY_TICKS=2*PvpStageBasis.TPS, ORIGINAL_MATCH_SECONDS=180;
     public static final int KNOCKBACK=0, HEAL=1, PRODUCTION_RECOVERY=2, CANNON=3,
             PRODUCTION_SHORTEN=4, WORKER_UP=5, COST_DOWN=6, MONEY_MAX=7,
@@ -34,9 +36,9 @@ public final class PvpRouletteState extends BattleObj {
     public int gauge, targetGauge, chargeClock, reelIndex, spinTicks, lastResult=-1, lastLevel;
     public int pendingResult=-1, resultDelayTicks;
     public long lastCastleHealth=-1;
-    public boolean spinning, castleDamageFastSpinReady;
+    public boolean spinning, castleDamageFastSpinReady, castleDamageBoostedSpin, lastResultCastleBoosted;
     public int productionLevel, workerLevel, costLevel, attackLevel, hpLevel, moveLevel;
-    public int babyRushTicks, spinDurationTicks=AUTO_SPIN_TICKS;
+    public int babyRushTicks, healSpawnBoostTicks, spinDurationTicks=AUTO_SPIN_TICKS;
 
     public PvpRouletteState(CopRand random) {
         // FUN_0025502c initializes all 43 slots to 0x0e (empty), then inserts each
@@ -99,6 +101,7 @@ public final class PvpRouletteState extends BattleObj {
             babyRushTicks--;
             clearCooldowns(owner);
         }
+        if(healSpawnBoostTicks>0)healSpawnBoostTicks--;
         // Charging never stops at 100% or during roulette presentation. targetGauge
         // may therefore contain one or more future spins while gauge remains the
         // visible 0..1000 meter.
@@ -238,19 +241,21 @@ public final class PvpRouletteState extends BattleObj {
         // already been applied at reel stop, so no gameplay result is discarded.
         pendingResult=-1;resultDelayTicks=0;
         gauge=MAX_GAUGE;spinning=true;spinTicks=0;
-        spinDurationTicks=castleDamageFastSpinReady?Math.max(1,AUTO_SPIN_TICKS/2):AUTO_SPIN_TICKS;
+        castleDamageBoostedSpin=castleDamageFastSpinReady;
+        spinDurationTicks=castleDamageBoostedSpin?Math.max(1,AUTO_SPIN_TICKS/2):AUTO_SPIN_TICKS;
         castleDamageFastSpinReady=false;
         return true;
     }
 
     private void revealResult(PvpStageBasis world,StageBasis owner) {
         int result=reel[reelIndex];
-        spinning=false;spinTicks=0;
+        boolean boosted=castleDamageBoostedSpin;
+        spinning=false;spinTicks=0;castleDamageBoostedSpin=false;
         targetGauge=Math.max(0,targetGauge-MAX_GAUGE);
         gauge=Math.min(MAX_GAUGE,targetGauge);
         spinDurationTicks=AUTO_SPIN_TICKS;
-        lastResult=result;
-        apply(world,owner,result);
+        lastResult=result;lastResultCastleBoosted=boosted;
+        apply(world,owner,result,boosted);
         lastLevel=stockState(result);
         pendingResult=result;resultDelayTicks=RESULT_DISPLAY_TICKS;
     }
@@ -265,27 +270,37 @@ public final class PvpRouletteState extends BattleObj {
     }
 
     public void forceResult(PvpStageBasis world,StageBasis owner,int result) {
+        forceResult(world,owner,result,false);
+    }
+    public void forceResult(PvpStageBasis world,StageBasis owner,int result,boolean castleDamageBoosted) {
         if(result<0||result>=NAMES.length)throw new IllegalArgumentException("Invalid roulette result");
-        pendingResult=-1;resultDelayTicks=0;lastResult=result;apply(world,owner,result);lastLevel=stockState(result);
+        pendingResult=-1;resultDelayTicks=0;lastResult=result;lastResultCastleBoosted=castleDamageBoosted;
+        apply(world,owner,result,castleDamageBoosted);lastLevel=stockState(result);
     }
 
-    private void apply(PvpStageBasis world, StageBasis owner, int result) {
+    private void apply(PvpStageBasis world, StageBasis owner, int result, boolean boosted) {
         StageBasis opponent=owner.playerFor(-owner.ownDirection());
         switch(result) {
             case KNOCKBACK:
-                // Reuse BCU's actual boss-spawn shock: same huge knockback,
-                // A_SHOCKWAVE animation and SE_BOSS sound. Only the target side differs in PvP.
-                world.triggerBossShock(opponent.ownDirection());
+                // Castle-damage roulette doubles the native boss-shock travel distance.
+                world.triggerBossShock(opponent.ownDirection(),boosted?2f:1f);
                 break;
             case HEAL:
                 for(Entity e:world.le) if(e instanceof EUnit&&e.dire==owner.ownDirection()&&!e.dead) {
                     e.health=Math.min(e.maxH,e.health+e.maxH/2);
                     e.anim.getEff(common.util.Data.HEAL);
                 }
+                if(boosted)healSpawnBoostTicks=Math.max(healSpawnBoostTicks,BOOSTED_HEAL_SPAWN_TICKS);
                 break;
-            case PRODUCTION_RECOVERY: clearCooldowns(owner); break;
+            case PRODUCTION_RECOVERY:
+                clearCooldowns(owner);
+                if(boosted)addVisibleMoney(owner,4500);
+                break;
             case CANNON:
-                owner.cannon=owner.maxCannon;owner.act_can();break;
+                if(boosted)owner.canon.setPvpAttackMultiplier(10);
+                owner.cannon=owner.maxCannon;
+                if(!owner.act_can()&&boosted)owner.canon.setPvpAttackMultiplier(1);
+                break;
             case PRODUCTION_SHORTEN:
                 if(productionLevel<4) {
                     productionLevel++;
@@ -299,10 +314,17 @@ public final class PvpRouletteState extends BattleObj {
                     for(int i=0;i<2;i++)for(int j=0;j<5;j++)if(owner.elu.price[i][j]>0)
                         owner.elu.price[i][j]=Math.max(1,owner.elu.price[i][j]/2);
                 }
+                if(boosted)advanceCooldowns(owner,30);
                 break;
-            case MONEY_MAX: owner.money=owner.maxMoney;break;
-            case SLOW: timed(opponent,P_SLOW);break;
-            case STOP: timed(opponent,P_STOP);break;
+            case MONEY_MAX:
+                if(boosted)owner.grantPvpMoneyOvercap(owner.maxMoney);
+                else owner.money=owner.maxMoney;
+                break;
+            case SLOW:
+                if(boosted)slowAndWeaken(opponent,TEMP_TICKS*3,50);
+                else timed(opponent,P_SLOW,TEMP_TICKS);
+                break;
+            case STOP: timed(opponent,P_STOP,boosted?TEMP_TICKS*2:TEMP_TICKS);break;
             case ATTACK_UP: if(attackLevel<4)attackLevel++;break;
             case HP_UP:
                 if(hpLevel<4) {
@@ -315,12 +337,18 @@ public final class PvpRouletteState extends BattleObj {
                 break;
             case MOVE_UP: if(moveLevel<4)moveLevel++;break;
             case BABY_RUSH:
-                // PvP petit baby rush: ten seconds of zero production cooldown plus
-                // an immediate half-wallet refill, capped at the current wallet limit.
                 babyRushTicks=BABY_RUSH_TICKS;
                 clearCooldowns(owner);
-                int bonus=Math.max(0,owner.maxMoney/2);
-                owner.money=(int)Math.min((long)owner.maxMoney,(long)owner.money+bonus);
+                if(boosted) {
+                    owner.work_lv=8;
+                    owner.upgradeCost=owner.b.t().getLvCost(owner.work_lv);
+                    owner.maxMoney=owner.b.t().getMaxMon(owner.work_lv,StageLimit.isComboBanned(owner.est.lim,C_M_MAX));
+                    owner.pvpMoneyOvercapLimit=0;
+                    owner.money=owner.maxMoney;
+                } else {
+                    int bonus=Math.max(0,owner.maxMoney/2);
+                    owner.money=(int)Math.min((long)owner.maxMoney,(long)owner.money+bonus);
+                }
                 break;
             default: throw new IllegalArgumentException("Unknown roulette result");
         }
@@ -328,10 +356,26 @@ public final class PvpRouletteState extends BattleObj {
     private static void clearCooldowns(StageBasis owner){
         for(int i=0;i<2;i++)Arrays.fill(owner.elu.cool[i],0);
     }
-    private static void timed(StageBasis player,int proc){
+    private static void advanceCooldowns(StageBasis owner,int percent){
+        int keep=Math.max(0,100-Math.max(0,Math.min(100,percent)));
+        for(int i=0;i<2;i++)for(int j=0;j<5;j++)
+            owner.elu.cool[i][j]=Math.max(0,owner.elu.cool[i][j]*keep/100);
+    }
+    private static void addVisibleMoney(StageBasis owner,int visibleMoney){
+        long amount=Math.max(0L,(long)visibleMoney)*100L;
+        owner.money=(int)Math.min((long)owner.maxMoney,(long)owner.money+amount);
+    }
+    private static void timed(StageBasis player,int proc,int ticks){
         for(Entity e:player.world().le)if(e instanceof EUnit&&e.dire==player.ownDirection()&&!e.dead&&!((EUnit)e).isSpirit) {
-            e.status[proc][0]=Math.max(e.status[proc][0],TEMP_TICKS);
+            e.status[proc][0]=Math.max(e.status[proc][0],ticks);
             e.anim.getEff(proc);
+        }
+    }
+    private static void slowAndWeaken(StageBasis player,int ticks,int attackPercent){
+        for(Entity e:player.world().le)if(e instanceof EUnit&&e.dire==player.ownDirection()&&!e.dead&&!((EUnit)e).isSpirit) {
+            e.status[P_SLOW][0]=Math.max(e.status[P_SLOW][0],ticks);
+            e.anim.getEff(P_SLOW);
+            e.applyPvpWeak(ticks,attackPercent);
         }
     }
 }
