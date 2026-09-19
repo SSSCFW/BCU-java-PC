@@ -164,7 +164,7 @@ public final class PvpStageBasis extends StageBasis {
             }
         }
         p.cannon=Math.min(p.maxCannon,Math.max(0,p.cannon));
-        p.money=Math.min(p.maxMoney,Math.max(0,p.money));
+        p.clampMoney();
     }
     /** -2 ongoing; -1 draw; 0 physical left wins; 1 physical right wins. */
     public int winner() {
