@@ -13,6 +13,12 @@ public final class PvpDamage extends Data {
     private PvpDamage() {}
     public static int offense(EUnit target, AttackAb atk, int damage) {
         Entity source=atk.attacker;
+        if(source instanceof EUnit) {
+            EUnit unit=(EUnit)source;
+            StageBasis owner=unit.basis;
+            if(owner.pvpRoulette!=null&&owner.pvpRoulette.attackLevel>0)
+                damage=(int)Math.round(damage*owner.pvpRoulette.attackMultiplier());
+        }
         if(source instanceof EUnit && atk.model instanceof AtkModelUnit) {
             EUnit unit=(EUnit)source;
             StageBasis owner=unit.basis;
