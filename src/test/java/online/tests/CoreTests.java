@@ -57,23 +57,29 @@ public final class CoreTests {
         CommonStatic.getConfig().performanceModeBattle=false;
     }
     private static void animationClonePreservesRuntimePose() {
-        AnimCI animation=Fixture.animation("clone_pose","anim");
-        animation.check();
-        MaAnim walk=animation.getMaAnim(AnimU.UType.WALK);
-        Part track=new Part(0,4);
-        track.ints[2]=2;
-        track.n=2;
-        track.moves=new int[][]{{0,0,0,0},{10,100,0,0}};
-        track.validate();
-        walk.n=1;walk.parts=new Part[]{track};walk.validate();
+        boolean performance=CommonStatic.getConfig().performanceModeAnimation;
+        CommonStatic.getConfig().performanceModeAnimation=false;
+        try {
+            AnimCI animation=Fixture.animation("clone_pose","anim");
+            animation.check();
+            MaAnim walk=animation.getMaAnim(AnimU.UType.WALK);
+            Part track=new Part(0,4);
+            track.ints[2]=2;
+            track.n=2;
+            track.moves=new int[][]{{0,0,0,0},{10,100,0,0}};
+            track.validate();
+            walk.n=1;walk.parts=new Part[]{track};walk.validate();
 
-        EAnimU live=animation.getEAnim(AnimU.UType.WALK);
-        for(int i=0;i<26;i++)live.update(false);
-        Check.equal(100f,live.ent[0].getValRaw(4),"finite walk track reaches and holds its final runtime pose");
-        EAnimU copy=(EAnimU)live.clone();
-        Check.equal(live.ind(),copy.ind(),"display clone preserves the unwrapped animation clock");
-        Check.equal(live.ent[0].getValRaw(4),copy.ent[0].getValRaw(4),
-                "display clone preserves the current finite-track pose instead of wrapping to frame zero");
+            EAnimU live=animation.getEAnim(AnimU.UType.WALK);
+            for(int i=0;i<26;i++)live.update(false);
+            Check.equal(100f,live.ent[0].getValRaw(4),"finite walk track reaches and holds its final runtime pose");
+            EAnimU copy=(EAnimU)live.clone();
+            Check.equal(live.ind(),copy.ind(),"display clone preserves the unwrapped animation clock");
+            Check.equal(live.ent[0].getValRaw(4),copy.ent[0].getValRaw(4),
+                    "display clone preserves the current finite-track pose instead of wrapping to frame zero");
+        } finally {
+            CommonStatic.getConfig().performanceModeAnimation=performance;
+        }
     }
 
     public static String summary(PvpStageBasis b) {
