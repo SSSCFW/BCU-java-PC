@@ -127,14 +127,26 @@ public final class RouletteTests {
         Check.equal(2.0,PvpRouletteState.matchTimeFactor(135*PvpStageBasis.TPS),"remaining 25 percent still uses 2x time factor");
         Check.equal(5.0,PvpRouletteState.matchTimeFactor(136*PvpStageBasis.TPS),"final quarter uses 5x time factor");
 
+        PvpStageBasis normalFill=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis normalFillOwner=normalFill.right();
+        normalFillOwner.pvpRoulette.gauge=0;normalFillOwner.pvpRoulette.targetGauge=300;normalFillOwner.pvpRoulette.chargeClock=0;
+        normalFillOwner.pvpRoulette.initializeCharge(normalFillOwner);
+        normalFillOwner.pvpRoulette.advance(normalFill,normalFillOwner);
+        Check.equal(50,normalFillOwner.pvpRoulette.gauge,"ordinary roulette gauge presentation remains +50 per tick");
+
         PvpStageBasis castleGain=duel(RoomRules.SpecialMode.ROULETTE);
         StageBasis castleOwner=castleGain.right();
         castleOwner.pvpRoulette.gauge=castleOwner.pvpRoulette.targetGauge=castleOwner.pvpRoulette.chargeClock=0;
         castleOwner.pvpRoulette.initializeCharge(castleOwner);
-        castleOwner.ownBase().health-=10000;
+        castleOwner.ownBase().health-=100000;
         castleOwner.pvpRoulette.advance(castleGain,castleOwner);
-        Check.equal(30,castleOwner.pvpRoulette.targetGauge,"taking 10000 castle damage adds floor(damage*3/1000) before comeback factors");
-        Check.equal(30,castleOwner.pvpRoulette.gauge,"castle-damage charge becomes visible immediately through the native +50 chase");
+        Check.equal(300,castleOwner.pvpRoulette.targetGauge,"taking 100000 castle damage adds floor(damage*3/1000) before comeback factors");
+        Check.equal(100,castleOwner.pvpRoulette.gauge,"castle-damage gauge fill runs at double presentation speed");
+        castleOwner.pvpRoulette.advance(castleGain,castleOwner);
+        Check.equal(200,castleOwner.pvpRoulette.gauge,"castle-damage-only fast fill continues at +100 per tick");
+        castleOwner.pvpRoulette.advance(castleGain,castleOwner);
+        Check.equal(300,castleOwner.pvpRoulette.gauge,"castle-damage fill completes in half the ordinary six-tick duration");
+        Check.equal(0,castleOwner.pvpRoulette.castleDamageFastGauge,"castle-damage acceleration is consumed once the earned gauge is visible");
 
         Check.equal(1.5,PvpRouletteState.battlefieldFactor(castleOwner,castleOwner.ownBase().pos),"unit loss at own castle uses 1.5x position factor");
         float middle=(castleOwner.ownBase().pos+castleOwner.playerFor(-castleOwner.ownDirection()).ownBase().pos)/2f;
