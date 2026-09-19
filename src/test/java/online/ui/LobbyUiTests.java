@@ -123,7 +123,15 @@ public final class LobbyUiTests {
                 startHost();setup("Host","test-password");create();await(()->button("copyRoom").isEnabled(),"room creation");
                 await(()->!((RoomClient)field(page,"client")).realtimeTransport().equals("PROBING"),"transport selection");
                 Thread.sleep(150);
-                Check.that(status().contains(edt(()->text("room").getText())),"transport status must retain the room ID");break;
+                Check.that(status().contains(edt(()->text("room").getText())),"transport status must retain the room ID");
+                edt(()->{
+                    @SuppressWarnings("unchecked") JComboBox<BasisLU> choices=(JComboBox<BasisLU>)field(page,"lineup");
+                    BasisLU empty=new BasisLU(BasisSet.current());empty.name="empty regression lineup";
+                    choices.addItem(empty);choices.setSelectedItem(empty);return null;
+                });
+                await(()->!((Boolean)field(field(page,"roomLobby"),"pending")),"empty lineup selection acknowledgement");
+                Check.that(!edt(()->button("ready").isEnabled()),"zero-unit saved lineup cannot become ready");
+                break;
             }
             case "local-button": {
                 config(23456);
