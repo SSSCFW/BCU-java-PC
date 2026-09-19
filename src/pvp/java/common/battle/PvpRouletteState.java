@@ -30,6 +30,7 @@ public final class PvpRouletteState extends BattleObj {
             8,8,8, 9,9,9, 10,10,10,10, 11,11,11,11, 12,12,12,12, 13,13
     };
     private static final double[] PERMANENT={1.0,1.5,2.5,4.5,8.0};
+    private static final double[] ATTACK_PERMANENT={1.0,2.7,4.5,8.1,14.4};
     private static final double[] HP_PERMANENT={1.0,4.5,7.5,13.5,24.0};
     private static final int[] WORKER={100,150,200,300,500};
 
@@ -79,7 +80,7 @@ public final class PvpRouletteState extends BattleObj {
     public static double multiplier(int level){return PERMANENT[Math.max(0,Math.min(4,level))];}
     public int workerPercent(){return WORKER[Math.max(0,Math.min(4,workerLevel))];}
     public int productionDivisor(){return 1<<Math.max(0,Math.min(4,productionLevel));}
-    public double attackMultiplier(){return multiplier(attackLevel);}
+    public double attackMultiplier(){return ATTACK_PERMANENT[Math.max(0,Math.min(4,attackLevel))];}
     public double hpMultiplier(){return HP_PERMANENT[Math.max(0,Math.min(4,hpLevel))];}
     public double moveMultiplier(){return multiplier(moveLevel);}
     public int stockState(int effect) {
@@ -171,7 +172,9 @@ public final class PvpRouletteState extends BattleObj {
         long base=damage*3L/1000L;
         if(base<=0)return 0;
         double hp=castleHealthFactor(owner.ownBase().maxH,previousHealth);
-        return Math.max(0,(int)(base*hp*timeFactor));
+        // Castle-hit roulette charge is intentionally 30% stronger than the
+        // recovered native formula while preserving the same comeback factors.
+        return Math.max(0,(int)(base*hp*timeFactor*1.3));
     }
 
     /**
