@@ -12,18 +12,20 @@ public final class PvpTraitRules {
     public static final int[] OPTIONS={
             NONE,
             Data.TRAIT_RED,Data.TRAIT_FLOAT,Data.TRAIT_BLACK,Data.TRAIT_METAL,Data.TRAIT_ANGEL,
-            Data.TRAIT_ALIEN,Data.TRAIT_ZOMBIE,Data.TRAIT_DEMON,Data.TRAIT_RELIC,Data.TRAIT_WHITE
+            Data.TRAIT_ALIEN,Data.TRAIT_ZOMBIE,Data.TRAIT_DEMON,Data.TRAIT_RELIC
     };
     public static final String[] LABELS={
             "属性なし",
             "赤い敵","浮いてる敵","黒い敵","メタルな敵","天使",
-            "エイリアン","ゾンビ","悪魔","古代種","無属性（白）"
+            "エイリアン","ゾンビ","悪魔","古代種"
     };
     public static final int ALL_EXCLUSIONS=(1<<OPTIONS.length)-1;
 
     private PvpTraitRules(){}
 
     public static void validate(int choice,int exclusionMask){
+        // White/untraited is intentionally not a PvP-selectable attribute.
+        // A player is either attribute-less (NONE) or exactly one explicit trait.
         boolean valid=choice==RANDOM;
         for(int option:OPTIONS)valid|=choice==option;
         if(!valid)throw new IllegalArgumentException("無効なプレイヤー属性です");
