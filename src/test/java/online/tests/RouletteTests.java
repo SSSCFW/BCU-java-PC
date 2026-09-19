@@ -217,9 +217,28 @@ public final class RouletteTests {
         Check.equal(PvpRouletteState.MAX_GAUGE,instantOwner.pvpRoulette.gauge,
                 "finishing a spin immediately exposes a banked full next gauge");
         Check.that(instantOwner.pvpRoulette.pendingResult>=0,"result card is still visible after reel stop");
+        Check.that(!instantOwner.pvpRoulette.press(instant,instantOwner),
+                "banked full gauge cannot interrupt the previous roulette result presentation");
+        for(int i=0;i<PvpRouletteState.RESULT_DISPLAY_TICKS;i++)
+            instantOwner.pvpRoulette.advance(instant,instantOwner);
+        Check.equal(-1,instantOwner.pvpRoulette.pendingResult,"result presentation fully disappears before repeat delay");
+        Check.equal(PvpRouletteState.REPEAT_DELAY_TICKS,instantOwner.pvpRoulette.repeatDelayTicks,
+                "disappearing result starts a fixed 0.5-second repeat delay");
+        Check.that(!instantOwner.pvpRoulette.press(instant,instantOwner),
+                "next roulette cannot begin at the start of the repeat delay");
+        for(int i=0;i<PvpRouletteState.REPEAT_DELAY_TICKS-1;i++)
+            instantOwner.pvpRoulette.advance(instant,instantOwner);
+        Check.equal(1,instantOwner.pvpRoulette.repeatDelayTicks,
+                "repeat remains locked until the full half-second has elapsed");
+        Check.that(!instantOwner.pvpRoulette.press(instant,instantOwner),
+                "manual input cannot skip the final repeat-delay tick");
+        instantOwner.pvpRoulette.advance(instant,instantOwner);
+        Check.equal(0,instantOwner.pvpRoulette.repeatDelayTicks,
+                "repeat delay expires after exactly 15 ticks at 30 TPS");
+        Check.that(instantOwner.pvpRoulette.canPress(),
+                "banked full gauge becomes ready only after result disappearance plus 0.5 seconds");
         Check.that(instantOwner.pvpRoulette.press(instant,instantOwner),
-                "a banked full gauge may start again immediately without waiting for the result card");
-        Check.equal(-1,instantOwner.pvpRoulette.pendingResult,"new spin replaces the previous result presentation");
+                "next roulette starts after the full repeat gap");
 
         PvpStageBasis manual=duel(RoomRules.SpecialMode.ROULETTE);
         StageBasis manualOwner=manual.right();
@@ -250,6 +269,8 @@ public final class RouletteTests {
         for(int i=1;i<PvpRouletteState.RESULT_DISPLAY_TICKS;i++)manualOwner.pvpRoulette.advance(manual,manualOwner);
         Check.equal(1,manualOwner.pvpRoulette.attackLevel,"result effect is not applied twice when the card disappears");
         Check.equal(-1,manualOwner.pvpRoulette.pendingResult,"pending result card clears after its display window");
+        Check.equal(PvpRouletteState.REPEAT_DELAY_TICKS,manualOwner.pvpRoulette.repeatDelayTicks,
+                "normal result disappearance also starts the synchronized repeat gap");
         Check.that(manualOwner.pvpRoulette.gauge>0,"charge earned during spin/result is retained after consuming one full gauge");
     }
     private static void boostedCastleDamageEffects() throws Exception {
