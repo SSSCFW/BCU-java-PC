@@ -33,6 +33,8 @@ public class StageBasis extends BattleObj {
     public PvpRouletteState pvpRoulette;
     public boolean pvpCastleHitMoneyEnabled;
     public int pvpCastleHitMoney;
+    /** One-time roulette over-cap ceiling. Zero means the normal wallet cap. */
+    public int pvpMoneyOvercapLimit;
     public final boolean isPvp() { return pvpRoot != null; }
     public final StageBasis world() { return pvpRoot == null ? this : pvpRoot; }
     public final int ownDirection() { return pvpDirection; }
@@ -47,6 +49,21 @@ public class StageBasis extends BattleObj {
         // StageBasis stores currency in hundredths; room rules/UI use displayed yen.
         long reward=(long)pvpCastleHitMoney*100L;
         money=(int)Math.min((long)maxMoney,(long)money+reward);
+    }
+    public final void grantPvpMoneyOvercap(int amount) {
+        if(amount<=0)return;
+        long next=Math.min((long)Integer.MAX_VALUE,(long)money+amount);
+        money=(int)next;
+        if(isPvp())pvpMoneyOvercapLimit=Math.max(pvpMoneyOvercapLimit,money);
+    }
+    public final void clampMoney() {
+        money=Math.max(0,money);
+        int limit=maxMoney;
+        if(isPvp()&&pvpMoneyOvercapLimit>maxMoney) {
+            if(money<=maxMoney)pvpMoneyOvercapLimit=0;
+            else limit=pvpMoneyOvercapLimit;
+        }
+        money=Math.min(limit,money);
     }
 
 
@@ -708,10 +725,15 @@ public class StageBasis extends BattleObj {
 //	}
 
 	public void triggerBossShock(int targetDirection) {
+		triggerBossShock(targetDirection,1f);
+	}
+
+	public void triggerBossShock(int targetDirection,float distanceMultiplier) {
 		if(targetDirection!=1&&targetDirection!=-1)throw new IllegalArgumentException("Invalid shock target direction");
+		if(!Float.isFinite(distanceMultiplier)||distanceMultiplier<=0f)throw new IllegalArgumentException("Invalid shock multiplier");
 		for (Entity entity : le) {
 			if (entity.dire == targetDirection && (entity.touchable() & TCH_N) > 0 && (!(entity instanceof EUnit) || !((EUnit) entity).isSpirit)) {
-				entity.interrupt(INT_SW, KB_DIS[INT_SW]);
+				entity.interrupt(INT_SW, KB_DIS[INT_SW]*distanceMultiplier);
 				entity.postUpdate();
 			}
 		}
@@ -1027,7 +1049,7 @@ public class StageBasis extends BattleObj {
 
         if (this instanceof PvpStageBasis) ((PvpStageBasis)this).finishOtherEconomy();
 		cannon = Math.min(maxCannon, Math.max(0, cannon));
-		money = Math.min(maxMoney, Math.max(0, money));
+		clampMoney();
 
 		if(changeFrame != -1) {
 			changeFrame--;
