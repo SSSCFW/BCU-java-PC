@@ -181,6 +181,24 @@ public final class NativeBattleUiTests {
         Graphics2D fg=fullMeter.createGraphics();Trace fullTrace=new Trace(fg);
         try{meterBox.painter.draw(fullTrace);}finally{fg.dispose();}
         Check.that(fullTrace.images.containsKey(Pvp3dsAssets.tapImage()),"full roulette gauge renders TAP above the gauge");
+
+        List<Integer> autoSent=new ArrayList<>();
+        OnlineBattleField autoField=new OnlineBattleField(new Keys(),meter.displayCopy(),1,autoSent::add);
+        Box autoBox=new Box(autoField);
+        BufferedImage autoInit=new BufferedImage(autoBox.getWidth(),autoBox.getHeight(),BufferedImage.TYPE_INT_ARGB);
+        Graphics2D autoInitG=autoInit.createGraphics();
+        try{autoBox.painter.draw(new Trace(autoInitG));}finally{autoInitG.dispose();}
+        autoBox.click(new Point(autoBox.getWidth()-8,autoBox.getHeight()-10),java.awt.event.MouseEvent.BUTTON3);
+        Check.that(autoField.autoRoulette(),"right-clicking the roulette gauge enables always-use mode");
+        autoField.update();
+        Check.that(autoSent.contains(InputFrame.SPECIAL),"always-use queues SPECIAL as soon as the gauge is ready");
+        BufferedImage autoImage=new BufferedImage(autoBox.getWidth(),autoBox.getHeight(),BufferedImage.TYPE_INT_ARGB);
+        Graphics2D autoG=autoImage.createGraphics();Trace autoTrace=new Trace(autoG);
+        try{autoBox.painter.draw(autoTrace);}finally{autoG.dispose();}
+        Check.that(autoTrace.images.containsKey(Pvp3dsAssets.textBadge("AUTO")),"always-use mode is visibly marked above the roulette gauge");
+        autoBox.click(new Point(autoBox.getWidth()-8,autoBox.getHeight()-10),java.awt.event.MouseEvent.BUTTON3);
+        Check.that(!autoField.autoRoulette(),"right-clicking the roulette gauge again disables always-use mode");
+
         Check.that(fullTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_icon","アイコン：攻撃力アップ"))
                         && fullTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_icon","アイコン：体力アップ"))
                         && fullTrace.images.containsKey(Pvp3dsAssets.fakeImage("ui_battle_multi_icon","アイコン：移動アップ")),
