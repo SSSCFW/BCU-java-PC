@@ -79,7 +79,7 @@ class PackageTests(unittest.TestCase):
 
     def test_release_is_gated_and_artifact_is_not_zip(self):
         workflow = (ROOT.parent / ".github/workflows/pvp-ci.yml").read_text()
-        self.assertIn("needs: [maven, gradle]", workflow)
+        self.assertIn("needs: [build, headless, swing, presentation, gradle]", workflow)
         self.assertIn("path: target/bcu-pvp-portable/", workflow)
         self.assertNotIn("path: target/bcu-pvp-portable.zip", workflow)
         self.assertIn('"$EXPECTED_SHA256"', workflow)
