@@ -318,7 +318,7 @@ public final class PvpRouletteState extends BattleObj {
                 break;
             case MONEY_MAX:
                 if(boosted)owner.grantPvpMoneyOvercap(owner.maxMoney);
-                else owner.money=owner.maxMoney;
+                else owner.money=Math.max(owner.money,owner.maxMoney);
                 break;
             case SLOW:
                 if(boosted)slowAndWeaken(opponent,TEMP_TICKS*3,50);
@@ -347,7 +347,7 @@ public final class PvpRouletteState extends BattleObj {
                     owner.money=owner.maxMoney;
                 } else {
                     int bonus=Math.max(0,owner.maxMoney/2);
-                    owner.money=(int)Math.min((long)owner.maxMoney,(long)owner.money+bonus);
+                    owner.addPvpCappedMoney(bonus);
                 }
                 break;
             default: throw new IllegalArgumentException("Unknown roulette result");
@@ -363,7 +363,7 @@ public final class PvpRouletteState extends BattleObj {
     }
     private static void addVisibleMoney(StageBasis owner,int visibleMoney){
         long amount=Math.max(0L,(long)visibleMoney)*100L;
-        owner.money=(int)Math.min((long)owner.maxMoney,(long)owner.money+amount);
+        owner.addPvpCappedMoney(amount);
     }
     private static void timed(StageBasis player,int proc,int ticks){
         for(Entity e:player.world().le)if(e instanceof EUnit&&e.dire==player.ownDirection()&&!e.dead&&!((EUnit)e).isSpirit) {
