@@ -7,6 +7,7 @@ import common.system.P;
 import common.system.fake.FakeImage;
 import common.util.unit.Form;
 import main.MainBCU;
+import online.ui.OnlineBattleField;
 import page.battle.BattleBox.BBPainter;
 import page.battle.BattleBox.OuterBox;
 import utilpc.PP;
@@ -110,8 +111,12 @@ public class BBCtrl extends BBPainter {
 			sbc.action.add(-1);
 		iw = (int) (hr * right.getWidth());
 		ih = (int) (hr * right.getHeight());
-		if (!new PP(p).out(new P(w - iw, h - ih), new P(w, h), 0))
-			sbc.action.add(-2);
+		if (!new PP(p).out(new P(w - iw, h - ih), new P(w, h), 0)) {
+			if (button == MouseEvent.BUTTON3 && sbc instanceof OnlineBattleField && ((OnlineBattleField) sbc).rouletteMode())
+				((OnlineBattleField) sbc).toggleRouletteAuto();
+			else
+				sbc.action.add(-2);
+		}
 
 		if ((controlState().conf[0] & 2) > 0) {
 			FakeImage bimg = aux.battle[2][1].getImg();
