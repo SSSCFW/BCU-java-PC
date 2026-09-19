@@ -121,6 +121,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         if(playerName.isEmpty()||playerName.length()>40||playerName.indexOf('\0')>=0 ){message("1〜40文字の表示名を指定してください。");return;}
         if(!createRoom&&roomId.isEmpty()){message("起動済みサーバーへの接続だけでは入室できません。ホストが作成した部屋IDを入力してください。");return;}
         boolean allowDevelopment=development.isSelected();
+        final int udpOverride=((Number)udpPortOverride.getValue()).intValue();
         URI uri;try{uri=RoomClient.validateUri(new URI(server.getText().trim()),allowDevelopment);}catch(Exception e){message("接続先を確認してください: "+e.getMessage());return;}
         final int attempt=++generation;
         creating=createRoom;busy=true;setSetupEnabled(false);leave.setEnabled(true);message("サーバーへ接続しています…");
@@ -133,7 +134,6 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                     if(!current(attempt))return;
                     String game=GameFingerprint.compute(text->message(attempt,text));
                     if(!current(attempt))return;
-                    int udpOverride=((Number)udpPortOverride.getValue()).intValue();
                     connection=new RoomClient(uri,allowDevelopment,true,udpOverride,listener(attempt));
                     final RoomClient candidate=connection;
                     SwingUtilities.invokeAndWait(()->{if(current(attempt))client=candidate;});
