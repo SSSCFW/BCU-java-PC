@@ -81,9 +81,12 @@ public class EUnit extends Entity {
 
 		processAbilityOrbs();
 		processComboAbilities();
-		if (b.pvpRoulette != null && !isSpirit && b.pvpRoulette.hpLevel > 0) {
+		if (b.pvpRoulette != null && !isSpirit) {
 			double multi = b.pvpRoulette.hpMultiplier();
-			health = maxH = Math.max(1L, Math.round(maxH * multi));
+			if (b.pvpRoulette.healSpawnBoostTicks > 0)
+				multi *= 2.0;
+			if (multi != 1.0)
+				health = maxH = Math.max(1L, Math.round(maxH * multi));
 		}
 	}
 
