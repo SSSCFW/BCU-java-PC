@@ -42,6 +42,20 @@ public final class PvpRouletteAudioTests {
             own.pendingResult=-1;other.pendingResult=-1;detector.observe(world,direction);
             own.gauge=100;detector.observe(world,direction);
             Check.equal(11,Collections.frequency(events,Sound.ROULETTE_CHARGE),"new gauge cycle charges again");
+
+            // A chained activation emits a fresh start SE exactly when the synchronized
+            // half-second repeat lock has expired and the next spin actually begins.
+            own.gauge=own.targetGauge=PvpRouletteState.MAX_GAUGE;
+            own.repeatDelayTicks=1;
+            detector.observe(world,direction);
+            Check.equal(1,Collections.frequency(events,Sound.ROULETTE_START),
+                    "repeat wait itself does not replay roulette start SE");
+            own.repeatDelayTicks=0;
+            Check.that(own.press(world,own),"repeat fixture starts once the half-second lock is gone");
+            detector.observe(world,direction);
+            Check.equal(2,Collections.frequency(events,Sound.ROULETTE_START),
+                    "next roulette plays its own start SE when activation begins");
+            Check.equal(2,loops[0],"next roulette starts the spin loop only after its start edge");
         }
         System.out.println("Roulette audio edge tests passed for both player sides");
     }
