@@ -24,6 +24,7 @@ public final class CombatTests {
         Check.equal(duel.le.get(0).health,duel.le.get(1).health,"same-unit combat is symmetric");
         defeatRewardTests();
         castleHitMoneyTests();
+        rouletteAttackCastleTests();
         for(boolean mini:new boolean[]{false,true}) {
             PvpStageBasis b=duel(!mini,mini);
             EUnit left=(EUnit)b.le.stream().filter(e->e.dire==1).findFirst().get();
@@ -144,6 +145,36 @@ private static void castleHitMoneyTests() throws Exception {
     victim.money=Math.max(0,victim.maxMoney-2);
     victim.ownBase().damaged((AttackSimple)model(attacker).getAttack(0));
     Check.equal(victim.maxMoney,victim.money,"castle-hit money never exceeds wallet limit");
+}
+
+private static void rouletteAttackCastleTests() throws Exception {
+    PvpStageBasis normal=duel(false,false),boosted=duel(false,false);
+    EUnit normalAttacker=unit(normal,1),boostedAttacker=unit(boosted,1);
+    EUnit normalTarget=unit(normal,-1),boostedTarget=unit(boosted,-1);
+    StageBasis boostedOwner=boosted.left();
+    boostedOwner.pvpRoulette.forceResult(boosted,boostedOwner,PvpRouletteState.ATTACK_UP);
+
+    AttackSimple normalPacket=(AttackSimple)model(normalAttacker).getAttack(0);
+    AttackSimple boostedPacket=(AttackSimple)model(boostedAttacker).getAttack(0);
+    Check.equal(normalPacket.atk,boostedPacket.atk,
+            "roulette attack-up no longer changes the raw attack packet used by castles");
+
+    long normalCastleBefore=normal.right().ownBase().health;
+    long boostedCastleBefore=boosted.right().ownBase().health;
+    normal.right().ownBase().damaged((AttackSimple)model(normalAttacker).getAttack(0));
+    boosted.right().ownBase().damaged((AttackSimple)model(boostedAttacker).getAttack(0));
+    long normalCastleDamage=normalCastleBefore-normal.right().ownBase().health;
+    long boostedCastleDamage=boostedCastleBefore-boosted.right().ownBase().health;
+    Check.equal(normalCastleDamage,boostedCastleDamage,
+            "roulette attack-up does not increase castle damage");
+
+    long normalUnitBefore=normalTarget.health,boostedUnitBefore=boostedTarget.health;
+    normalTarget.damaged((AttackSimple)model(normalAttacker).getAttack(0));normalTarget.postUpdate();
+    boostedTarget.damaged((AttackSimple)model(boostedAttacker).getAttack(0));boostedTarget.postUpdate();
+    long normalUnitDamage=normalUnitBefore-normalTarget.health;
+    long boostedUnitDamage=boostedUnitBefore-boostedTarget.health;
+    Check.that(normalUnitDamage>0&&boostedUnitDamage>normalUnitDamage*2.5,
+            "roulette attack-up still boosts damage dealt to opposing units");
 }
 
 private static EUnit unit(PvpStageBasis b,int direction){return (EUnit)b.le.stream().filter(e->e.dire==direction).findFirst().get();}
