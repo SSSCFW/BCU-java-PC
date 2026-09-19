@@ -91,7 +91,7 @@ public class EUnit extends Entity {
 		super(b, de, ea, d0, b.b.t().getAtkMulti(), b.b.t().getDefMulti(), null, null);
 		currentLayer = spawnLayer = b.getValueBetween(de.getFront(), de.getBack());
 		traits = de.getTraits();
-		if(b.isPvp())pvpAssignedTrait=((PvpStageBasis)b.world()).traitForDirection(b.ownDirection());
+		applyPvpAssignedTrait(b);
 		this.index = null;
 
 		lvl = 1;
