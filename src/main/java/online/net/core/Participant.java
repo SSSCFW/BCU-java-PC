@@ -1,5 +1,6 @@
 package online.net.core;
 
+import common.battle.PvpStageBasis;
 import online.net.realtime.*;
 
 /** Participant identity, game seat and network transport are deliberately separate. */
@@ -15,7 +16,7 @@ public final class Participant {
     public String bundleHash, uploadingHash, result;
     public boolean uploaded, ready, downloading, lobbyReady, resultAck;
     public String lineupName="";
-    public double castleHealthMultiplier=20.0;
+    public double castleHealthMultiplier=PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER;
     public long nextFrameExpected, requestedFrame = -1, lastRescue, lastSend, lastFrameAckProgress = System.nanoTime();
     Participant(int id, String name, GameMode.Seat seat, ControlPeer control) {
         this.id = id; displayName = name; this.seat = seat; this.control = control;
