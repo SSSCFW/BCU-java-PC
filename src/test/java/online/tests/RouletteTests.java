@@ -207,6 +207,19 @@ public final class RouletteTests {
         Check.that(bankedOwner.pvpRoulette.targetGauge>duringSpin,
                 "roulette continues banking charge during the spinning presentation");
 
+        PvpStageBasis capped=duel(RoomRules.SpecialMode.ROULETTE);
+        StageBasis cappedOwner=capped.right();
+        cappedOwner.pvpRoulette.gauge=0;
+        cappedOwner.pvpRoulette.targetGauge=PvpRouletteState.MAX_STORED_GAUGE-5;
+        cappedOwner.pvpRoulette.chargeClock=PvpStageBasis.TPS-1;
+        cappedOwner.pvpRoulette.initializeCharge(cappedOwner);
+        cappedOwner.pvpRoulette.advance(capped,cappedOwner);
+        Check.equal(PvpRouletteState.MAX_STORED_GAUGE,cappedOwner.pvpRoulette.targetGauge,
+                "roulette internal stock caps at exactly 500 percent");
+        for(int i=0;i<PvpStageBasis.TPS;i++)cappedOwner.pvpRoulette.advance(capped,cappedOwner);
+        Check.equal(PvpRouletteState.MAX_STORED_GAUGE,cappedOwner.pvpRoulette.targetGauge,
+                "roulette cannot bank passive charge beyond 500 percent");
+
         PvpStageBasis instant=duel(RoomRules.SpecialMode.ROULETTE);
         StageBasis instantOwner=instant.right();
         instantOwner.pvpRoulette.gauge=PvpRouletteState.MAX_GAUGE;
@@ -260,15 +273,19 @@ public final class RouletteTests {
         manualOwner.pvpRoulette.advance(manual,manualOwner);
         Check.that(!manualOwner.pvpRoulette.spinning,"roulette reveals its result after roughly two seconds");
         Check.equal(PvpRouletteState.ATTACK_UP,manualOwner.pvpRoulette.lastResult,"test reel reveals attack-up");
-        Check.equal(1,manualOwner.pvpRoulette.attackLevel,"roulette effect applies immediately when the reel stops");
+        Check.equal(0,manualOwner.pvpRoulette.attackLevel,"roulette effect stays unapplied while the result animation is visible");
+        Check.equal(1,manualOwner.pvpRoulette.lastLevel,"result animation previews the level that will activate afterward");
         Check.equal(PvpRouletteState.RESULT_DISPLAY_TICKS,manualOwner.pvpRoulette.resultDelayTicks,"result card keeps its normal display window");
         int pendingTarget=manualOwner.pvpRoulette.targetGauge;
         manualOwner.pvpRoulette.chargeClock=PvpStageBasis.TPS-1;
         manualOwner.pvpRoulette.advance(manual,manualOwner);
         Check.that(manualOwner.pvpRoulette.targetGauge>pendingTarget,"gauge continues charging while result presentation is visible");
-        for(int i=1;i<PvpRouletteState.RESULT_DISPLAY_TICKS;i++)manualOwner.pvpRoulette.advance(manual,manualOwner);
-        Check.equal(1,manualOwner.pvpRoulette.attackLevel,"result effect is not applied twice when the card disappears");
-        Check.equal(-1,manualOwner.pvpRoulette.pendingResult,"pending result card clears after its display window");
+        for(int i=1;i<PvpRouletteState.RESULT_DISPLAY_TICKS-1;i++)manualOwner.pvpRoulette.advance(manual,manualOwner);
+        Check.equal(0,manualOwner.pvpRoulette.attackLevel,"effect remains unapplied through the final visible result tick");
+        Check.that(manualOwner.pvpRoulette.pendingResult>=0,"result is still pending immediately before the cut-in disappears");
+        manualOwner.pvpRoulette.advance(manual,manualOwner);
+        Check.equal(1,manualOwner.pvpRoulette.attackLevel,"roulette effect activates on the tick after the result animation disappears");
+        Check.equal(-1,manualOwner.pvpRoulette.pendingResult,"pending result card clears when the delayed effect activates");
         Check.equal(PvpRouletteState.REPEAT_DELAY_TICKS,manualOwner.pvpRoulette.repeatDelayTicks,
                 "normal result disappearance also starts the synchronized repeat gap");
         Check.that(manualOwner.pvpRoulette.gauge>0,"charge earned during spin/result is retained after consuming one full gauge");
