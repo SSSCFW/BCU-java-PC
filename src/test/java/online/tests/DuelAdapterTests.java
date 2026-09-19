@@ -9,6 +9,8 @@ public final class DuelAdapterTests {
   DuelRoster d=DuelRoster.read(o);
   Check.equal(1,d.leftIndex(),"left not inferred from ID or admission order");
   Check.equal(0,d.indexOf(700),"server identity maps to local engine slot");
+  Check.equal(common.battle.PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER,d.castleHealthMultiplier(0),
+          "legacy roster without castle multiplier uses current 40x default");
   Map<Integer,Integer> m=new TreeMap<>();m.put(700,1);m.put(9,4);
   InputFrame f=d.toDuel(new ResolvedFrame(40,m));
   Check.equal(4,f.left,"guest input is left");Check.equal(1,f.right,"host input is right");
