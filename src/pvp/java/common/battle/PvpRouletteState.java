@@ -15,7 +15,8 @@ import java.util.*;
 public final class PvpRouletteState extends BattleObj {
     public static final int MAX_GAUGE=1000, TEMP_TICKS=150, BABY_RUSH_TICKS=10*PvpStageBasis.TPS,
             BOOSTED_HEAL_SPAWN_TICKS=5*PvpStageBasis.TPS,
-            AUTO_SPIN_TICKS=2*PvpStageBasis.TPS, RESULT_DISPLAY_TICKS=2*PvpStageBasis.TPS, ORIGINAL_MATCH_SECONDS=180;
+            AUTO_SPIN_TICKS=2*PvpStageBasis.TPS, RESULT_DISPLAY_TICKS=2*PvpStageBasis.TPS,
+            REPEAT_DELAY_TICKS=PvpStageBasis.TPS/2, ORIGINAL_MATCH_SECONDS=180;
     public static final int KNOCKBACK=0, HEAL=1, PRODUCTION_RECOVERY=2, CANNON=3,
             PRODUCTION_SHORTEN=4, WORKER_UP=5, COST_DOWN=6, MONEY_MAX=7,
             SLOW=8, STOP=9, ATTACK_UP=10, HP_UP=11, MOVE_UP=12, BABY_RUSH=13;
@@ -34,7 +35,7 @@ public final class PvpRouletteState extends BattleObj {
     private final int[] reel=new int[SOURCE_REEL.length];
     /** Native roulette keeps a target gauge and lets the visible gauge chase it by 50. */
     public int gauge, targetGauge, chargeClock, reelIndex, spinTicks, lastResult=-1, lastLevel;
-    public int pendingResult=-1, resultDelayTicks;
+    public int pendingResult=-1, resultDelayTicks, repeatDelayTicks;
     public long lastCastleHealth=-1;
     public boolean spinning, castleDamageFastSpinReady, castleDamageBoostedSpin, lastResultCastleBoosted;
     public int productionLevel, workerLevel, costLevel, attackLevel, hpLevel, moveLevel;
@@ -125,11 +126,16 @@ public final class PvpRouletteState extends BattleObj {
         int visibleTarget=Math.min(MAX_GAUGE,targetGauge);
         if(gauge<visibleTarget)gauge=Math.min(visibleTarget,gauge+50);
 
-        // Result presentation is display-only now; the effect itself is committed
-        // at reel stop so a banked full gauge can immediately start another spin.
+        // A chained roulette may not begin until the previous result presentation
+        // has fully disappeared and another 0.5 seconds (15 logic ticks) have passed.
         if(pendingResult>=0) {
             if(resultDelayTicks>0)resultDelayTicks--;
-            if(resultDelayTicks<=0)pendingResult=-1;
+            if(resultDelayTicks<=0) {
+                pendingResult=-1;
+                repeatDelayTicks=REPEAT_DELAY_TICKS;
+            }
+        } else if(repeatDelayTicks>0) {
+            repeatDelayTicks--;
         }
 
         if(spinning) {
@@ -232,14 +238,14 @@ public final class PvpRouletteState extends BattleObj {
     }
 
     /**
-     * SPECIAL starts a full roulette gauge. The reel cannot be manually skipped;
-     * it resolves deterministically after roughly two seconds on both peers.
+     * SPECIAL starts a full roulette gauge. Chained spins wait until the previous
+     * result has disappeared and the fixed 0.5-second repeat gap has elapsed.
      */
+    public boolean canPress() {
+        return !spinning && pendingResult<0 && repeatDelayTicks<=0 && gauge>=MAX_GAUGE;
+    }
     public boolean press(PvpStageBasis world, StageBasis owner) {
-        if(spinning || gauge<MAX_GAUGE)return false;
-        // A new spin replaces the previous result card. The previous effect has
-        // already been applied at reel stop, so no gameplay result is discarded.
-        pendingResult=-1;resultDelayTicks=0;
+        if(!canPress())return false;
         gauge=MAX_GAUGE;spinning=true;spinTicks=0;
         castleDamageBoostedSpin=castleDamageFastSpinReady;
         spinDurationTicks=castleDamageBoostedSpin?Math.max(1,AUTO_SPIN_TICKS/2):AUTO_SPIN_TICKS;
