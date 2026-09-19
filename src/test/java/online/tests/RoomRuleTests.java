@@ -55,12 +55,11 @@ public final class RoomRuleTests {
             try {
                 CommonStatic.getConfig().performanceModeBattle=false;
                 OnlineBattleField view=new OnlineBattleField(new CommonStatic.FakeKey(){public boolean pressed(int r,int c){return false;}public void remove(int r,int c){}},a.displayCopy(),1,i->{});
-                Check.equal(30,view.renderFps(),"unforced room respects 30FPS preference");
-                view.force60Fps(true);Check.equal(60,view.renderFps(),"host can force display60");
-                int time=view.sb.time;Thread.sleep(18);view.renderStep();
-                Check.equal(time,view.sb.time,"forced display60 cannot advance logic tick");
-                Check.that(!CommonStatic.getConfig().performanceModeBattle,"force60 is not a global preference mutation");
-                view.force60Fps(false);Check.equal(30,view.renderFps(),"turning off override restores local preference");
+                Check.equal(60,view.renderFps(),"online PvP presentation is fixed at 60FPS");
+                view.force60Fps(false);Check.equal(60,view.renderFps(),"legacy room override cannot lower fixed 60FPS");
+                int time=view.sb.time;view.renderStep();view.renderStep();
+                Check.equal(time,view.sb.time,"60FPS presentation cannot advance logic tick");
+                Check.that(!CommonStatic.getConfig().performanceModeBattle,"fixed online 60FPS is not a global preference mutation");
             } finally {CommonStatic.getConfig().performanceModeBattle=old;}
         }
         for(RoomRules.SpecialMode mode:RoomRules.SpecialMode.values()){
