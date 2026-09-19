@@ -35,6 +35,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private final JPanel setup=new JPanel(new GridBagLayout());
     private final JButton back=new JButton("戻る"),create=new JButton("部屋を作成"),join=new JButton("部屋に参加"),ready=new JButton("準備完了"),leave=new JButton("退出"),copyRoom=new JButton("部屋IDをコピー");
     private final JTextField server=new JTextField(LobbyPreferences.DEFAULT_SERVER,32),name=new JTextField(MainBCU.author,24),room=new JTextField(24);
+    private final JSpinner udpPortOverride=new JSpinner(new SpinnerNumberModel(0,0,65535,1));
     private final JPasswordField password=new JPasswordField(24);
     private final JComboBox<String> side=new JComboBox<>(new String[]{"味方側（右・ピンク）","敵側（左・青）"});
     private final JComboBox<BasisLU> lineup=new JComboBox<>();
@@ -52,7 +53,9 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private String match,hostName,guestName;private int slot=-1,leftSlot=-1,playerId;
     private DuelRoster roster;
     private Future<?> connecting;
-    private final FriendServerPanel friendServer=new FriendServerPanel(server::setText);
+    private final FriendServerPanel friendServer=new FriendServerPanel((url,udp)->{
+        server.setText(url);udpPortOverride.setValue(Math.max(0,udp));
+    });
     private final Path preferencesPath=CommonStatic.ctx.getUserFile("online-client.properties").toPath();
     private final javax.swing.Timer saveTimer=new javax.swing.Timer(400,e->savePreferences());
     private LobbyPreferences preferences;
@@ -69,7 +72,9 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         status.setEditable(false);status.setLineWrap(true);status.setWrapStyleWord(true);content.add(new JScrollPane(status),BorderLayout.SOUTH);
         populateLineupChoices(lineup,BasisSet.current()==null?null:BasisSet.current().sele);
         restoreLocalSetup();
-        row(0,"サーバー",server);row(1,"表示名",name);row(3,"城の位置（作成者）",side);row(4,"部屋ID（参加時）",room);row(5,"パスワード（任意・設定時8文字以上）",password);
+        row(0,"サーバー（TCPはURLの :ポート）",server);
+        row(1,"UDPポート（参加先・0=自動）",udpPortOverride);
+        row(2,"表示名",name);row(3,"城の位置（作成者）",side);row(4,"部屋ID（参加時）",room);row(5,"パスワード（任意・設定時8文字以上）",password);
         row(7,"",development);
         JPanel actions=new JPanel(new FlowLayout(FlowLayout.LEADING));actions.add(create);actions.add(join);row(8,"",actions);row(9,"友人用サーバー",friendServer);
         ready.setEnabled(false);leave.setEnabled(false);copyRoom.setEnabled(false);
@@ -128,7 +133,8 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                     if(!current(attempt))return;
                     String game=GameFingerprint.compute(text->message(attempt,text));
                     if(!current(attempt))return;
-                    connection=new RoomClient(uri,allowDevelopment,listener(attempt));
+                    int udpOverride=((Number)udpPortOverride.getValue()).intValue();
+                    connection=new RoomClient(uri,allowDevelopment,true,udpOverride,listener(attempt));
                     final RoomClient candidate=connection;
                     SwingUtilities.invokeAndWait(()->{if(current(attempt))client=candidate;});
                     if(!current(attempt)){connection.close();return;}
@@ -145,7 +151,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         public void bundle(int id,Path file,String hash){receiveBundle(attempt,id,file,hash);}
         public void failed(String reason){OnlineLobbyPage.this.failed(attempt,reason);}
     };}
-    private void setSetupEnabled(boolean enabled){friendServer.connectionActive(!enabled);server.setEnabled(enabled);name.setEnabled(enabled);room.setEnabled(enabled);password.setEnabled(enabled);lineup.setEnabled(enabled);side.setEnabled(enabled);development.setEnabled(enabled);create.setEnabled(enabled);join.setEnabled(enabled);}
+    private void setSetupEnabled(boolean enabled){friendServer.connectionActive(!enabled);server.setEnabled(enabled);udpPortOverride.setEnabled(enabled);name.setEnabled(enabled);room.setEnabled(enabled);password.setEnabled(enabled);lineup.setEnabled(enabled);side.setEnabled(enabled);development.setEnabled(enabled);create.setEnabled(enabled);join.setEnabled(enabled);}
     @Override public void event(JsonObject event){dispatch(generation,event);}
     private void dispatch(int attempt,JsonObject event){SwingUtilities.invokeLater(()->{if(!current(attempt))return;try{handle(event);}catch(Exception e){failed("対戦の準備に失敗: "+e.getMessage());}});}
     private void handle(JsonObject e)throws Exception{
@@ -323,8 +329,8 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         if(!disposed)status.setText((playerId>0?"部屋ID: "+room.getText()+" / "+(roomProtected?"パスワードあり":"パスワードなし")+"\n":"")+text);
     }else{int attempt=generation;message(attempt,text);}}
     private void loadPreferences(){
-        try{preferences=LobbyPreferences.load(preferencesPath,MainBCU.author);server.setText(preferences.serverAddress);name.setText(preferences.displayName);}
-        catch(java.io.IOException e){System.err.println("BCU online preferences: "+e.getMessage());preferences=new LobbyPreferences(LobbyPreferences.DEFAULT_SERVER,MainBCU.author);server.setText(preferences.serverAddress);name.setText(preferences.displayName);}
+        try{preferences=LobbyPreferences.load(preferencesPath,MainBCU.author);server.setText(preferences.serverAddress);udpPortOverride.setValue(preferences.udpPortOverride);name.setText(preferences.displayName);}
+        catch(java.io.IOException e){System.err.println("BCU online preferences: "+e.getMessage());preferences=new LobbyPreferences(LobbyPreferences.DEFAULT_SERVER,MainBCU.author);server.setText(preferences.serverAddress);udpPortOverride.setValue(preferences.udpPortOverride);name.setText(preferences.displayName);}
     }
     private void bindPreferences(){
         saveTimer.setRepeats(false);
@@ -335,14 +341,16 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
             public void changedUpdate(DocumentEvent e){changed();}
         };
         server.getDocument().addDocumentListener(listener);name.getDocument().addDocumentListener(listener);
+        udpPortOverride.addChangeListener(e->{preferencesDirty=true;saveTimer.restart();});
         side.addActionListener(e->{preferencesDirty=true;saveTimer.restart();});
         lineup.addActionListener(e->{preferencesDirty=true;saveTimer.restart();});
     }
     private void savePreferences(){
         saveTimer.stop();if(!preferencesDirty)return;
         try{
-            if(preferences==null)preferences=new LobbyPreferences(server.getText(),name.getText());
-            else preferences=preferences.withConnection(server.getText(),name.getText());
+            int udpOverride=((Number)udpPortOverride.getValue()).intValue();
+            if(preferences==null)preferences=new LobbyPreferences(server.getText(),name.getText()).withConnection(server.getText(),name.getText(),udpOverride);
+            else preferences=preferences.withConnection(server.getText(),name.getText(),udpOverride);
             preferences=preferences.withLocalSetup(side.getSelectedIndex(),selectedLineupKind(),selectedLineupSet(),selectedLineupIndex());
             preferences.save(preferencesPath);preferencesDirty=false;
         }
