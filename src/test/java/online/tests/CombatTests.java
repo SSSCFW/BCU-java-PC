@@ -137,9 +137,10 @@ private static void castleHitMoneyTests() throws Exception {
     victim.money=0;
     AttackSimple hit=(AttackSimple)model(attacker).getAttack(0);
     victim.ownBase().damaged(hit);
-    Check.equal(5,victim.money,"one successful castle hit grants configured money once");
+    Check.equal(500,victim.money,"one successful castle hit grants configured 5 displayed yen");
+    Check.equal(5,victim.getMoney(),"castle-hit reward uses the same visible-yen units as the HUD");
     victim.ownBase().damaged((AttackSimple)model(attacker).getAttack(0));
-    Check.equal(10,victim.money,"each separate castle hit grants another configured bonus");
+    Check.equal(1000,victim.money,"each separate castle hit grants another configured 5 yen");
     victim.money=Math.max(0,victim.maxMoney-2);
     victim.ownBase().damaged((AttackSimple)model(attacker).getAttack(0));
     Check.equal(victim.maxMoney,victim.money,"castle-hit money never exceeds wallet limit");
