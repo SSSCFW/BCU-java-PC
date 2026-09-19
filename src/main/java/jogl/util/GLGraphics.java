@@ -324,7 +324,7 @@ public class GLGraphics implements GeoAuto {
 	@Override
 	public void drawImage(FakeImage bimg, float x, float y, float w, float h) {
 		checkMode(IMG);
-		GLImage gl = (GLImage) bimg.gl();
+		GLImage gl = tm.image(bimg);
 		if (gl == null)
 			return;
 		compImpl();
