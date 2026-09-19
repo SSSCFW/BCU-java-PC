@@ -16,8 +16,16 @@ public final class PlayerTraitTests {
         FixtureNativeUi.init();
         Unit leftUnit=FixtureNativeUi.unit("trait_left",0xffaa4433);
         Unit rightUnit=FixtureNativeUi.unit("trait_right",0xff3344aa);
-        ((common.battle.data.CustomUnit)leftUnit.forms[0].du).price=1;
-        ((common.battle.data.CustomUnit)rightUnit.forms[0].du).price=1;
+        Trait red=common.pack.UserProfile.getBCData().traits.get(Data.TRAIT_RED);
+        Trait black=common.pack.UserProfile.getBCData().traits.get(Data.TRAIT_BLACK);
+        Trait white=common.pack.UserProfile.getBCData().traits.get(Data.TRAIT_WHITE);
+        common.battle.data.CustomUnit leftData=(common.battle.data.CustomUnit)leftUnit.forms[0].du;
+        common.battle.data.CustomUnit rightData=(common.battle.data.CustomUnit)rightUnit.forms[0].du;
+        leftData.price=1;rightData.price=1;
+        // Deliberately give the source units native traits. PvP's selected player
+        // attribute must replace these, never combine with them.
+        leftData.traits.add(white);leftData.traits.add(black);
+        rightData.traits.add(white);rightData.traits.add(red);
         BasisLU left=Fixture.lineup(leftUnit),right=Fixture.lineup(rightUnit);
 
         RoomRules rules=new RoomRules(4400,0,3,false,RoomRules.SpecialMode.ROULETTE,false,
@@ -29,16 +37,32 @@ public final class PlayerTraitTests {
         EUnit rightSpawn=(EUnit)battle.le.stream().filter(e->e instanceof EUnit&&e.dire==-1).findFirst().orElseThrow(AssertionError::new);
         Check.equal((int)Data.TRAIT_RED,leftSpawn.pvpAssignedTrait(),"left player's spawned unit receives selected red attribute");
         Check.equal((int)Data.TRAIT_BLACK,rightSpawn.pvpAssignedTrait(),"right player's spawned unit receives selected black attribute");
-        Trait red=common.pack.UserProfile.getBCData().traits.get(Data.TRAIT_RED);
-        Trait black=common.pack.UserProfile.getBCData().traits.get(Data.TRAIT_BLACK);
+        Check.equal(1,leftSpawn.traits.size(),"selected PvP attribute replaces all source-unit traits");
+        Check.that(leftSpawn.traits.contains(red),"red-selected unit exposes only red in its runtime trait list");
+        Check.that(!leftSpawn.traits.contains(white),"red-selected unit does not remain mixed with untraited/white");
+        Check.that(!leftSpawn.traits.contains(black),"red-selected unit does not retain another native source trait");
+        Check.equal(1,rightSpawn.traits.size(),"right player's selected attribute is also exclusive");
+        Check.that(rightSpawn.traits.contains(black),"black-selected unit exposes only black");
+        Check.that(!rightSpawn.traits.contains(white)&&!rightSpawn.traits.contains(red),"black-selected unit drops white and source red traits");
         Check.that(leftSpawn.traitCompatible(Collections.singletonList(red),rightSpawn,true),"red-target-only attack can target a red-assigned PvP unit");
         Check.that(!leftSpawn.traitCompatible(Collections.singletonList(black),rightSpawn,true),"black-target-only attack cannot target a red-assigned PvP unit");
+        Check.that(!leftSpawn.traitCompatible(Collections.singletonList(white),rightSpawn,true),"white-target-only attack cannot target a red-assigned PvP unit");
 
         PvpStageBasis noTrait=new PvpStageBasis(left,right,9982,0,rules,1.0,1.0,PvpTraitRules.NONE,PvpTraitRules.NONE);
         noTrait.left().money=999999;noTrait.step(new InputFrame(0,1,0));
         EUnit neutral=(EUnit)noTrait.le.stream().filter(e->e instanceof EUnit&&e.dire==1).findFirst().orElseThrow(AssertionError::new);
         Check.equal(PvpTraitRules.NONE,neutral.pvpAssignedTrait(),"default PvP unit attribute is none");
+        Check.that(neutral.traits.isEmpty(),"NONE PvP attribute clears native white/other source traits");
         Check.that(!neutral.traitCompatible(Collections.singletonList(red),rightSpawn,true),"attribute-less unit is not treated as red");
+        Check.that(!neutral.traitCompatible(Collections.singletonList(white),rightSpawn,true),"NONE is distinct from explicitly selected white");
+
+        PvpStageBasis explicitWhite=new PvpStageBasis(left,right,9985,0,rules,1.0,1.0,Data.TRAIT_WHITE,Data.TRAIT_BLACK);
+        explicitWhite.left().money=999999;explicitWhite.step(new InputFrame(0,1,0));
+        EUnit whiteSpawn=(EUnit)explicitWhite.le.stream().filter(e->e instanceof EUnit&&e.dire==1).findFirst().orElseThrow(AssertionError::new);
+        Check.equal(1,whiteSpawn.traits.size(),"explicit white selection still has exactly one runtime trait");
+        Check.that(whiteSpawn.traits.contains(white),"white is present only when explicitly selected");
+        Check.that(whiteSpawn.traitCompatible(Collections.singletonList(white),rightSpawn,true),"white-target attack matches explicit white selection");
+        Check.that(!whiteSpawn.traitCompatible(Collections.singletonList(red),rightSpawn,true),"explicit white selection is not mixed with red");
 
         RoomRules randomRules=new RoomRules(4400,0,3,false,RoomRules.SpecialMode.NONE,false,
                 PvpTraitRules.RANDOM,PvpTraitRules.RANDOM,1<<PvpTraitRules.optionIndex(Data.TRAIT_RED),
