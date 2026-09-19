@@ -239,10 +239,13 @@ public final class LobbyUiTests {
                     Check.that(!((JLabel)field(nativePage,"timer")).isVisible(),"online page hides the oversized duplicate Swing timer; the smaller timer is rendered inside the battlefield");
                     PvpRouletteHud rouletteHud=(PvpRouletteHud)field(nativePage,"onlineSpecial");Check.that(rouletteHud.isVisible(),"native roulette HUD is visible in roulette mode");Check.that(rouletteHud.has3dsAssets(),"native battle page uses decoded 3DS roulette assets: "+Pvp3dsAssets.diagnostic());
                     JButton rouletteDebug=(JButton)field(nativePage,"rouletteDebugMax");
-                    JLabel onlineLog=(JLabel)field(nativePage,"stream");
+                    JLabel onlineLog=(JLabel)field(nativePage,"stream"),onlineMarker=(JLabel)field(nativePage,"onlineTag");
+                    java.awt.Canvas battleCanvas=(java.awt.Canvas)field(nativePage,"bb");
                     Check.that(((AbstractButton)field(nativePage,"jtb")).isSelected(),"battle entered directly in large mode");
                     Check.that(rouletteDebug.isVisible()&&rouletteDebug.getWidth()>0&&rouletteDebug.getHeight()>0,"debug MAX button is laid out when entering directly in large mode");
                     Check.that(onlineLog.isVisible()&&onlineLog.getWidth()>0&&onlineLog.getHeight()>0,"online log is laid out when entering directly in large mode");
+                    Check.that(onlineMarker.getY()+onlineMarker.getHeight()<=battleCanvas.getY(),
+                            "Online marker stays above the battlefield instead of covering money/HUD");
                     Check.that(live.b.lu.fs[0][0].unit.id.pack.contains("pvp"),"edited lineup remains isolated by match");
                     Check.equal(host?23:81,io.BCMusic.VOL_BG,"individual lobby BGM gain retained");
                     ((JButton)field(nativePage,"audio")).doClick();JDialog dialog=(JDialog)field(nativePage,"audioDialog");
