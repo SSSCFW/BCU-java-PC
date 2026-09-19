@@ -23,9 +23,9 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     private final int direction;
     private int frontRow, changeFrame = -1;
     private boolean goingUp, interactive = true, halfAdvanced, renderedSincePublish, battleUiHidden;
-    private boolean force60;
-    public void force60Fps(boolean value){force60=value;}
-    public int renderFps(){return force60||CommonStatic.getConfig().performanceModeBattle?60:30;}
+    /** Online PvP presentation is always 60 FPS; simulation remains fixed at 30 TPS. */
+    public void force60Fps(boolean value){/* retained for protocol/UI compatibility */}
+    public int renderFps(){return 60;}
 
     public OnlineBattleField(CommonStatic.FakeKey keys, PvpStageBasis displayCopy,
                              int direction, IntConsumer send) {
