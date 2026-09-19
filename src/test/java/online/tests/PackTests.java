@@ -1,7 +1,9 @@
 package online.tests;
 
 import common.battle.BasisLU;
+import common.pack.Identifier;
 import common.pack.UserProfile;
+import common.util.unit.Combo;
 import common.util.unit.Unit;
 import java.nio.file.*;
 
@@ -10,6 +12,11 @@ public final class PackTests {
         Fixture.init();
         Unit original=Fixture.unit("collision_pack",1000);
         BasisLU lineup=Fixture.lineup(original);
+        common.pack.PackData.UserPack sourcePack=UserProfile.getUserPack("collision_pack");
+        Combo sourceCombo=new Combo(new Identifier<>("collision_pack",Combo.class,0),"PvP random combo",0,0,1,original.forms[0]);
+        sourcePack.combos.set(0,sourceCombo);
+        lineup.lu.renew();
+        Check.that(lineup.lu.coms.contains(sourceCombo),"source lineup detects its custom combo");
         try {Class.forName("online.bundle.MatchBundle");} catch(ClassNotFoundException e){throw new AssertionError("Missing isolated pack exchange",e);}
         Class<?> type=Class.forName("online.bundle.MatchBundle");
         Path archive=(Path)type.getMethod("export",BasisLU.class).invoke(null,lineup);
@@ -34,6 +41,10 @@ public final class PackTests {
             Check.equal(original.forms[0].names.toString(),la.lu.fs[0][0].names.toString(),"display name preserved");
             Check.equal(original,UserProfile.getUserPack("collision_pack").units.getRaw(0),"local pack never overwritten");
             Check.that(la.lu.fs[0][0].anim.getNum().getWidth()==2,"sprite bytes round trip");
+            Check.equal(1,la.lu.coms.size(),"mounted lineup rebuilds its custom combo instead of failing Missing combo");
+            Check.that(la.lu.coms.get(0).id.pack.startsWith("pvp_0123456789abcdef0123456789abcdef_s0_"),
+                    "mounted combo belongs to this player's temporary pack");
+            Check.equal(1,lb.lu.coms.size(),"second player mount independently rebuilds its own combo");
         }finally {
             ((AutoCloseable)a).close();((AutoCloseable)b).close();Files.deleteIfExists(archive);
         }
