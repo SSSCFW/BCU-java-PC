@@ -142,9 +142,9 @@ public class AtkModelUnit extends AtkModelEntity {
 		if (((EUnit) e).legendGrade != -1)
 			atk = atk * (100 + ORB_LEGEND_ATTACK[((EUnit) e).legendGrade]) / 100;
 
-		if (e.basis.pvpRoulette != null && e.basis.pvpRoulette.attackLevel > 0)
-			atk = (int) Math.round(atk * e.basis.pvpRoulette.attackMultiplier());
-
+		// PvP roulette attack-up is target-sensitive: it applies to units but not
+		// castles. Keep the attack packet at its original strength and apply the
+		// roulette multiplier later in PvpDamage when a unit receives damage.
 		extraAtk(ind);
 
 		return atk;
