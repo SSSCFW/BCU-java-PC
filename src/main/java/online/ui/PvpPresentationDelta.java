@@ -44,8 +44,15 @@ public final class PvpPresentationDelta {
     }
 
     public void apply(PvpStageBasis display,Map<Long,Entity> entityIndex){
+        apply(display,entityIndex,0,null);
+    }
+
+    /** Apply local slot-indexed HUD values through the viewer's presentation permutation. */
+    public void apply(PvpStageBasis display,Map<Long,Entity> entityIndex,int localDirection,int[] visibleToCanonical){
         if(display==null)return;
-        applyPlayer(display.left(),left);applyPlayer(display.right(),right);
+        int[] leftMap=localDirection==1?visibleToCanonical:null;
+        int[] rightMap=localDirection==-1?visibleToCanonical:null;
+        applyPlayer(display.left(),left,leftMap);applyPlayer(display.right(),right,rightMap);
         display.time=tick;display.left().time=tick;
         for(int i=0;i<ids.length;i++){
             Entity e=entityIndex.get(ids[i]);if(e==null)continue;
@@ -60,17 +67,19 @@ public final class PvpPresentationDelta {
         return out;
     }
 
-    private static void applyPlayer(StageBasis target,PlayerDelta source){
+    private static void applyPlayer(StageBasis target,PlayerDelta source,int[] visibleToCanonical){
         target.money=source.money;target.maxMoney=source.maxMoney;
         target.cannon=source.cannon;target.maxCannon=source.maxCannon;
         target.work_lv=source.workLevel;target.upgradeCost=source.upgradeCost;target.unitRespawnTime=source.unitRespawnTime;target.maxCatSpawns=source.maxCatSpawns;
         target.ownBase().health=source.castleHealth;
-        for(int row=0;row<2;row++)for(int col=0;col<5;col++){
-            target.elu.cool[row][col]=source.cool[row][col];target.elu.price[row][col]=source.price[row][col];
-            target.elu.tick[row][col]=source.tick[row][col];target.elu.maxC[row][col]=source.maxC[row][col];
-            target.frameOffCd[row][col]=source.frameOffCd[row][col];target.locks[row][col]=source.locks[row][col];
-            System.arraycopy(source.cdDelayVisual[row][col],0,target.cdDelayVisual[row][col],0,
-                    Math.min(source.cdDelayVisual[row][col].length,target.cdDelayVisual[row][col].length));
+        for(int visible=0;visible<10;visible++){
+            int canonical=visibleToCanonical==null?visible:visibleToCanonical[visible];
+            int row=visible/5,col=visible%5,sourceRow=canonical/5,sourceCol=canonical%5;
+            target.elu.cool[row][col]=source.cool[sourceRow][sourceCol];target.elu.price[row][col]=source.price[sourceRow][sourceCol];
+            target.elu.tick[row][col]=source.tick[sourceRow][sourceCol];target.elu.maxC[row][col]=source.maxC[sourceRow][sourceCol];
+            target.frameOffCd[row][col]=source.frameOffCd[sourceRow][sourceCol];target.locks[row][col]=source.locks[sourceRow][sourceCol];
+            System.arraycopy(source.cdDelayVisual[sourceRow][sourceCol],0,target.cdDelayVisual[row][col],0,
+                    Math.min(source.cdDelayVisual[sourceRow][sourceCol].length,target.cdDelayVisual[row][col].length));
         }
         if(target.pvpRoulette!=null&&source.roulette!=null)source.roulette.apply(target.pvpRoulette);
     }
