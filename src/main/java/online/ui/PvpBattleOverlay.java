@@ -15,6 +15,22 @@ public final class PvpBattleOverlay extends JPanel {
     public PvpBattleOverlay(){setOpaque(true);setBackground(new Color(18,20,26));setVisible(false);}
     public void capture(BattleBox box,int width,int height){
         if(width<=0||height<=0)return;
+        // BattleBox is normally a heavyweight Canvas. Re-drawing a crowded final
+        // frame through FG2D can take seconds; copy the pixels that are already on
+        // screen instead. This is the same fast path used by the JOGL view widgets.
+        if(box instanceof Component){
+            Component component=(Component)box;
+            try{
+                if(component.isShowing()){
+                    Point p=component.getLocationOnScreen();
+                    frame=new Robot().createScreenCapture(new Rectangle(p.x,p.y,width,height));
+                    return;
+                }
+            }catch(AWTException|IllegalComponentStateException|SecurityException e){
+                System.err.println("BCU PvP fast ending snapshot unavailable: "+e.getMessage());
+            }
+        }
+        // Fallback for headless/non-showing test surfaces.
         BufferedImage image=new BufferedImage(width,height,BufferedImage.TYPE_INT_RGB);
         Graphics2D g=image.createGraphics();
         try{box.getPainter().draw(new FG2D(g));frame=image;}
