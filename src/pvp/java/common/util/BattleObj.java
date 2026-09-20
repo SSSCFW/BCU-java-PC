@@ -120,18 +120,20 @@ public class BattleObj extends ImgCore implements Cloneable {
 
 	@SuppressWarnings("unchecked")
 	private static List<Field> getField(Class<? extends BattleObj> cls) {
-		return FIELD_CACHE.computeIfAbsent(cls,key->{
-			List<Field> fl = new ArrayList<>();
-			for (Field f : key.getDeclaredFields())
-				if (!Modifier.isStatic(f.getModifiers())) {
-					f.setAccessible(true);
-					fl.add(f);
-				}
-			Class<?> parent=key.getSuperclass();
-			if (parent!=null && parent!=BattleObj.class && BattleObj.class.isAssignableFrom(parent))
-				fl.addAll(getField((Class<? extends BattleObj>)parent));
-			return Collections.unmodifiableList(fl);
-		});
+		List<Field> cached=FIELD_CACHE.get(cls);
+		if(cached!=null)return cached;
+		List<Field> fl = new ArrayList<>();
+		for (Field f : cls.getDeclaredFields())
+			if (!Modifier.isStatic(f.getModifiers())) {
+				f.setAccessible(true);
+				fl.add(f);
+			}
+		Class<?> parent=cls.getSuperclass();
+		if (parent!=null && parent!=BattleObj.class && BattleObj.class.isAssignableFrom(parent))
+			fl.addAll(getField((Class<? extends BattleObj>)parent));
+		List<Field> built=Collections.unmodifiableList(fl);
+		List<Field> prior=FIELD_CACHE.putIfAbsent(cls,built);
+		return prior==null?built:prior;
 	}
 
 	protected BattleObj copy = null;
