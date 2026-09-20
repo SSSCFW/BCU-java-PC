@@ -154,6 +154,7 @@ public class ELineUp extends BattleObj {
 		if (inc < 0) {
 			if (cool[i][j] <= 0) {
 				cool[i][j] = 0;
+                applyPendingPvpMaxC(i,j);
 				PvpAudio.notification(b, SE_SPEND_REF);
 				b.frameOffCd[i][j] = b.time;
 			} else {
