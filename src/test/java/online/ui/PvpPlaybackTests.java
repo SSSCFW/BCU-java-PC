@@ -14,7 +14,7 @@ public final class PvpPlaybackTests {
         while(!condition.getAsBoolean()&&System.nanoTime()<until)Thread.sleep(10);
         Check.that(condition.getAsBoolean(),reason);
     }
-    public static void run()throws Exception{for(String mode:new String[]{"decode","loop","missing-stop","mute","slow-open","cancel","unavailable","initial-mute","zero-volume"})test(mode);}
+    public static void run()throws Exception{for(String mode:new String[]{"decode","loop","missing-stop","mute","slow-open","cancel","battle-boundary","unavailable","initial-mute","zero-volume"})test(mode);}
     private static void test(String mode)throws Exception{
         boolean enabled=BCMusic.play;int volume=BCMusic.VOL_SE;
         RecordingMixerProvider.enable();RecordingMixerProvider.reset();BCMusic.music=null;BCMusic.play=true;BCMusic.VOL_SE=70;
@@ -58,6 +58,16 @@ public final class PvpPlaybackTests {
                     PvpSoundBank.play(PvpSoundBank.Sound.BATTLE_END,callback::incrementAndGet);PvpSoundBank.stopAll();
                     Thread.sleep(1700);Check.equal(0,callback.get(),"leaving cannot show a stale result or restart its BGM");
                     Check.that(RecordingMixerProvider.opened.stream().allMatch(r->r.closed),"cancelled open releases its device");break;
+                case "battle-boundary":
+                    PvpSoundBank.startLoop(PvpSoundBank.Sound.ROULETTE_SPIN);
+                    await(()->RecordingMixerProvider.started.size()==1,"old battle sound starts");
+                    RecordingMixerProvider.Recording old=RecordingMixerProvider.started.get(0);
+                    Check.that(old.running,"old battle clip is running before boundary");
+                    PvpSoundBank.stopAll();
+                    Check.that(!old.running,"battle boundary silences previous PvP audio synchronously");
+                    PvpSoundBank.play(PvpSoundBank.Sound.ROULETTE_START);
+                    await(()->RecordingMixerProvider.started.size()>=2,"new battle sound can start after old audio is silenced");
+                    Check.that(!old.running,"old battle clip cannot bleed into the next battle");break;
                 case "unavailable":
                     RecordingMixerProvider.failOpen=true;AtomicInteger failures=new AtomicInteger();
                     PvpSoundBank.play(PvpSoundBank.Sound.BATTLE_END,failures::incrementAndGet);
