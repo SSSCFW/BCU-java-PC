@@ -9,7 +9,10 @@ import page.MainFrame;
 import page.awt.AWTBBB;
 import page.awt.BBBuilder;
 import page.battle.BattleInfoPage;
+import page.battle.BattleBox;
+import page.battle.BBCtrl;
 import java.awt.*;
+import java.awt.event.MouseEvent;
 import java.lang.reflect.*;
 import java.nio.file.*;
 import java.util.concurrent.*;
@@ -45,6 +48,15 @@ public final class BattlePresentationTests {
             return null;
         });
     }
+    private static Point slotPoint(BBCtrl painter,Canvas canvas,int slot){
+        for(int y=0;y<canvas.getHeight();y+=4)for(int x=0;x<canvas.getWidth();x+=4){
+            Point p=new Point(x,y);if(painter.slotAt(p)==slot)return p;
+        }
+        throw new AssertionError("No visible point for lineup slot "+slot);
+    }
+    private static void pageMouse(String method,MouseEvent event)throws Exception{
+        Method m=BattleInfoPage.class.getDeclaredMethod(method,MouseEvent.class);m.setAccessible(true);m.invoke(page,event);
+    }
     private static void screenshot(String name)throws Exception{
         Path dir=Paths.get("target/presentation-regression");Files.createDirectories(dir);
         Rectangle bounds=edt(()->{Point p=MainFrame.F.getLocationOnScreen();return new Rectangle(p,MainFrame.F.getSize());});
@@ -79,6 +91,19 @@ public final class BattlePresentationTests {
                         System.out.println(name+" z="+page.getComponentZOrder(c)+" canvas="+page.getComponentZOrder(canvas)+" bounds="+c.getBounds());
                         Check.that(page.getComponentZOrder(c)<page.getComponentZOrder(canvas),"initial-large "+name+" must be above the Canvas without toggling size");
                     }
+                    return null;
+                });
+                if(args[0].equals("slot-drag"))edt(()->{
+                    BattleBox box=(BattleBox)field(page,"bb");Canvas canvas=(Canvas)box;
+                    BBCtrl painter=(BBCtrl)box.getPainter();OnlineBattleField view=(OnlineBattleField)field(page,"online");
+                    Check.that(view.visibleForm(0)!=null&&view.visibleForm(1)==null,"slot-drag fixture begins with one unit in slot zero");
+                    Point from=slotPoint(painter,canvas,0),to=slotPoint(painter,canvas,1);long now=System.currentTimeMillis();
+                    pageMouse("mousePressed",new MouseEvent(canvas,MouseEvent.MOUSE_PRESSED,now,MouseEvent.BUTTON2_DOWN_MASK,from.x,from.y,1,false,MouseEvent.BUTTON2));
+                    pageMouse("mouseDragged",new MouseEvent(canvas,MouseEvent.MOUSE_DRAGGED,now+1,MouseEvent.BUTTON2_DOWN_MASK,to.x,to.y,0,false,MouseEvent.NOBUTTON));
+                    pageMouse("mouseReleased",new MouseEvent(canvas,MouseEvent.MOUSE_RELEASED,now+2,0,to.x,to.y,1,false,MouseEvent.BUTTON2));
+                    Check.equal(1,view.canonicalSlotForVisible(0),"middle-button drag swaps visible slot mapping");
+                    Check.equal(0,view.canonicalSlotForVisible(1),"middle-button drag preserves inverse mapping");
+                    Check.that(view.visibleForm(0)==null&&view.visibleForm(1)!=null,"middle-button drag visibly moves the unit to the destination slot");
                     return null;
                 });
                 if(args[0].endsWith("result")){
