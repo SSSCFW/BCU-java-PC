@@ -32,10 +32,9 @@ public final class BundleTests {
 
         FixtureNativeUi.init();
         common.util.unit.Unit broken=FixtureNativeUi.unit("bundle_pool_broken_icon",0xff333333);
-        java.lang.reflect.Field iconImage=common.system.VImg.class.getDeclaredField("bimg");iconImage.setAccessible(true);
-        iconImage.set(broken.forms[0].anim.getUni(),null);
-        java.lang.reflect.Field iconLoaded=common.system.VImg.class.getDeclaredField("loaded");iconLoaded.setAccessible(true);
-        iconLoaded.setBoolean(broken.forms[0].anim.getUni(),true);
+        Object keeper=broken.forms[0].anim.loader;
+        java.lang.reflect.Field keeperUni=keeper.getClass().getDeclaredField("uni");keeperUni.setAccessible(true);
+        keeperUni.set(keeper,new common.system.VImg((common.system.fake.FakeImage)null));
         java.lang.reflect.Method best=online.bundle.MatchBundle.class.getDeclaredMethod("bestProductionForm",common.util.unit.Unit.class);best.setAccessible(true);
         Check.equal(null,best.invoke(null,broken),"reroll pool excludes units whose deploy icon cannot render");
 
