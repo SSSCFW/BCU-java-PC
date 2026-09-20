@@ -31,6 +31,7 @@ public final class RoomLobbyPage extends Page {
     private final JButton back=new JButton("部屋から退出"),edit=new JButton("編成を編集"),apply=new JButton("ルールを適用"),
             applyPlayer=new JButton("自分設定を適用"),ready;
     private final JComboBox<BasisLU> lineup;
+    private final JComboBox<RandomLineupFactory.SortOrder> randomSort=new JComboBox<>(RandomLineupFactory.SortOrder.values());
     private final JCheckBox force60=new JCheckBox("表示: 60FPS固定（戦闘処理は30TPS）"),
             debugMode=new JCheckBox("デバッグモード（全員にルーレットMAXボタンを表示）"),
             unlimitedTime=new JCheckBox("無制限"),
@@ -74,6 +75,7 @@ public final class RoomLobbyPage extends Page {
         JPanel own=new JPanel(new BorderLayout(6,6));own.setBorder(BorderFactory.createTitledBorder("自分の編成・設定"));
         JPanel ownTop=new JPanel();ownTop.setLayout(new BoxLayout(ownTop,BoxLayout.Y_AXIS));
         JPanel choose=new JPanel(new BorderLayout(8,0));choose.add(lineup,BorderLayout.CENTER);choose.add(edit,BorderLayout.EAST);ownTop.add(choose);
+        JPanel randomSortRow=new JPanel(new FlowLayout(FlowLayout.LEADING));randomSortRow.add(new JLabel("ランダム編成の並び"));randomSortRow.add(randomSort);ownTop.add(randomSortRow);
         JPanel castleRow=new JPanel(new FlowLayout(FlowLayout.LEADING));castleRow.add(new JLabel("自分の城体力倍率"));castleRow.add(castleHealthMultiplier);castleRow.add(new JLabel("倍"));castleRow.add(applyPlayer);ownTop.add(castleRow);
         own.add(ownTop,BorderLayout.NORTH);
         JPanel slots=new JPanel(new GridLayout(2,5,6,6));for(int i=0;i<10;i++){icons[i]=new JLabel("—",SwingConstants.CENTER);icons[i].setVerticalTextPosition(SwingConstants.BOTTOM);icons[i].setHorizontalTextPosition(SwingConstants.CENTER);slots.add(icons[i]);}own.add(slots,BorderLayout.CENTER);sections.add(own);
@@ -111,6 +113,17 @@ public final class RoomLobbyPage extends Page {
         back.addActionListener(e->owner.returnToConnection());edit.addActionListener(e->editLineup());apply.addActionListener(e->applyRules());applyPlayer.addActionListener(e->applyPlayerRules());
         lineupListener=e->{if(!loading&&!closed&&!editing){preview();pending=true;client.setLineupName(summary());refreshControls();}};
         lineup.addActionListener(lineupListener);
+        randomSort.setSelectedItem(owner.savedRandomLineupSort());
+        randomSort.addActionListener(e->{
+            if(loading||closed||editing)return;
+            RandomLineupFactory.SortOrder value=(RandomLineupFactory.SortOrder)randomSort.getSelectedItem();
+            if(value==null)return;
+            owner.rememberRandomLineupSort(value);
+            if(editable()&&!ownReady()){
+                pending=true;client.setLineupName(summary());
+            }
+            refreshControls();
+        });
 
         distance.addChangeListener(e->rulesChanged());background.addActionListener(e->rulesChanged());
         music.addActionListener(e->{if(!loading)stopMusicPreview();rulesChanged();});
@@ -207,6 +220,7 @@ public final class RoomLobbyPage extends Page {
         setExclusionEnabled(guestTraitExclude,hostCan&&selectedTrait(guestTrait)==PvpTraitRules.RANDOM);
         apply.setEnabled(hostCan&&dirty);
         BasisLU selected=(BasisLU)lineup.getSelectedItem();
+        randomSort.setEnabled(can&&selected!=null&&owner.isRandomLineupChoice(selected));
         ready.setText(ownReady()?"準備を解除":"準備完了");
         ready.setEnabled(editable()&&!pending&&!closed&&(ownReady()||(!dirty&&!playerDirty&&owner.canReadyLineup(selected))));
         if(!editable()&&state!=null){ready.setText("共有・開始待ち…");edit.setEnabled(false);}
@@ -265,7 +279,15 @@ public final class RoomLobbyPage extends Page {
         pending=true;client.lobbyReady(!ownReady(),state.get("revision").getAsLong());refreshControls();
     }
 
-    private String summary(){String s=String.valueOf(lineup.getSelectedItem());return s.length()>120?s.substring(0,120):s;}
+    private String summary(){
+        BasisLU selected=(BasisLU)lineup.getSelectedItem();
+        String s=String.valueOf(selected);
+        if(selected!=null&&owner.isRandomLineupChoice(selected)){
+            RandomLineupFactory.SortOrder sort=(RandomLineupFactory.SortOrder)randomSort.getSelectedItem();
+            if(sort!=null&&sort!=RandomLineupFactory.SortOrder.SHUFFLED)s+=" / "+sort;
+        }
+        return s.length()>120?s.substring(0,120):s;
+    }
     private void preview(){BasisLU b=(BasisLU)lineup.getSelectedItem();boolean random=b!=null&&owner.isRandomLineupChoice(b);for(int i=0;i<10;i++){Form f=b==null||random?null:b.lu.fs[i/5][i%5];icons[i].setIcon(null);icons[i].setText(random?"?":f==null?"—":f.toString());if(f!=null&&f.anim!=null)try{icons[i].setIcon(UtilPC.getIcon(f.anim.getUni()));}catch(Exception ignored){}}}
     private void editLineup(){
         if(!editable()||ownReady()||pending)return;
