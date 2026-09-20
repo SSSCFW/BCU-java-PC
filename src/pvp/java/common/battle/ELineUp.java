@@ -67,6 +67,37 @@ public class ELineUp extends BattleObj {
 			}
 	}
 
+    /** Recalculate one dynamic PvP slot after its character is rerolled. */
+    protected void pvpReplace(int i,int j,common.util.unit.EForm f) {
+        price[i][j]=-1;basePrice[i][j]=-1;cool[i][j]=0;maxC[i][j]=0;tick[i][j]=0;cdDownOrb[i][j]=0;priceDownOrb[i][j]=0;
+        if(f==null)return;
+        Form form=f.du.getPack();
+        Limit lim=b.est.lim;
+        if(lim!=null&&((lim.line==1&&i==1)||lim.unusable(f.du,b.st.getCont().price)))price[i][j]=-1;
+        else price[i][j]=100*(b.globalCost()>-1?b.globalCost():(int)f.getPrice(b.st.getCont().price));
+        if(!StageLimit.isComboBanned(lim,C_DISCOUNT))
+            price[i][j]-=price[i][j]*b.b.getInc(C_DISCOUNT,form.du.getPack().unit)/100;
+        maxC[i][j]=b.globalCdLimit()>0
+                ?b.b.t().getFinResGlobal(b.globalCdLimit(),StageLimit.isComboBanned(b.est.lim,C_RESP)?0:b.b.getInc(C_RESP,f.du.getPack().unit))
+                :b.b.t().getFinRes(f.du.getRespawn(),StageLimit.isComboBanned(b.est.lim,C_RESP)?0:b.b.getInc(C_RESP,f.du.getPack().unit));
+        if(lim!=null&&lim.stageLimit!=null){
+            if(price[i][j]!=-1)price[i][j]=price[i][j]*lim.stageLimit.costMultiplier[form.unit.rarity]/100;
+            maxC[i][j]=maxC[i][j]*lim.stageLimit.cooldownMultiplier[form.unit.rarity]/100;
+        }
+        int[][] orbs=f.getLevel().getOrbs();boolean hasEveryOther=false;
+        if(orbs!=null)for(int[] orb:orbs){
+            if(orb.length!=ORB_INTS)continue;
+            int orbId=orb[0];hasEveryOther|=Arrays.stream(ORB_EVERY_OTHER).anyMatch(v->v==orbId);
+            if(orbId==ORB_COOLDOWN)cdDownOrb[i][j]=ORB_COOLDOWN_MULT[orb[2]];
+            else if(orbId==ORB_COST_DOWN)priceDownOrb[i][j]=ORB_COST_DOWN_MULT[orb[2]];
+        }
+        if(!hasEveryOther)tick[i][j]=-1;
+        basePrice[i][j]=price[i][j];
+        if(b.pvpRoulette!=null&&b.pvpRoulette.costLevel>0&&price[i][j]>0)
+            for(int level=0;level<b.pvpRoulette.costLevel;level++)price[i][j]=Math.max(1,price[i][j]/2);
+        get(i,j);
+    }
+
 	/**
 	 * reset cooldown of a unit
 	 */
