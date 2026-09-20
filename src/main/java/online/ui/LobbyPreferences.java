@@ -33,7 +33,7 @@ final class LobbyPreferences {
                 RoomRules.DEFAULT.force60Fps,RoomRules.DEFAULT.specialMode,RoomRules.DEFAULT.debugMode,
                 PvpTraitRules.NONE,PvpTraitRules.NONE,0,0,RoomRules.DEFAULT_TIME_LIMIT_MINUTES,
                 RoomRules.DEFAULT_MAX_UNITS,false,RoomRules.DEFAULT_CASTLE_HIT_MONEY,
-                PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER,0,LINEUP_SAVED,-1,-1,RandomLineupFactory.SortOrder.SHUFFLED);
+                PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER,0,LINEUP_SAVED,-1,-1,0,RandomLineupFactory.SortOrder.SHUFFLED);
     }
 
     LobbyPreferences(String serverAddress,String displayName,
