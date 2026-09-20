@@ -14,6 +14,10 @@ public final class OnlinePumpTimingTests {
         long next=OnlineLobbyPage.advanceDeadline(now-step*30,now,step);
         Check.that(next>now&&next<=now+step,
                 "stale battle deadline advances to the next future 30TPS slot");
+        Check.equal(1,OnlineLobbyPage.presentationStride(199,7_000_000L),"small/cheap battles publish every tick");
+        Check.equal(2,OnlineLobbyPage.presentationStride(400,7_000_000L),"400-entity battles halve snapshot cloning");
+        Check.equal(2,OnlineLobbyPage.presentationStride(100,9_000_000L),"expensive copies reduce presentation rate");
+        Check.equal(3,OnlineLobbyPage.presentationStride(100,17_000_000L),"very expensive copies protect simulation with 10Hz snapshots");
         System.out.println("Online pump timing tests passed");
     }
     public static void main(String[] args){run();}
