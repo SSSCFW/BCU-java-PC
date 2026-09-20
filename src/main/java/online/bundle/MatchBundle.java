@@ -8,6 +8,7 @@ import common.pack.*;
 import common.pack.PackData.*;
 import common.pack.Source.*;
 import common.system.fake.FakeImage;
+import common.system.VImg;
 import common.util.anim.*;
 import common.util.pack.Soul;
 import common.util.stage.*;
