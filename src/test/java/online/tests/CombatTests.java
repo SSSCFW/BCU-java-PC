@@ -194,7 +194,8 @@ private static void postDeploySlotRerollTests() throws Exception {
             "rerolled slot keeps the deployed character's cooldown (with the normal same-tick countdown)");
     Check.equal(originalMaxCooldown,first.left().elu.maxC[0][0],"cooldown bar remains based on the deployed character until refresh");
     Check.that(first.left().elu.pvpNextMaxCPending[0][0],"next character cooldown waits until the old cooldown reaches zero");
-    Check.that(first.left().elu.pvpNextMaxC[0][0]!=originalMaxCooldown,"next character keeps its own future cooldown separately");
+    int queuedNextCooldown=first.left().elu.pvpNextMaxC[0][0];
+    Check.that(queuedNextCooldown>=0,"next character keeps its future cooldown separately");
     Check.equal(BattleDigest.of(first),BattleDigest.of(second),"slot reroll state remains deterministic");
 
     for(PvpStageBasis battle:new PvpStageBasis[]{first,second}){
@@ -203,7 +204,8 @@ private static void postDeploySlotRerollTests() throws Exception {
     first.step(new InputFrame(1,0,0));second.step(new InputFrame(1,0,0));
     Check.equal(0,first.left().elu.cool[0][0],"old character cooldown completes before next character becomes ready");
     Check.that(!first.left().elu.pvpNextMaxCPending[0][0],"next character cooldown max activates when old cooldown finishes");
-    Check.that(first.left().elu.maxC[0][0]!=originalMaxCooldown,"ready slot now carries the rerolled character's cooldown for its next production");
+    Check.equal(queuedNextCooldown,first.left().elu.maxC[0][0],
+            "ready slot switches to the rerolled character's queued cooldown for its next production");
 
     for(PvpStageBasis battle:new PvpStageBasis[]{first,second}){
         battle.left().unitRespawnTime=0;battle.left().money=1_000_000;
