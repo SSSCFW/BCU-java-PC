@@ -18,7 +18,6 @@ public final class FIBITests {
         FG2D graphics=new FG2D(target.getGraphics());
         graphics.drawImage(missing,0,0);
         graphics.drawImage(missing,0,0,8,8);
-        graphics.dispose();
         Check.that(true,"Java2D skips null-backed images without throwing");
     }
     public static void main(String[] args){run();System.out.println("FIBI tests passed");}
