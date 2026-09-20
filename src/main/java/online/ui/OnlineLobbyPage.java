@@ -299,8 +299,11 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 if(simulationRouletteAudio!=null)simulationRouletteAudio.observe(world,direction);
                 winner=world.winner();boolean terminal=winner!=-2;
                 if(!terminal)delta=PvpPresentationDelta.capture(world);
-                int effectiveStride=catchingUp?Math.max(3,snapshotStride):snapshotStride;
-                if(terminal||world.time%effectiveStride==0){
+                // A full graph clone is presentation-only. During catch-up, or while
+                // Swing still owns an unconsumed snapshot, cloning would directly
+                // compete with the 30TPS simulation for no visible benefit.
+                boolean fullSnapshotDue=terminal||(!catchingUp&&pendingSnapshot.get()==null&&world.time%snapshotStride==0);
+                if(fullSnapshotDue){
                     long copyStart=System.nanoTime();display=world.displayCopy();
                     lastSnapshotNanos=System.nanoTime()-copyStart;
                     snapshotStride=presentationStride(world.le.size(),lastSnapshotNanos);
