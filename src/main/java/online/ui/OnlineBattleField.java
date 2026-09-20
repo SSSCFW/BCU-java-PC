@@ -154,7 +154,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
             int row = i / 5, col = i % 5;
             boolean pressed = (twoRows || row == frontRow) && keys.pressed(row, col);
             boolean clicked = action.contains(i);
-            if (own.b.lu.fs[row][col] == null || (!pressed && !clicked)) continue;
+            if (visibleForm(i) == null || (!pressed && !clicked)) continue;
             int canonical=visibleToCanonical[i];
             if (lock) {
                 send.accept(1 << (12 + canonical));
@@ -168,6 +168,11 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
         return visible<0||visible>=visibleToCanonical.length?-1:visibleToCanonical[visible];
     }
 
+    public common.util.unit.Form visibleForm(int visible){
+        int canonical=canonicalSlotForVisible(visible);
+        return canonical<0?null:playerState().b.lu.fs[canonical/5][canonical%5];
+    }
+
     public boolean swapVisibleSlots(int from,int to){
         if(!interactive||battleUiHidden||from<0||from>=10||to<0||to>=10||from==to)return false;
         int tmp=visibleToCanonical[from];visibleToCanonical[from]=visibleToCanonical[to];visibleToCanonical[to]=tmp;
@@ -177,7 +182,6 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
 
     private void applyLocalSlotOrder(StageBasis own){
         if(identitySlotOrder())return;
-        permute(own.b.lu.fs);permute(own.b.lu.efs);permute(own.b.lu.spirits);
         permute(own.elu.price);permute(own.elu.basePrice);permute(own.elu.cool);permute(own.elu.maxC);
         permute(own.elu.tick);permute(own.elu.cdDownOrb);permute(own.elu.priceDownOrb);
         permute(own.totalDamageTaken);permute(own.totalDamageGiven);permute(own.locks);
@@ -193,7 +197,6 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     private int visibleForCanonical(int canonical){for(int i=0;i<10;i++)if(visibleToCanonical[i]==canonical)return i;return -1;}
 
     private void swapSlotState(StageBasis own,int a,int b){
-        swap(own.b.lu.fs,a,b);swap(own.b.lu.efs,a,b);swap(own.b.lu.spirits,a,b);
         swap(own.elu.price,a,b);swap(own.elu.basePrice,a,b);swap(own.elu.cool,a,b);swap(own.elu.maxC,a,b);
         swap(own.elu.tick,a,b);swap(own.elu.cdDownOrb,a,b);swap(own.elu.priceDownOrb,a,b);
         swap(own.totalDamageTaken,a,b);swap(own.totalDamageGiven,a,b);swap(own.locks,a,b);
