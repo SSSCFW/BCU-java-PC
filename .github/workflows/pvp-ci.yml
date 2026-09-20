@@ -151,7 +151,7 @@ jobs:
           path: target
       - name: Battle presentation, layering and contrast regression tests
         run: |
-          for mode in layers slot-drag muted publication result small-result resize-result late-result; do
+          for mode in layers slot-drag hold-wheel muted publication result small-result resize-result late-result; do
             xvfb-run -a java -ea -Dfile.encoding=UTF-8 -cp 'target/test-classes:target/classes:target/lib/*' online.ui.BattlePresentationTests "$mode"
           done
       - uses: actions/upload-artifact@v4
