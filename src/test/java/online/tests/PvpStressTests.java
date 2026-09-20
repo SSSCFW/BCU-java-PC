@@ -9,6 +9,7 @@ import online.net.lobby.PvpTraitRules;
 import online.net.lobby.RoomRules;
 import online.sync.BattleDigest;
 import online.sync.InputFrame;
+import online.ui.PvpPresentationDelta;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -74,6 +75,28 @@ public final class PvpStressTests {
             Check.equal(BattleDigest.of(optimized),BattleDigest.of(copy),"stress display copy remains canonical");
         }
         System.out.printf(java.util.Locale.ROOT,"PVP_STRESS display_copy_p95=%.3fms%n",p95(copies)/1_000_000.0);
+
+        PvpStageBasis display=optimized.displayCopy();
+        java.util.Map<Long,Entity> index=PvpPresentationDelta.index(display);
+        List<Long> deltas=new ArrayList<>();
+        for(int i=0;i<50;i++){
+            long start=System.nanoTime();
+            PvpPresentationDelta delta=PvpPresentationDelta.capture(optimized);
+            deltas.add(System.nanoTime()-start);
+            delta.apply(display,index);
+        }
+        java.util.Map<Long,Entity> canonical=new java.util.HashMap<>();
+        for(Entity e:optimized.le)canonical.put(e.pvpEntityId,e);
+        for(Entity e:display.le){
+            Entity source=canonical.get(e.pvpEntityId);if(source==null)continue;
+            Check.equal(Float.floatToIntBits(source.pos),Float.floatToIntBits(e.pos),"delta copies entity position");
+            Check.equal(source.health,e.health,"delta copies entity health");
+            Check.equal(source.currentShield,e.currentShield,"delta copies entity shield");
+        }
+        Check.equal(optimized.left().money,display.left().money,"delta copies left money");
+        Check.equal(optimized.right().money,display.right().money,"delta copies right money");
+        System.out.printf(java.util.Locale.ROOT,"PVP_STRESS presentation_delta_p95=%.3fms%n",p95(deltas)/1_000_000.0);
+        Check.that(p95(deltas)<TimeUnit.MILLISECONDS.toNanos(5),"500-entity presentation delta capture stays below 5ms p95");
     }
 
     private static long step(PvpStageBasis battle,int tick){
