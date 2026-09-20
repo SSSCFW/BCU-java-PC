@@ -193,8 +193,10 @@ public final class MatchBundle {
     }
     private static boolean renderableProductionForm(Form form){
         try{
-            form.anim.check();
-            if(form.anim.mamodel==null||form.anim.anims==null||form.anim.getNum()==null)return false;
+            if(form.anim==null||form.anim.loader==null
+                    ||!form.anim.loader.validate(AnimU.ImageKeeper.AnimationType.UNIT))return false;
+            FakeImage sprite=form.anim.getNum();
+            if(sprite==null||!sprite.isValid())return false;
             VImg icon=form.anim.getUni();if(icon==null)return false;
             FakeImage image=icon.getImg();
             return image!=null&&image.isValid()&&image.bimg()!=null&&image.getWidth()>1&&image.getHeight()>1;
