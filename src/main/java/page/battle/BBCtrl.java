@@ -41,7 +41,12 @@ public class BBCtrl extends BBPainter {
 	}
 
 	public synchronized Form formAt(Point p) {
-        int slot=slotAt(p);return slot<0?null:controlState().b.lu.fs[slot/5][slot%5];
+        int slot=slotAt(p);return slot<0?null:formForSlot(slot);
+    }
+
+    private Form formForSlot(int slot){
+        if(sbc instanceof OnlineBattleField)return ((OnlineBattleField)sbc).visibleForm(slot);
+        return controlState().b.lu.fs[slot/5][slot%5];
     }
 
     /** Visible lineup slot under the pointer, including empty slots. */
