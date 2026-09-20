@@ -18,6 +18,7 @@ import online.ui.AudioSettingsPanel;
 import online.ui.PvpRouletteHud;
 import online.ui.PvpSoundBank;
 import online.ui.PvpBattleOverlay;
+import online.ui.PvpPresentationDelta;
 import online.ui.PvpRouletteAudio;
 import online.ui.PvpUnitAbilityOverlay;
 import online.net.lobby.PvpTraitRules;
@@ -348,6 +349,10 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
     /** Simulation-thread audio was already observed for this authoritative tick. */
     public void publishOnlineFromSimulation(PvpStageBasis displayCopy) {
         if(online!=null&&!onlineClosed)online.publish(displayCopy);
+    }
+
+    public void applyOnlinePresentationDelta(PvpPresentationDelta delta){
+        if(online!=null&&!onlineClosed&&!onlineBattleEnding)online.applyDelta(delta);
     }
 
 	public void onlineStatus(String text, boolean interactive) {
