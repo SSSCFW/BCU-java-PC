@@ -107,6 +107,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
     private volatile boolean onlineNativeAudioCleanupDone=true;
     private final PvpRouletteAudio rouletteAudio=new PvpRouletteAudio();
     private int rouletteNoticeUntil=-1;
+    private int onlineStatsFrame=5;
 	private Runnable onlineExit;
 	private boolean onlineClosed;
 	private String onlineLeftName, onlineRightName;
@@ -364,17 +365,23 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		updateKey();
 		online.renderStep();
 		StageBasis sb = online.sb;
-		List<Entity> left = new ArrayList<>(), right = new ArrayList<>();
-		for (Entity e : sb.le) (e.dire == 1 ? left : right).add(e);
-		et.setList(left); est.setList(new ArrayList<>(left));
-		ut.setList(right); ust.setList(new ArrayList<>(right));
-		List<Form> lineup = new ArrayList<>();
-		for (Form[] row : online.playerState().b.lu.fs) for (Form f : row) if (f != null) lineup.add(f);
-		utd.setBasis(online.playerState()); utd.setList(lineup);
-		ebase.setText(onlineLeftName + "  HP: " + sb.ebase.health + "/" + sb.ebase.maxH);
-		ubase.setText(onlineRightName + "  HP: " + sb.ubase.health);
-		ecount.setText(sb.entityCount(1) + "/" + sb.playerFor(1).maxNum);
-		ucount.setText(sb.entityCount(-1) + "/" + sb.playerFor(-1).maxNum);
+        // Editor/stat tables are not part of the battlefield. Rebuilding four
+        // 500-entry Swing models at 60 FPS wastes more time than drawing sprites,
+        // so refresh diagnostics at 10 Hz while the actual battle stays at 60 FPS.
+        if(++onlineStatsFrame>=6){
+            onlineStatsFrame=0;
+            List<Entity> left = new ArrayList<>(), right = new ArrayList<>();
+            for (Entity e : sb.le) (e.dire == 1 ? left : right).add(e);
+            et.setList(left); est.setList(new ArrayList<>(left));
+            ut.setList(right); ust.setList(new ArrayList<>(right));
+            List<Form> lineup = new ArrayList<>();
+            for (Form[] row : online.playerState().b.lu.fs) for (Form f : row) if (f != null) lineup.add(f);
+            utd.setBasis(online.playerState()); utd.setList(lineup);
+            ebase.setText(onlineLeftName + "  HP: " + sb.ebase.health + "/" + sb.ebase.maxH);
+            ubase.setText(onlineRightName + "  HP: " + sb.ubase.health);
+            ecount.setText(sb.entityCount(1) + "/" + sb.playerFor(1).maxNum);
+            ucount.setText(sb.entityCount(-1) + "/" + sb.playerFor(-1).maxNum);
+        }
 		if (bb.getPainter().dragging) bb.getPainter().dragFrame++;
 		if (MainBCU.loaded && !onlineBattleEnding) BCMusic.flush(sb.ebase.health > 0 && sb.ubase.health > 0);
         if(onlineSpecial!=null)onlineSpecial.refresh();
