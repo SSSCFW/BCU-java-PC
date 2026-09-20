@@ -184,8 +184,22 @@ public final class MatchBundle {
         out.put(key,form);
     }
     private static Form bestProductionForm(Unit unit){
-        for(int i=unit.forms.length-1;i>=0;i--){Form form=unit.forms[i];if(form!=null&&form.du!=null&&form.anim!=null)return form;}
+        for(int i=unit.forms.length-1;i>=0;i--){
+            Form form=unit.forms[i];
+            if(form!=null&&form.du!=null&&form.anim!=null&&renderableProductionForm(form))return form;
+        }
         return null;
+    }
+    private static boolean renderableProductionForm(Form form){
+        try{
+            form.anim.check();
+            if(form.anim.mamodel==null||form.anim.anims==null||form.anim.getNum()==null)return false;
+            VImg icon=form.anim.getUni();if(icon==null)return false;
+            FakeImage image=icon.getImg();
+            return image!=null&&image.isValid()&&image.bimg()!=null&&image.getWidth()>1&&image.getHeight()>1;
+        }catch(RuntimeException e){
+            return false;
+        }
     }
     private static void collectSpiritTargets(Set<String> targets,Unit unit){
         if(unit==null||unit.forms==null)return;
