@@ -22,11 +22,17 @@ public final class PvpUnitAbilityOverlay extends JPanel {
     private static final long serialVersionUID=1L;
     private final JLabel title=new JLabel("",SwingConstants.CENTER);
     private final JPanel rows=new JPanel();
+    private final JScrollPane scroll;
     public PvpUnitAbilityOverlay(){
         super(new BorderLayout(8,8));setOpaque(true);setBackground(new Color(28,32,36));
-        setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(new Color(205,210,215),2),new EmptyBorder(8,12,8,12)));
+        setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(new Color(205,210,215),2),new EmptyBorder(10,14,10,14)));
+        setMinimumSize(new Dimension(640,300));setPreferredSize(new Dimension(920,390));
         title.setForeground(Color.WHITE);title.setFont(title.getFont().deriveFont(Font.BOLD,18f));add(title,BorderLayout.NORTH);
-        rows.setOpaque(false);rows.setLayout(new BoxLayout(rows,BoxLayout.Y_AXIS));add(rows,BorderLayout.CENTER);setVisible(false);
+        rows.setOpaque(false);rows.setLayout(new BoxLayout(rows,BoxLayout.Y_AXIS));
+        scroll=new JScrollPane(rows,JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scroll.setBorder(null);scroll.setOpaque(false);scroll.getViewport().setOpaque(false);
+        scroll.setWheelScrollingEnabled(true);scroll.getVerticalScrollBar().setUnitIncrement(28);scroll.getHorizontalScrollBar().setUnitIncrement(28);
+        add(scroll,BorderLayout.CENTER);setVisible(false);
     }
     public void show(Form form,StageBasis player){
         rows.removeAll();title.setText(form==null?"":form.toString());
@@ -59,9 +65,14 @@ public final class PvpUnitAbilityOverlay extends JPanel {
         int procCount=0;for(Interpret.ProcDisplay d:procs)if(d!=null&&!d.toString().trim().isEmpty()){abilities.add(procChip(d));procCount++;}
         if(procCount==0)abilities.add(textChip("なし"));rows.add(abilities);
 
-        revalidate();repaint();setVisible(true);
+        revalidate();repaint();
+        scroll.getVerticalScrollBar().setValue(0);scroll.getHorizontalScrollBar().setValue(0);
+        setVisible(true);
     }
-    public void close(){setVisible(false);}
+    public void close(){
+        setVisible(false);
+        scroll.getVerticalScrollBar().setValue(0);scroll.getHorizontalScrollBar().setValue(0);
+    }
     private static JPanel row(String name){
         JPanel p=new JPanel(new FlowLayout(FlowLayout.LEADING,6,3));p.setOpaque(false);
         JLabel l=new JLabel(name);l.setForeground(new Color(255,232,150));l.setPreferredSize(new Dimension(110,38));p.add(l);return p;
