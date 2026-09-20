@@ -344,6 +344,11 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		if (online != null && !onlineClosed) {observeOnlineTick(displayCopy);online.publish(displayCopy);}
 	}
 
+    /** Simulation-thread audio was already observed for this authoritative tick. */
+    public void publishOnlineFromSimulation(PvpStageBasis displayCopy) {
+        if(online!=null&&!onlineClosed)online.publish(displayCopy);
+    }
+
 	public void onlineStatus(String text, boolean interactive) {
 		if (online == null || onlineClosed) return;
 		online.interactive(interactive&&!onlineBattleEnding);
