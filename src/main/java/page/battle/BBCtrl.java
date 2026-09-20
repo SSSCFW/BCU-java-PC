@@ -49,6 +49,18 @@ public class BBCtrl extends BBPainter {
         return controlState().b.lu.fs[slot/5][slot%5];
     }
 
+    private FakeImage imageForSlot(int slot){
+        BCAuxAssets aux=CommonStatic.getBCAssets();Form form=formForSlot(slot);
+        FakeImage fallback=aux.slot[0].getImg();
+        if(form==null||form.anim==null)return fallback;
+        try{
+            if(form.anim.getUni()==null)return fallback;
+            FakeImage image=form.anim.getUni().getImg();
+            if(image==null||!image.isValid()||image.getWidth()<=1||image.getHeight()<=1)return fallback;
+            return image;
+        }catch(RuntimeException e){return fallback;}
+    }
+
     /** Visible lineup slot under the pointer, including empty slots. */
     public synchronized int slotAt(Point p) {
 		BCAuxAssets aux=CommonStatic.getBCAssets();int w=box.getWidth(),h=box.getHeight();double hr=unir;
@@ -58,7 +70,7 @@ public class BBCtrl extends BBPainter {
 			double termh=hr*aux.slot[0].getImg().getHeight()*0.1;
 			for(int row=0;row<2;row++)for(int col=0;col<5;col++){
 				Form f=formForSlot(row*5+col);
-				FakeImage img=f==null?aux.slot[0].getImg():f.anim.getUni().getImg();int iw=(int)(hr*img.getWidth()),ih=(int)(hr*img.getHeight());
+				FakeImage img=imageForSlot(row*5+col);int iw=(int)(hr*img.getWidth()),ih=(int)(hr*img.getHeight());
 				int x=(w-iw*5)/2+iw*col+(int)(term*(col-2)),y=(int)(h-(2-row)*(ih+termh));
 				if(!new PP(p).out(new P(x,y),new P(x+iw,y+ih),0))return row*5+col;
 			}
@@ -66,7 +78,7 @@ public class BBCtrl extends BBPainter {
 			int row=controlState().frontLineup;
 			for(int col=0;col<5;col++){
 				Form f=formForSlot(row*5+col);
-				FakeImage img=f==null?aux.slot[0].getImg():f.anim.getUni().getImg();int iw=(int)(hr*img.getWidth()),ih=(int)(hr*img.getHeight());
+				FakeImage img=imageForSlot(row*5+col);int iw=(int)(hr*img.getWidth()),ih=(int)(hr*img.getHeight());
 				int x=(w-iw*5)/2+iw*col+(int)(term*(col-2)+(row==0?0:term/2)),y=h-(int)(ih*1.1);
 				if(!new PP(p).out(new P(x,y),new P(x+iw,y+ih),0))return row*5+col;
 			}
@@ -87,7 +99,7 @@ public class BBCtrl extends BBPainter {
 			for (int i = 0; i < 2; i++) {
 				for(int j = 0; j < 5; j++) {
 					Form f = formForSlot(i*5+j);
-					FakeImage img = f == null ? aux.slot[0].getImg() : f.anim.getUni().getImg();
+					FakeImage img = imageForSlot(i*5+j);
 					int iw = (int) (hr * img.getWidth());
 					int ih = (int) (hr * img.getHeight());
 					int x = (w - iw * 5) / 2 + iw * j + (int) (term * (j -2));
@@ -101,7 +113,7 @@ public class BBCtrl extends BBPainter {
 		} else {
 			for (int i = 0; i < 5; i++) {
 				Form f = formForSlot(controlState().frontLineup*5+i);
-				FakeImage img = f == null ? aux.slot[0].getImg() : f.anim.getUni().getImg();
+				FakeImage img = imageForSlot(controlState().frontLineup*5+i);
 				int iw = (int) (hr * img.getWidth());
 				int ih = (int) (hr * img.getHeight());
 				int x = (w - iw * 5) / 2 + iw * i + (int) (term * (i -2) + (controlState().frontLineup == 0 ? 0 : term/2));
