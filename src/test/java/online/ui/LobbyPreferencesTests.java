@@ -11,7 +11,7 @@ public final class LobbyPreferencesTests {
         Path dir=Files.createTempDirectory("bcu-pvp-pref-test-"),file=dir.resolve("online-client.properties");
         RoomRules rules=new RoomRules(8123,RoomRules.RANDOM_BACKGROUND,RoomRules.RANDOM_MUSIC,true,RoomRules.SpecialMode.ROULETTE,true,
                 PvpTraitRules.RANDOM,common.util.Data.TRAIT_RED,5,2,RoomRules.UNLIMITED_TIME,
-                137,true,9);
+                137,true,9,true);
         LobbyPreferences original=new LobbyPreferences("wss://example.invalid/pvp","tester")
                 .withConnection("wss://example.invalid/pvp","tester",19001,"my-room_01",true)
                 .withHostRules(rules).withCastleHealth(37.5)
@@ -37,6 +37,7 @@ public final class LobbyPreferencesTests {
         online.tests.Check.equal(137,loaded.maxUnits,"maximum deployed unit preference roundtrip");
         online.tests.Check.that(loaded.castleHitMoneyEnabled,"castle-hit money mode preference roundtrip");
         online.tests.Check.equal(9,loaded.castleHitMoney,"castle-hit money amount preference roundtrip");
+        online.tests.Check.that(loaded.rerollSlotAfterDeploy,"post-deploy slot reroll preference roundtrip");
         online.tests.Check.equal(37.5,loaded.castleHealthMultiplier,"local castle multiplier preference roundtrip");
         online.tests.Check.equal(1,loaded.creatorSideIndex,"creator side preference roundtrip");
         online.tests.Check.equal(LobbyPreferences.LINEUP_RANDOM_VANILLA,loaded.lineupKind,"lineup choice preference roundtrip");
@@ -69,6 +70,7 @@ public final class LobbyPreferencesTests {
         online.tests.Check.equal(0,migrated.udpPortOverride,"legacy preferences keep automatic server-advertised UDP port");
         online.tests.Check.equal("",migrated.roomId,"legacy preferences default room ID to blank");
         online.tests.Check.that(!migrated.allowDevelopment,"legacy preferences keep plain WS disabled");
+        online.tests.Check.that(!migrated.rerollSlotAfterDeploy,"legacy preferences keep post-deploy reroll disabled");
         online.tests.Check.equal(RandomLineupFactory.SortOrder.SHUFFLED,migrated.randomLineupSort,"legacy preferences default random lineup sort to shuffled");
 
         legacy.setProperty("musicId",Integer.toString(online.net.lobby.PvpBattleMusic.DEFAULT_ID));
