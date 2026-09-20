@@ -190,7 +190,8 @@ private static void postDeploySlotRerollTests() throws Exception {
     EForm nextEForm=new EForm(next,first.left().b.lu.getLv(next));
     int expectedNextPrice=100*(int)nextEForm.getPrice(first.left().st.getCont().price);
     Check.equal(expectedNextPrice,first.left().elu.basePrice[0][0],"rerolled slot recalculates the next character battle price");
-    Check.equal(originalMaxCooldown,first.left().elu.cool[0][0],"rerolled slot keeps the deployed character's cooldown");
+    Check.equal(Math.max(0,originalMaxCooldown-1),first.left().elu.cool[0][0],
+            "rerolled slot keeps the deployed character's cooldown (with the normal same-tick countdown)");
     Check.equal(originalMaxCooldown,first.left().elu.maxC[0][0],"cooldown bar remains based on the deployed character until refresh");
     Check.that(first.left().elu.pvpNextMaxCPending[0][0],"next character cooldown waits until the old cooldown reaches zero");
     Check.that(first.left().elu.pvpNextMaxC[0][0]!=originalMaxCooldown,"next character keeps its own future cooldown separately");
