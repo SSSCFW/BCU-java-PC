@@ -24,6 +24,7 @@ public final class CombatTests {
         Check.equal(duel.le.get(0).health,duel.le.get(1).health,"same-unit combat is symmetric");
         defeatRewardTests();
         castleHitMoneyTests();
+        terminalPvpTickPreservesUnits();
         rouletteAttackCastleTests();
         for(boolean mini:new boolean[]{false,true}) {
             PvpStageBasis b=duel(!mini,mini);
@@ -145,6 +146,16 @@ private static void castleHitMoneyTests() throws Exception {
     victim.money=Math.max(0,victim.maxMoney-2);
     victim.ownBase().damaged((AttackSimple)model(attacker).getAttack(0));
     Check.equal(victim.maxMoney,victim.money,"castle-hit money never exceeds wallet limit");
+}
+
+private static void terminalPvpTickPreservesUnits() throws Exception {
+    PvpStageBasis b=duel(false,false);
+    List<Entity> before=new ArrayList<>(b.le);
+    b.right().ownBase().health=0;
+    java.lang.reflect.Method update=StageBasis.class.getDeclaredMethod("update");
+    update.setAccessible(true);update.invoke(b);
+    for(Entity entity:before)
+        Check.that(entity.anim.dead<0,"PvP terminal tick freezes the field instead of mass-killing every unit");
 }
 
 private static void rouletteAttackCastleTests() throws Exception {
