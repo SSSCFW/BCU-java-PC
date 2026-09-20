@@ -109,8 +109,8 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private BasisLU battleLineup() throws java.io.IOException {
         BasisLU selected=(BasisLU)lineup.getSelectedItem();
         if(selected==null)throw new java.io.IOException("編成を選択してください");
-        if(selected==randomLineup)return RandomLineupFactory.create(false);
-        if(selected==randomVanillaLineup)return RandomLineupFactory.create(true);
+        if(selected==randomLineup)return RandomLineupFactory.create(false,preferences().randomLineupSort);
+        if(selected==randomVanillaLineup)return RandomLineupFactory.create(true,preferences().randomLineupSort);
         if(!canReadyLineup(selected))throw new java.io.IOException("編成には1体以上のキャラが必要です");
         return selected;
     }
@@ -436,11 +436,15 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     LobbyPreferences preferences(){return preferences==null?new LobbyPreferences(server.getText(),name.getText()):preferences;}
     online.net.lobby.RoomRules savedHostRules(online.net.lobby.RoomRules base){return preferences().hostRules();}
     double savedCastleHealthMultiplier(){return preferences().castleHealthMultiplier;}
+    RandomLineupFactory.SortOrder savedRandomLineupSort(){return preferences().randomLineupSort;}
     void rememberHostRules(online.net.lobby.RoomRules rules){
         preferences=preferences().withHostRules(rules);preferencesDirty=true;saveTimer.restart();
     }
     void rememberCastleHealthMultiplier(double value){
         preferences=preferences().withCastleHealth(value);preferencesDirty=true;saveTimer.restart();
+    }
+    void rememberRandomLineupSort(RandomLineupFactory.SortOrder value){
+        preferences=preferences().withRandomLineupSort(value);preferencesDirty=true;saveTimer.restart();
     }
     private int selectedLineupKind(){
         Object value=lineup.getSelectedItem();
