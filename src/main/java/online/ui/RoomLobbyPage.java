@@ -35,7 +35,8 @@ public final class RoomLobbyPage extends Page {
     private final JCheckBox force60=new JCheckBox("表示: 60FPS固定（戦闘処理は30TPS）"),
             debugMode=new JCheckBox("デバッグモード（全員にルーレットMAXボタンを表示）"),
             unlimitedTime=new JCheckBox("無制限"),
-            castleHitMoneyEnabled=new JCheckBox("自城を攻撃されるたびにお金を加算");
+            castleHitMoneyEnabled=new JCheckBox("自城を攻撃されるたびにお金を加算"),
+            rerollSlotAfterDeploy=new JCheckBox("生産するたびに、そのスロットを全キャラから別キャラへ再抽選");
     private final JComboBox<RoomRules.SpecialMode> special=new JComboBox<>(RoomRules.SpecialMode.values());
     private final JComboBox<TraitChoice> hostTrait=new JComboBox<>(),guestTrait=new JComboBox<>();
     private final JCheckBox[] hostTraitExclude=new JCheckBox[PvpTraitRules.OPTIONS.length],
@@ -103,10 +104,11 @@ public final class RoomLobbyPage extends Page {
         JPanel castleHitMoneyRow=new JPanel(new FlowLayout(FlowLayout.LEADING,6,0));
         castleHitMoneyRow.add(castleHitMoneyEnabled);castleHitMoneyRow.add(castleHitMoney);castleHitMoneyRow.add(new JLabel("円 / 1ヒット"));
         row(rules,10,"城被弾ボーナス",castleHitMoneyRow);
-        row(rules,11,"",force60);
-        row(rules,12,"",debugMode);
-        row(rules,13,"",apply);
-        row(rules,14,"",ruleNote);
+        row(rules,11,"",rerollSlotAfterDeploy);
+        row(rules,12,"",force60);
+        row(rules,13,"",debugMode);
+        row(rules,14,"",apply);
+        row(rules,15,"",ruleNote);
         sections.add(rules);sections.add(audio);
 
         content.add(new JScrollPane(sections),BorderLayout.CENTER);
@@ -134,6 +136,7 @@ public final class RoomLobbyPage extends Page {
         timeLimit.addChangeListener(e->rulesChanged());unlimitedTime.addActionListener(e->{rulesChanged();refreshControls();});
         maxUnits.addChangeListener(e->rulesChanged());
         castleHitMoneyEnabled.addActionListener(e->{rulesChanged();refreshControls();});castleHitMoney.addChangeListener(e->rulesChanged());
+        rerollSlotAfterDeploy.addActionListener(e->rulesChanged());
         hostTrait.addActionListener(e->{rulesChanged();refreshControls();});guestTrait.addActionListener(e->{rulesChanged();refreshControls();});
         for(JCheckBox box:hostTraitExclude)box.addActionListener(e->rulesChanged());
         for(JCheckBox box:guestTraitExclude)box.addActionListener(e->rulesChanged());
@@ -194,6 +197,7 @@ public final class RoomLobbyPage extends Page {
                 timeLimit.setValue(rules.timeLimitMinutes==RoomRules.UNLIMITED_TIME?RoomRules.DEFAULT_TIME_LIMIT_MINUTES:rules.timeLimitMinutes);
                 maxUnits.setValue(rules.maxUnits);
                 castleHitMoneyEnabled.setSelected(rules.castleHitMoneyEnabled);castleHitMoney.setValue(rules.castleHitMoney);
+                rerollSlotAfterDeploy.setSelected(rules.rerollSlotAfterDeploy);
                 dirty=false;
             }
         }finally{loading=false;}
@@ -218,6 +222,7 @@ public final class RoomLobbyPage extends Page {
         musicPreview.setEnabled(!closed&&currentMusic!=null&&!currentMusic.random);musicStop.setEnabled(!closed&&musicPreviewing);
         hostTrait.setEnabled(hostCan);guestTrait.setEnabled(hostCan);unlimitedTime.setEnabled(hostCan);timeLimit.setEnabled(hostCan&&!unlimitedTime.isSelected());
         maxUnits.setEnabled(hostCan);castleHitMoneyEnabled.setEnabled(hostCan);castleHitMoney.setEnabled(hostCan&&castleHitMoneyEnabled.isSelected());
+        rerollSlotAfterDeploy.setEnabled(hostCan);
         setExclusionEnabled(hostTraitExclude,hostCan&&selectedTrait(hostTrait)==PvpTraitRules.RANDOM);
         setExclusionEnabled(guestTraitExclude,hostCan&&selectedTrait(guestTrait)==PvpTraitRules.RANDOM);
         apply.setEnabled(hostCan&&dirty);
@@ -259,7 +264,8 @@ public final class RoomLobbyPage extends Page {
             int limit=unlimitedTime.isSelected()?RoomRules.UNLIMITED_TIME:((Number)timeLimit.getValue()).intValue();
             RoomRules r=new RoomRules((Integer)distance.getValue(),b.id(),m.id(),true,(RoomRules.SpecialMode)special.getSelectedItem(),debugMode.isSelected(),
                     hostChoice,guestChoice,hostMask,guestMask,limit,
-                    ((Number)maxUnits.getValue()).intValue(),castleHitMoneyEnabled.isSelected(),((Number)castleHitMoney.getValue()).intValue());
+                    ((Number)maxUnits.getValue()).intValue(),castleHitMoneyEnabled.isSelected(),((Number)castleHitMoney.getValue()).intValue(),
+                    rerollSlotAfterDeploy.isSelected());
             PvpStageBasis.validateRulesAssets(r);owner.rememberHostRules(r);
             pending=true;dirty=false;client.setRoomRules(r,state.get("revision").getAsLong());refreshControls();
         }catch(Exception e){message(e.getMessage());}
