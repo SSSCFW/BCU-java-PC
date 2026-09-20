@@ -31,6 +31,14 @@ public final class BundleTests {
         } finally {Files.deleteIfExists(p);}
 
         FixtureNativeUi.init();
+        common.util.unit.Unit broken=FixtureNativeUi.unit("bundle_pool_broken_icon",0xff333333);
+        java.lang.reflect.Field iconImage=common.system.VImg.class.getDeclaredField("bimg");iconImage.setAccessible(true);
+        iconImage.set(broken.forms[0].anim.getUni(),null);
+        java.lang.reflect.Field iconLoaded=common.system.VImg.class.getDeclaredField("loaded");iconLoaded.setAccessible(true);
+        iconLoaded.setBoolean(broken.forms[0].anim.getUni(),true);
+        java.lang.reflect.Method best=online.bundle.MatchBundle.class.getDeclaredMethod("bestProductionForm",common.util.unit.Unit.class);best.setAccessible(true);
+        Check.equal(null,best.invoke(null,broken),"reroll pool excludes units whose deploy icon cannot render");
+
         common.util.unit.Unit lineupUnit=FixtureNativeUi.unit("bundle_pool_lineup",0xff224466);
         common.util.unit.Unit extraUnit=FixtureNativeUi.unit("bundle_pool_extra",0xff662244);
         ((common.battle.data.CustomUnit)extraUnit.forms[0].du).price=7777;
