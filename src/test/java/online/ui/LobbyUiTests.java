@@ -87,17 +87,20 @@ public final class LobbyUiTests {
             case "finish-host": case "finish-guest": case "timeout-host": case "timeout-guest":
                 finishDuel(mode);break;
             case "save":
-                edt(() -> {text("name").setText("友人テスト名");text("server").setText("wss://example.invalid:443/bcu");text("password").setText("never-save-this");text("room").setText("never-save-room");return null;});
+                edt(() -> {text("name").setText("友人テスト名");text("server").setText("wss://example.invalid:443/bcu");text("password").setText("never-save-this");text("room").setText("my-saved-room");((JCheckBox)field(page,"development")).setSelected(true);return null;});
                 disposePage();
                 Path prefs=Fixture.root.resolve("user/online-client.properties");
                 Check.that(Files.isRegularFile(prefs),"entered display name/server must be saved on exit without connecting");
                 String content=new String(Files.readAllBytes(prefs),StandardCharsets.UTF_8);
-                Check.that(!content.contains("never-save"),"password and room ID must never be persisted");break;
+                Check.that(!content.contains("never-save-this"),"password must never be persisted");
+                Check.that(content.contains("my-saved-room"),"room ID input is persisted");
+                Check.that(content.contains("allowDevelopment=true"),"plain-WS permission is persisted");break;
             case "load":
                 Check.equal("友人テスト名",edt(()->text("name").getText()),"display name restored across JVM restart");
                 Check.equal("wss://example.invalid:443/bcu",edt(()->text("server").getText()),"server address restored across JVM restart");
+                Check.equal("my-saved-room",edt(()->text("room").getText()),"room ID restored across JVM restart");
                 Check.equal("",edt(()->text("password").getText()),"password not restored");
-                Check.that(!edt(()->((JCheckBox)field(page,"development")).isSelected()),"private-network trust not silently restored");break;
+                Check.that(edt(()->((JCheckBox)field(page,"development")).isSelected()),"plain-WS permission restored across JVM restart");break;
             case "retry": {
                 ServerHost host=startHost();String url=host.localControlUrl();
                 int unused;try(ServerSocket socket=new ServerSocket(0)){unused=socket.getLocalPort();}
