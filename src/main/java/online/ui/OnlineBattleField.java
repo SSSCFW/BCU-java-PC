@@ -4,12 +4,14 @@ import common.CommonStatic;
 import common.battle.PvpStageBasis;
 import common.battle.PvpRouletteState;
 import common.battle.SBCtrl;
+import common.battle.entity.Entity;
 import common.battle.StageBasis;
 import common.util.Data;
 import common.util.stage.Replay;
 import online.sync.InputFrame;
 import page.battle.BattleBox;
 
+import java.util.Map;
 import java.util.function.IntConsumer;
 
 /**
@@ -24,6 +26,8 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     private int frontRow, changeFrame = -1;
     private boolean goingUp, interactive = true, halfAdvanced, renderedSincePublish, battleUiHidden;
     private boolean autoRoulette, autoRouletteQueued;
+    private int authoritativeTick;
+    private Map<Long,Entity> entityIndex;
     /** Online PvP presentation is always 60 FPS; simulation remains fixed at 30 TPS. */
     public void force60Fps(boolean value){/* retained for protocol/UI compatibility */}
     public int renderFps(){return 60;}
@@ -36,6 +40,8 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
         this.keys = keys;
         this.direction = direction;
         this.send = send;
+        authoritativeTick=displayCopy.time;
+        entityIndex=PvpPresentationDelta.index(displayCopy);
     }
 
     @Override public StageBasis playerState() { return sb.playerFor(direction); }
@@ -44,19 +50,35 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
 
     /** Preserve camera/row selection across new authoritative snapshots without sending them. */
     public void publish(PvpStageBasis displayCopy) {
-        int elapsed = Math.max(0, displayCopy.time - sb.time);
+        advancePresentationClock(displayCopy.time);
         displayCopy.pos = sb.pos;
         displayCopy.siz = sb.siz;
-        while (changeFrame >= 0 && elapsed-- > 0) {
-            changeFrame--;
-            if (changeFrame == Data.LINEUP_CHANGE_TIME / 2 - 1) frontRow = 1 - frontRow;
-            if (changeFrame == 0) changeFrame = -1;
-        }
         sb = displayCopy;
+        entityIndex=PvpPresentationDelta.index(displayCopy);
         syncSpecialHud();
         syncRow();
         halfAdvanced = false;
         renderedSincePublish = false;
+    }
+
+    /** Apply primitive-only 30TPS motion/HUD state between expensive full snapshots. */
+    public void applyDelta(PvpPresentationDelta delta) {
+        if(delta==null||delta.tick<authoritativeTick)return;
+        advancePresentationClock(delta.tick);
+        delta.apply((PvpStageBasis)sb,entityIndex);
+        syncSpecialHud();
+        syncRow();
+        halfAdvanced=false;
+        renderedSincePublish=false;
+    }
+
+    private void advancePresentationClock(int tick){
+        int elapsed=Math.max(0,tick-authoritativeTick);authoritativeTick=Math.max(authoritativeTick,tick);
+        while(changeFrame>=0&&elapsed-->0){
+            changeFrame--;
+            if(changeFrame==Data.LINEUP_CHANGE_TIME/2-1)frontRow=1-frontRow;
+            if(changeFrame==0)changeFrame=-1;
+        }
     }
 
     public void renderStep() {
