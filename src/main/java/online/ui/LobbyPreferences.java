@@ -137,7 +137,7 @@ final class LobbyPreferences {
         String server=p.getProperty("serverAddress",DEFAULT_SERVER),name=p.getProperty("displayName",fallbackName==null?"":fallbackName);
         try{
             int music=integer(p,"musicId",RoomRules.DEFAULT.musicId);
-            if(!PvpBattleMusic.isAllowed(music))music=PvpBattleMusic.DEFAULT_ID;
+            if(music!=RoomRules.RANDOM_MUSIC&&!PvpBattleMusic.isAllowed(music))music=PvpBattleMusic.DEFAULT_ID;
             return new LobbyPreferences(server,name,
                     integer(p,"castleDistance",RoomRules.DEFAULT.castleDistance),
                     integer(p,"backgroundId",RoomRules.DEFAULT.backgroundId),
