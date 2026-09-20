@@ -331,6 +331,7 @@ public final class MatchBundle {
                         throw new IOException("Invalid production-pool unit");
                     Form form=unit.forms[formId];
                     if(!lineup.lu.map.containsKey(unit.id))throw new IOException("Missing synchronized production-pool level");
+                    if(!renderableProductionForm(form))throw new IOException("Unrenderable production-pool unit: "+unit.id);
                     lineup.lu.getLv(form);
                     forms.add(form);
                 }
