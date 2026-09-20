@@ -136,15 +136,21 @@ public class BattleObj extends ImgCore implements Cloneable {
 
 	@Override
 	public final BattleObj clone() {
-		BattleObj c = sysCopy();
-		terminate();
-		ARRMAP.clear();
-		UNCHECKED.removeAll(OLD);
-		for (Class<?> cls : UNCHECKED)
-			CommonStatic.ctx.printErr(ErrType.WARN, "Unchecked Class in Battle: " + cls);
-		OLD.addAll(UNCHECKED);
-		UNCHECKED.clear();
-		return c;
+		// The copier uses shared identity maps/copy links to preserve graph identity.
+		// Online simulation now publishes snapshots off the Swing EDT, so serialize
+		// clone operations globally instead of allowing two battle graphs to corrupt
+		// those temporary structures.
+		synchronized(BattleObj.class) {
+			BattleObj c = sysCopy();
+			terminate();
+			ARRMAP.clear();
+			UNCHECKED.removeAll(OLD);
+			for (Class<?> cls : UNCHECKED)
+				CommonStatic.ctx.printErr(ErrType.WARN, "Unchecked Class in Battle: " + cls);
+			OLD.addAll(UNCHECKED);
+			UNCHECKED.clear();
+			return c;
+		}
 	}
 
 	/**
