@@ -22,7 +22,8 @@ public final class PvpBattleMusicTests {
         }
         Check.equal("魔界侵略！",PvpBattleMusic.find(141).name,"141.ogg mapping");
         Check.equal("大決戦！破壊神ジャガンドー",PvpBattleMusic.find(142).name,"142.ogg mapping");
-        Check.that(!PvpBattleMusic.isAllowed(-1)&&!PvpBattleMusic.isAllowed(7),"silence/random unrelated BGM are not selectable");
+        Check.that(!PvpBattleMusic.isAllowed(-1)&&!PvpBattleMusic.isAllowed(7),"non-catalogue BGM identifiers are rejected");
+        Check.equal(-2,online.net.lobby.RoomRules.RANDOM_MUSIC,"random PvP BGM uses the reserved synchronized rule ID");
     }
     public static void main(String[] args){run();System.out.println("PvP battle music catalogue tests passed");}
 }
