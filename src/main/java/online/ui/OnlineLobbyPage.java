@@ -31,6 +31,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private static final long serialVersionUID=1L;
     private static final long BATTLE_STEP_NANOS=1_000_000_000L/Protocol.TPS;
     private static final int MAX_PRESENTATION_BACKLOG=1;
+    private static final long SNAPSHOT_SOFT_NANOS=8_000_000L,SNAPSHOT_HARD_NANOS=16_000_000L;
     private final JPanel content=new JPanel(new BorderLayout(12,12));
     private final JPanel setup=new JPanel(new GridBagLayout());
     private final JButton back=new JButton("戻る"),create=new JButton("部屋を作成"),join=new JButton("部屋に参加"),ready=new JButton("準備完了"),leave=new JButton("退出"),copyRoom=new JButton("部屋IDをコピー");
@@ -63,7 +64,8 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private volatile int generation;
     private boolean creating,uploaded,prepared,resultSent,busy;
     private volatile boolean disposed;
-    private long nextPaint,nextBattleStep;
+    private long nextPaint,nextBattleStep,lastSnapshotNanos;
+    private int snapshotStride=1;
 
     public OnlineLobbyPage(Page parent){
         super(parent);loadPreferences();content.setBorder(new EmptyBorder(16,18,16,18));add(content);
@@ -236,7 +238,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         battlePage.onlineStatus(transportLabel(),true);
         changePanel(battlePage);
         battlePage.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());
-        long now=System.nanoTime();nextPaint=now;nextBattleStep=now;pulse.start();
+        long now=System.nanoTime();nextPaint=now;nextBattleStep=now;lastSnapshotNanos=0;snapshotStride=1;pulse.start();
     }
     private void pump(){
         if(disposed||battle==null)return;
@@ -254,15 +256,25 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 if(frame!=null){
                     final InputFrame tickFrame=roster.toDuel(frame);
                     PvpAudio.forPlayer(slot==leftSlot?1:-1,()->battle.step(tickFrame));
+                    int winner=battle.winner();boolean terminal=winner!=-2;
                     if(battlePage!=null){
                         battlePage.observeOnlineAudioTick(battle);
-                        battlePage.publishOnline(battle.displayCopy());
+                        int effectiveStride=catchingUp?Math.max(3,snapshotStride):snapshotStride;
+                        if(terminal||battle.time%effectiveStride==0){
+                            long copyStart=System.nanoTime();
+                            PvpStageBasis display=battle.displayCopy();
+                            lastSnapshotNanos=System.nanoTime()-copyStart;
+                            snapshotStride=presentationStride(battle.le.size(),lastSnapshotNanos);
+                            battlePage.publishOnline(display);
+                        }
                     }
-                    if(battle.time%Protocol.HASH_INTERVAL==0)client.checkpoint(battle.time,BattleDigest.of(battle));
-                    if(battle.winner()!=-2){
+                    String digest=null;
+                    if(battle.time%Protocol.HASH_INTERVAL==0){digest=BattleDigest.of(battle);client.checkpoint(battle.time,digest);}
+                    if(terminal){
                         resultSent=true;
                         if(battlePage!=null)battlePage.beginOnlineBattleEnd();
-                        client.result(battle.time,battle.winner(),BattleDigest.of(battle));
+                        if(digest==null)digest=BattleDigest.of(battle);
+                        client.result(battle.time,winner,digest);
                         message("試合終了。両者の結果を照合しています…");
                     }
                     long after=System.nanoTime();
@@ -275,14 +287,24 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
             if(battlePage==null)return;
             now=System.nanoTime();
             if(now>=nextPaint){
-                if(!resultSent)battlePage.onlineStatus(transportLabel(),true);
                 long interval=1_000_000_000L/Math.max(1,battlePage.onlineFps());
-                battlePage.renderOnlineFrame();
+                // Rendering is presentation-only. When lockstep frames have accumulated,
+                // spend EDT time consuming authoritative ticks first instead of drawing
+                // obsolete intermediate frames that would make the backlog permanent.
+                if(client.resolvedFrameBacklog()<=MAX_PRESENTATION_BACKLOG||resultSent){
+                    if(!resultSent)battlePage.onlineStatus(transportLabel(),true);
+                    battlePage.renderOnlineFrame();
+                }
                 // Keep the ideal deadline phase. Using now+interval quantized 60 FPS
                 // to roughly 50 FPS with the 5 ms Swing timer and worsened JOGL jitter.
                 nextPaint=advanceDeadline(nextPaint,System.nanoTime(),interval);
             }
         }catch(Exception e){failed("同期処理を停止しました: "+e.getMessage());}
+    }
+    static int presentationStride(int entities,long copyNanos){
+        int byCount=entities>=400?2:1;
+        int byCost=copyNanos>=SNAPSHOT_HARD_NANOS?3:copyNanos>=SNAPSHOT_SOFT_NANOS?2:1;
+        return Math.max(byCount,byCost);
     }
     static boolean battleStepDue(long now,long deadline,int backlog){
         return backlog>MAX_PRESENTATION_BACKLOG||now>=deadline;
