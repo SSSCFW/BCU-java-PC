@@ -132,6 +132,8 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         }
         String playerName=name.getText().trim(),roomId=room.getText().trim(),castleSide=side.getSelectedIndex()==0?"right":"left";
         if(playerName.isEmpty()||playerName.length()>40||playerName.indexOf('\0')>=0 ){message("1〜40文字の表示名を指定してください。");return;}
+        if(roomId.length()>32){message("部屋IDは32文字以内にしてください。");return;}
+        for(int i=0;i<roomId.length();i++)if(Character.isWhitespace(roomId.charAt(i))||Character.isISOControl(roomId.charAt(i))){message("部屋IDには空白や制御文字を使用できません。");return;}
         if(!createRoom&&roomId.isEmpty()){message("起動済みサーバーへの接続だけでは入室できません。ホストが作成した部屋IDを入力してください。");return;}
         boolean allowDevelopment=development.isSelected();
         final int udpOverride=((Number)udpPortOverride.getValue()).intValue();
@@ -440,7 +442,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
             preferences=preferences.withLocalSetup(side.getSelectedIndex(),selectedLineupKind(),selectedLineupSet(),selectedLineupIndex());
             preferences.save(preferencesPath);preferencesDirty=false;
         }
-        catch(java.io.IOException e){System.err.println("BCU online preferences: "+e.getMessage());if(!disposed)status.append("\n設定の保存に失敗しました: "+e.getMessage());}
+        catch(Exception e){System.err.println("BCU online preferences: "+e.getMessage());if(!disposed)status.append("\n設定の保存に失敗しました: "+e.getMessage());}
     }
     boolean creatingRoom(){return creating;}
     LobbyPreferences preferences(){return preferences==null?new LobbyPreferences(server.getText(),name.getText()):preferences;}
