@@ -27,6 +27,7 @@ public final class AllTests {
         online.ui.PvpPlaybackTests.run();
         online.ui.PvpRouletteAudioTests.run();
         online.ui.OnlinePumpTimingTests.run();
+        online.ui.BattleSlotOrderTests.run();
         PvpBattleMusicTests.run();
         UiTests.run();
         RoomAudioTests.run();
