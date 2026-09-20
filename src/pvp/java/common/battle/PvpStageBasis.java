@@ -108,7 +108,7 @@ public final class PvpStageBasis extends StageBasis {
     public void step(InputFrame frame) {
         if (frame.tick != time) throw new IllegalArgumentException("Non-sequential simulation tick");
         if (winner() != -2) throw new IllegalStateException("Battle already finished");
-        if(pvpRerollSlotAfterDeploy&&(left().pvpProductionPool.length<2||right().pvpProductionPool.length<2))
+        if(pvpRerollSlotAfterDeploy&&(left().NONC_pvpProductionPool.length<2||right().NONC_pvpProductionPool.length<2))
             throw new IllegalStateException("Random production pool is not synchronized");
         try { PvpTiming.inMatch(matchScope, () -> { PvpTiming.logic(() -> {
             time++; pvpOther.time = time;
