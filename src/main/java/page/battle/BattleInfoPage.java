@@ -109,6 +109,8 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
     private final PvpRouletteAudio rouletteAudio=new PvpRouletteAudio();
     private int rouletteNoticeUntil=-1;
     private int onlineStatsFrame=5;
+    private int onlineSlotDragSource=-1;
+    private Point onlineSlotDragPoint;
 	private Runnable onlineExit;
 	private boolean onlineClosed;
 	private String onlineLeftName, onlineRightName;
@@ -424,6 +426,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		onlineClosed = true;
         if(audioDialog!=null){audioDialog.dispose();audioDialog=null;}
         if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;heldUnitPoint=null;
+        clearOnlineSlotDrag();
         onlineAudioGeneration++;
         PvpSoundBank.stopAll();BCMusic.stopAll();BCMusic.music=null;onlineBackdrop.clear();
 		online.interactive(false);
@@ -441,9 +444,14 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	@Override protected void exit() { closeOnline(); }
 
 	@Override protected void windowDeactivated() {
-		if (online != null) getPress().clear();
+		if (online != null) {getPress().clear();clearOnlineSlotDrag();}
 		super.windowDeactivated();
 	}
+
+    private void clearOnlineSlotDrag(){
+        onlineSlotDragSource=-1;onlineSlotDragPoint=null;
+        if(bb instanceof Component)((Component)bb).setCursor(Cursor.getDefaultCursor());
+    }
 
 	@Override
 	public void callBack(Object o) {
