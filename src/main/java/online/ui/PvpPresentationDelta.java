@@ -72,6 +72,7 @@ public final class PvpPresentationDelta {
         target.cannon=source.cannon;target.maxCannon=source.maxCannon;
         target.work_lv=source.workLevel;target.upgradeCost=source.upgradeCost;target.unitRespawnTime=source.unitRespawnTime;target.maxCatSpawns=source.maxCatSpawns;
         target.ownBase().health=source.castleHealth;
+        for(int row=0;row<2;row++)System.arraycopy(source.slotPoolChoice[row],0,target.pvpSlotPoolChoice[row],0,5);
         for(int visible=0;visible<10;visible++){
             int canonical=visibleToCanonical==null?visible:visibleToCanonical[visible];
             int row=visible/5,col=visible%5,sourceRow=canonical/5,sourceCol=canonical%5;
@@ -87,7 +88,7 @@ public final class PvpPresentationDelta {
     private static final class PlayerDelta {
         final int money,maxMoney,cannon,maxCannon,workLevel,upgradeCost,unitRespawnTime,maxCatSpawns;
         final long castleHealth;
-        final int[][] cool=new int[2][5],price=new int[2][5],tick=new int[2][5],maxC=new int[2][5],frameOffCd=new int[2][5];
+        final int[][] cool=new int[2][5],price=new int[2][5],tick=new int[2][5],maxC=new int[2][5],frameOffCd=new int[2][5],slotPoolChoice=new int[2][5];
         final boolean[][] locks=new boolean[2][5];
         final int[][][] cdDelayVisual=new int[2][5][];
         final RouletteDelta roulette;
@@ -98,7 +99,7 @@ public final class PvpPresentationDelta {
             for(int row=0;row<2;row++)for(int col=0;col<5;col++){
                 cool[row][col]=s.elu.cool[row][col];price[row][col]=s.elu.price[row][col];
                 tick[row][col]=s.elu.tick[row][col];maxC[row][col]=s.elu.maxC[row][col];
-                frameOffCd[row][col]=s.frameOffCd[row][col];locks[row][col]=s.locks[row][col];
+                frameOffCd[row][col]=s.frameOffCd[row][col];locks[row][col]=s.locks[row][col];slotPoolChoice[row][col]=s.pvpSlotPoolChoice[row][col];
                 cdDelayVisual[row][col]=s.cdDelayVisual[row][col].clone();
             }
             roulette=s.pvpRoulette==null?null:new RouletteDelta(s.pvpRoulette);
