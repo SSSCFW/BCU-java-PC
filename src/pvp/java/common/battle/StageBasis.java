@@ -82,7 +82,11 @@ public class StageBasis extends BattleObj {
     }
     /** Presentation-only acceleration structure; excluded from clone/hash by NONC_ prefix. */
     private PvpSpatialIndex NONC_pvpSpatialIndex;
-    private PvpSpatialIndex activePvpSpatialIndex(){return isPvp()?world().NONC_pvpSpatialIndex:null;}
+    /** Test-only fallback switch, excluded from deterministic state. */
+    private boolean NONC_disablePvpSpatialIndex;
+    private PvpSpatialIndex activePvpSpatialIndex(){
+        StageBasis root=world();return isPvp()&&!root.NONC_disablePvpSpatialIndex?root.NONC_pvpSpatialIndex:null;
+    }
     public final void onOwnCastleDamaged() {
         if(!isPvp()||!pvpCastleHitMoneyEnabled||pvpCastleHitMoney<=0)return;
         // StageBasis stores currency in hundredths; room rules/UI use displayed yen.
@@ -1242,22 +1246,25 @@ public class StageBasis extends BattleObj {
         for (int i = 0; i < lw.size(); i++) if (advance || lw.get(i).IMUTime()) lw.get(i).update();
         le.sort(Comparator.comparingLong(e -> e.pvpEntityId));
         StageBasis root=world();
-        PvpSpatialIndex spatial=root.NONC_pvpSpatialIndex;
-        if(spatial==null)root.NONC_pvpSpatialIndex=spatial=new PvpSpatialIndex();
-        spatial.rebuild(le);
+        PvpSpatialIndex spatial=null;
+        if(!root.NONC_disablePvpSpatialIndex){
+            spatial=root.NONC_pvpSpatialIndex;
+            if(spatial==null)root.NONC_pvpSpatialIndex=spatial=new PvpSpatialIndex();
+            spatial.rebuild(le);
+        }
         ebase.update(); ubase.update();
         for (int i = 0; i < le.size(); i++) if (advance || (le.get(i).getAbi() & AB_TIMEI) != 0) {
-            Entity entity=le.get(i);float before=entity.pos;entity.update();spatial.moved(entity,before);
+            Entity entity=le.get(i);float before=entity.pos;entity.update();if(spatial!=null)spatial.moved(entity,before);
         }
         ebase.update2(); ubase.update2();
         for (int i = 0; i < le.size(); i++) if (advance || (le.get(i).getAbi() & AB_TIMEI) != 0) {
-            Entity entity=le.get(i);float before=entity.pos;entity.update2();spatial.moved(entity,before);
+            Entity entity=le.get(i);float before=entity.pos;entity.update2();if(spatial!=null)spatial.moved(entity,before);
         }
         la.forEach(AttackAb::capture);
         la.forEach(AttackAb::excuse);
         la.removeIf(a -> a.duration <= 0);
         le.sort(Comparator.comparingInt((Entity e) -> e.currentLayer).thenComparingLong(e -> e.pvpEntityId));
-        spatial.reorder(le);
+        if(spatial!=null)spatial.reorder(le);
     }
 
 	private void updateEntitiesAnimation(boolean time) {
