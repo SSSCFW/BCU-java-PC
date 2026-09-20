@@ -41,6 +41,7 @@ public class BattleObj extends ImgCore implements Cloneable {
 	private static final Map<Object, Object> ARRMAP = new IdentityHashMap<>();
 	private static final Map<Class<?>, List<Field>> FIELD_CACHE = new ConcurrentHashMap<>();
 	private static final Map<Class<?>, Boolean> FIELD_TYPE_CACHE = new ConcurrentHashMap<>();
+	private static final ThreadLocal<Boolean> FAST_COPY = ThreadLocal.withInitial(() -> false);
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	protected static Object hardCopy(Object obj) {
@@ -138,19 +139,39 @@ public class BattleObj extends ImgCore implements Cloneable {
 
 	@Override
 	public final BattleObj clone() {
+		return cloneInternal(false);
+	}
+
+	/**
+	 * Fast copy for disposable presentation snapshots. hardCopy still rejects any
+	 * unsupported runtime value; this only skips the redundant preflight type walk.
+	 */
+	protected final BattleObj fastClone() {
+		return cloneInternal(true);
+	}
+
+	private BattleObj cloneInternal(boolean fast) {
 		// The copier uses shared identity maps/copy links to preserve graph identity.
 		// Online simulation publishes snapshots off the Swing EDT, so serialize the
 		// legacy copier while preserving its subclass-specific terminate semantics.
 		synchronized(BattleObj.class) {
-			BattleObj c = sysCopy();
-			terminate();
-			ARRMAP.clear();
-			UNCHECKED.removeAll(OLD);
-			for (Class<?> cls : UNCHECKED)
-				CommonStatic.ctx.printErr(ErrType.WARN, "Unchecked Class in Battle: " + cls);
-			OLD.addAll(UNCHECKED);
-			UNCHECKED.clear();
-			return c;
+			boolean previous=FAST_COPY.get();
+			if(fast)FAST_COPY.set(true);
+			try {
+				BattleObj c = sysCopy();
+				terminate();
+				ARRMAP.clear();
+				if(!fast){
+					UNCHECKED.removeAll(OLD);
+					for (Class<?> cls : UNCHECKED)
+						CommonStatic.ctx.printErr(ErrType.WARN, "Unchecked Class in Battle: " + cls);
+					OLD.addAll(UNCHECKED);
+				}
+				UNCHECKED.clear();
+				return c;
+			} finally {
+				if(previous)FAST_COPY.set(true);else FAST_COPY.remove();
+			}
 		}
 	}
 
@@ -169,7 +190,7 @@ public class BattleObj extends ImgCore implements Cloneable {
 	 */
 	protected void performDeepCopy() {
 		List<Field> lf = getField(getClass());
-		check(lf);
+		if(!FAST_COPY.get())check(lf);
 		for (Field f : lf) {
 			if (f.getName().startsWith(NONC))
 				continue;
