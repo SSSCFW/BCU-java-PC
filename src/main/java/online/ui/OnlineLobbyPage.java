@@ -69,7 +69,8 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private final Path preferencesPath=CommonStatic.ctx.getUserFile("online-client.properties").toPath();
     private final javax.swing.Timer saveTimer=new javax.swing.Timer(400,e->savePreferences());
     private LobbyPreferences preferences;
-    private boolean preferencesDirty,roomProtected;
+    private String preferredRoomId="";
+    private boolean preferencesDirty,roomProtected,assigningRoomId;
     private volatile int generation;
     private boolean creating,uploaded,prepared,busy;
     private volatile boolean resultSent;
@@ -86,7 +87,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         restoreLocalSetup();
         row(0,"サーバー（TCPはURLの :ポート）",server);
         row(1,"UDPポート（参加先・0=自動）",udpPortOverride);
-        row(2,"表示名",name);row(3,"城の位置（作成者）",side);row(4,"部屋ID（参加時）",room);row(5,"パスワード（任意・設定時8文字以上）",password);
+        row(2,"表示名",name);row(3,"城の位置（作成者）",side);row(4,"部屋ID（作成/参加・空欄なら自動生成）",room);row(5,"パスワード（任意・設定時8文字以上）",password);
         row(7,"",development);
         JPanel actions=new JPanel(new FlowLayout(FlowLayout.LEADING));actions.add(create);actions.add(join);row(8,"",actions);row(9,"友人用サーバー",friendServer);
         ready.setEnabled(false);leave.setEnabled(false);copyRoom.setEnabled(false);
@@ -173,7 +174,9 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
             case "joined":
                 roomProtected=!e.has("passwordRequired")||e.get("passwordRequired").getAsBoolean();
                 match=Protocol.string(e,"match",32);playerId=Protocol.integer(e,"playerId");if(playerId<=0)throw new java.io.IOException("Invalid identity");
-                room.setText(Protocol.string(e,"room",32));copyRoom.setEnabled(true);password.setText("");
+                assigningRoomId=true;
+                try{room.setText(Protocol.string(e,"room",32));}finally{assigningRoomId=false;}
+                copyRoom.setEnabled(true);password.setText("");
 
                 roomLobby=new RoomLobbyPage(this,client,playerId,room.getText(),roomProtected,lineup,ready);
                 changePanel(roomLobby);roomLobby.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());
@@ -405,8 +408,10 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         if(!disposed)status.setText((playerId>0?"部屋ID: "+room.getText()+" / "+(roomProtected?"パスワードあり":"パスワードなし")+"\n":"")+text);
     }else{int attempt=generation;message(attempt,text);}}
     private void loadPreferences(){
-        try{preferences=LobbyPreferences.load(preferencesPath,MainBCU.author);server.setText(preferences.serverAddress);udpPortOverride.setValue(preferences.udpPortOverride);name.setText(preferences.displayName);}
-        catch(java.io.IOException e){System.err.println("BCU online preferences: "+e.getMessage());preferences=new LobbyPreferences(LobbyPreferences.DEFAULT_SERVER,MainBCU.author);server.setText(preferences.serverAddress);udpPortOverride.setValue(preferences.udpPortOverride);name.setText(preferences.displayName);}
+        try{preferences=LobbyPreferences.load(preferencesPath,MainBCU.author);}
+        catch(java.io.IOException e){System.err.println("BCU online preferences: "+e.getMessage());preferences=new LobbyPreferences(LobbyPreferences.DEFAULT_SERVER,MainBCU.author);}
+        server.setText(preferences.serverAddress);udpPortOverride.setValue(preferences.udpPortOverride);name.setText(preferences.displayName);
+        preferredRoomId=preferences.roomId;room.setText(preferredRoomId);development.setSelected(preferences.allowDevelopment);
     }
     private void bindPreferences(){
         saveTimer.setRepeats(false);
@@ -417,7 +422,12 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
             public void changedUpdate(DocumentEvent e){changed();}
         };
         server.getDocument().addDocumentListener(listener);name.getDocument().addDocumentListener(listener);
+        room.getDocument().addDocumentListener(new DocumentListener(){
+            private void changed(){if(assigningRoomId)return;preferredRoomId=room.getText().trim();preferencesDirty=true;saveTimer.restart();}
+            public void insertUpdate(DocumentEvent e){changed();}public void removeUpdate(DocumentEvent e){changed();}public void changedUpdate(DocumentEvent e){changed();}
+        });
         udpPortOverride.addChangeListener(e->{preferencesDirty=true;saveTimer.restart();});
+        development.addActionListener(e->{preferencesDirty=true;saveTimer.restart();});
         side.addActionListener(e->{preferencesDirty=true;saveTimer.restart();});
         lineup.addActionListener(e->{preferencesDirty=true;saveTimer.restart();});
     }
@@ -425,8 +435,8 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         saveTimer.stop();if(!preferencesDirty)return;
         try{
             int udpOverride=((Number)udpPortOverride.getValue()).intValue();
-            if(preferences==null)preferences=new LobbyPreferences(server.getText(),name.getText()).withConnection(server.getText(),name.getText(),udpOverride);
-            else preferences=preferences.withConnection(server.getText(),name.getText(),udpOverride);
+            if(preferences==null)preferences=new LobbyPreferences(server.getText(),name.getText());
+            preferences=preferences.withConnection(server.getText(),name.getText(),udpOverride,preferredRoomId,development.isSelected());
             preferences=preferences.withLocalSetup(side.getSelectedIndex(),selectedLineupKind(),selectedLineupSet(),selectedLineupIndex());
             preferences.save(preferencesPath);preferencesDirty=false;
         }
@@ -491,6 +501,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         Component center=((BorderLayout)content.getLayout()).getLayoutComponent(BorderLayout.CENTER);
         if(center!=setup){if(center!=null)content.remove(center);content.add(setup,BorderLayout.CENTER);content.revalidate();content.repaint();}
         setSetupEnabled(true);ready.setEnabled(false);leave.setEnabled(false);copyRoom.setEnabled(false);
+        assigningRoomId=true;try{room.setText(preferredRoomId);}finally{assigningRoomId=false;}
     }
     private static void delete(Path p){try{Files.deleteIfExists(p);}catch(java.io.IOException ignored){}}
     private void cleanup(){if(disposed)return;savePreferences();disposed=true;resetMatch();friendServer.close();io.shutdownNow();simulation.shutdownNow();}
