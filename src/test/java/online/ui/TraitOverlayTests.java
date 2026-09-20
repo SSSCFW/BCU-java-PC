@@ -48,10 +48,17 @@ public final class TraitOverlayTests {
         Check.that(scroller.isWheelScrollingEnabled(),"hold details support mouse-wheel scrolling");
         Check.that(scroller.getVerticalScrollBarPolicy()!=ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER,
                 "hold details allow vertical overflow");
+        Check.equal(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER,scroller.getHorizontalScrollBarPolicy(),
+                "hold details never use a horizontal scrollbar");
         Check.that(scroller.getVerticalScrollBar().getUnitIncrement()>=20,
                 "hold details wheel scroll moves a useful amount");
         Check.that(overlay.getPreferredSize().width>=900&&overlay.getPreferredSize().height>=380,
                 "hold details request a larger default frame");
+        Component rows=findNamedRows(overlay);
+        Check.that(rows!=null,"hold details expose wrapped row content");
+        rows.setSize(420,1);Dimension narrow=rows.getPreferredSize();
+        rows.setSize(920,1);Dimension wide=rows.getPreferredSize();
+        Check.that(narrow.height>=wide.height,"narrow hold-details rows wrap vertically instead of requiring horizontal scrolling");
         List<String> before=texts(overlay);
         Check.that(before.contains("HP "+format(baseHp)),"hold details show current HP stat");
         Check.that(before.contains("攻撃力 "+format(baseAtk)),"hold details show current attack stat");
@@ -69,6 +76,13 @@ public final class TraitOverlayTests {
         Check.that(after.contains("HP "+format(boosted.maxH)),"hold details refresh roulette-adjusted HP");
         Check.that(after.contains("攻撃力 "+format(boosted.getAtk())),"hold details refresh roulette-adjusted attack");
         Check.that(after.contains("移動速度 "+format(boosted.displayMoveSpeed())),"hold details refresh roulette-adjusted movement");
+    }
+    private static Component findNamedRows(Component root){
+        if(root instanceof JPanel&&root.getClass().getName().contains("ScrollRows"))return root;
+        if(root instanceof Container)for(Component child:((Container)root).getComponents()){
+            Component found=findNamedRows(child);if(found!=null)return found;
+        }
+        return null;
     }
     private static <T extends Component> T find(Component root,Class<T> type){
         if(type.isInstance(root))return type.cast(root);
