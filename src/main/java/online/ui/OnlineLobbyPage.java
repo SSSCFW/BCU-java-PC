@@ -341,8 +341,11 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
             }
         }catch(Exception e){
             if(epoch!=battleEpoch.get())return;
+            e.printStackTrace();
             battleEpoch.incrementAndGet();
-            failed("同期処理を停止しました: "+(e.getMessage()==null?e.getClass().getSimpleName():e.getMessage()));
+            StackTraceElement[] trace=e.getStackTrace();
+            String where=trace.length==0?"":" @ "+trace[0].getClassName()+"."+trace[0].getMethodName()+":"+trace[0].getLineNumber();
+            failed("同期処理を停止しました: "+(e.getMessage()==null?e.getClass().getSimpleName():e.getMessage())+where);
         }
     }
 
