@@ -19,7 +19,7 @@ final class LobbyPreferences {
     /** 0 means use the UDP port advertised by the server. */
     final int udpPortOverride;
     final int castleDistance, backgroundId, musicId;
-    final boolean force60Fps, debugMode, castleHitMoneyEnabled, allowDevelopment;
+    final boolean force60Fps, debugMode, castleHitMoneyEnabled, allowDevelopment, rerollSlotAfterDeploy;
     final RoomRules.SpecialMode specialMode;
     final int hostTraitChoice, guestTraitChoice, hostTraitExclusions, guestTraitExclusions, timeLimitMinutes;
     final int maxUnits, castleHitMoney;
@@ -33,7 +33,7 @@ final class LobbyPreferences {
                 RoomRules.DEFAULT.force60Fps,RoomRules.DEFAULT.specialMode,RoomRules.DEFAULT.debugMode,
                 PvpTraitRules.NONE,PvpTraitRules.NONE,0,0,RoomRules.DEFAULT_TIME_LIMIT_MINUTES,
                 RoomRules.DEFAULT_MAX_UNITS,false,RoomRules.DEFAULT_CASTLE_HIT_MONEY,
-                PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER,0,LINEUP_SAVED,-1,-1,0,RandomLineupFactory.SortOrder.SHUFFLED,"",false);
+                PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER,0,LINEUP_SAVED,-1,-1,0,RandomLineupFactory.SortOrder.SHUFFLED,"",false,false);
     }
 
     LobbyPreferences(String serverAddress,String displayName,
@@ -43,7 +43,7 @@ final class LobbyPreferences {
                      double castleHealthMultiplier,int creatorSideIndex,int lineupKind,int lineupSetIndex,int lineupIndex) {
         this(serverAddress,displayName,castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
                 hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
-                maxUnits,castleHitMoneyEnabled,castleHitMoney,castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,0,RandomLineupFactory.SortOrder.SHUFFLED,"",false);
+                maxUnits,castleHitMoneyEnabled,castleHitMoney,castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,0,RandomLineupFactory.SortOrder.SHUFFLED,"",false,false);
     }
 
     LobbyPreferences(String serverAddress,String displayName,
@@ -51,10 +51,10 @@ final class LobbyPreferences {
                      int hostTraitChoice,int guestTraitChoice,int hostTraitExclusions,int guestTraitExclusions,int timeLimitMinutes,
                      int maxUnits,boolean castleHitMoneyEnabled,int castleHitMoney,
                      double castleHealthMultiplier,int creatorSideIndex,int lineupKind,int lineupSetIndex,int lineupIndex,int udpPortOverride,
-                     RandomLineupFactory.SortOrder randomLineupSort,String roomId,boolean allowDevelopment) {
+                     RandomLineupFactory.SortOrder randomLineupSort,String roomId,boolean allowDevelopment,boolean rerollSlotAfterDeploy) {
         RoomRules validated=new RoomRules(castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
                 hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
-                maxUnits,castleHitMoneyEnabled,castleHitMoney);
+                maxUnits,castleHitMoneyEnabled,castleHitMoney,rerollSlotAfterDeploy);
         PvpStageBasis.validateCastleHealthMultiplier(castleHealthMultiplier);
         if(creatorSideIndex<0||creatorSideIndex>1)throw new IllegalArgumentException("Invalid saved creator side");
         if(lineupKind<LINEUP_SAVED||lineupKind>LINEUP_RANDOM_VANILLA)throw new IllegalArgumentException("Invalid saved lineup kind");
@@ -69,6 +69,7 @@ final class LobbyPreferences {
         this.hostTraitExclusions=validated.hostTraitExclusions;this.guestTraitExclusions=validated.guestTraitExclusions;
         this.timeLimitMinutes=validated.timeLimitMinutes;this.maxUnits=validated.maxUnits;
         this.castleHitMoneyEnabled=validated.castleHitMoneyEnabled;this.castleHitMoney=validated.castleHitMoney;
+        this.rerollSlotAfterDeploy=validated.rerollSlotAfterDeploy;
         this.castleHealthMultiplier=castleHealthMultiplier;this.creatorSideIndex=creatorSideIndex;
         this.lineupKind=lineupKind;this.lineupSetIndex=lineupSetIndex;this.lineupIndex=lineupIndex;this.randomLineupSort=randomLineupSort;
     }
@@ -81,14 +82,14 @@ final class LobbyPreferences {
         return new LobbyPreferences(server,name,castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
                 hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
                 maxUnits,castleHitMoneyEnabled,castleHitMoney,
-                castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,udpPortOverride,randomLineupSort,roomId,allowDevelopment);
+                castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,udpPortOverride,randomLineupSort,roomId,allowDevelopment,rerollSlotAfterDeploy);
     }
 
     LobbyPreferences withHostRules(RoomRules rules){
         return copy(serverAddress,displayName,rules.castleDistance,rules.backgroundId,rules.musicId,rules.force60Fps,rules.specialMode,rules.debugMode,
                 rules.hostTraitChoice,rules.guestTraitChoice,rules.hostTraitExclusions,rules.guestTraitExclusions,rules.timeLimitMinutes,
                 rules.maxUnits,rules.castleHitMoneyEnabled,rules.castleHitMoney,
-                castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,randomLineupSort);
+                castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,randomLineupSort,rules.rerollSlotAfterDeploy);
     }
 
     LobbyPreferences withCastleHealth(double value){
@@ -108,7 +109,7 @@ final class LobbyPreferences {
     RoomRules hostRules(){
         return new RoomRules(castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
                 hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
-                maxUnits,castleHitMoneyEnabled,castleHitMoney);
+                maxUnits,castleHitMoneyEnabled,castleHitMoney,rerollSlotAfterDeploy);
     }
 
     private LobbyPreferences copy(String server,String name,
@@ -116,9 +117,19 @@ final class LobbyPreferences {
                                          int hostTrait,int guestTrait,int hostExclude,int guestExclude,int time,
                                          int maxUnits,boolean castleHitMoneyEnabled,int castleHitMoney,
                                          double castle,int side,int lineupKind,int setIndex,int lineupIndex,RandomLineupFactory.SortOrder sort){
+        return copy(server,name,distance,background,music,force60,special,debug,
+                hostTrait,guestTrait,hostExclude,guestExclude,time,maxUnits,castleHitMoneyEnabled,castleHitMoney,
+                castle,side,lineupKind,setIndex,lineupIndex,sort,rerollSlotAfterDeploy);
+    }
+    private LobbyPreferences copy(String server,String name,
+                                         int distance,int background,int music,boolean force60,RoomRules.SpecialMode special,boolean debug,
+                                         int hostTrait,int guestTrait,int hostExclude,int guestExclude,int time,
+                                         int maxUnits,boolean castleHitMoneyEnabled,int castleHitMoney,
+                                         double castle,int side,int lineupKind,int setIndex,int lineupIndex,RandomLineupFactory.SortOrder sort,
+                                         boolean rerollSlotAfterDeploy){
         return new LobbyPreferences(server,name,distance,background,music,force60,special,debug,
                 hostTrait,guestTrait,hostExclude,guestExclude,time,maxUnits,castleHitMoneyEnabled,castleHitMoney,
-                castle,side,lineupKind,setIndex,lineupIndex,udpPortOverride,sort,roomId,allowDevelopment);
+                castle,side,lineupKind,setIndex,lineupIndex,udpPortOverride,sort,roomId,allowDevelopment,rerollSlotAfterDeploy);
     }
 
     LobbyPreferences withRandomLineupSort(RandomLineupFactory.SortOrder sort){
@@ -156,7 +167,7 @@ final class LobbyPreferences {
                     integer(p,"lineupSetIndex",-1),integer(p,"lineupIndex",-1),
                     integer(p,"udpPortOverride",0),
                     RandomLineupFactory.SortOrder.valueOf(p.getProperty("randomLineupSort",RandomLineupFactory.SortOrder.SHUFFLED.name())),
-                    p.getProperty("roomId",""),bool(p,"allowDevelopment",false));
+                    p.getProperty("roomId",""),bool(p,"allowDevelopment",false),bool(p,"rerollSlotAfterDeploy",false));
         }catch(IllegalArgumentException e){
             System.err.println("BCU online preferences: ignoring invalid saved PvP preferences: "+e.getMessage());
             return new LobbyPreferences(server,name);
@@ -184,6 +195,7 @@ final class LobbyPreferences {
             p.setProperty("creatorSideIndex",Integer.toString(creatorSideIndex));
             p.setProperty("lineupKind",Integer.toString(lineupKind));p.setProperty("lineupSetIndex",Integer.toString(lineupSetIndex));p.setProperty("lineupIndex",Integer.toString(lineupIndex));
             p.setProperty("randomLineupSort",randomLineupSort.name());
+            p.setProperty("rerollSlotAfterDeploy",Boolean.toString(rerollSlotAfterDeploy));
             try(Writer out=Files.newBufferedWriter(temporary,StandardCharsets.UTF_8)){p.store(out,"BCU online lobby (non-secret preferences only)");}
             try{Files.move(temporary,target,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}
             catch(AtomicMoveNotSupportedException e){Files.move(temporary,target,StandardCopyOption.REPLACE_EXISTING);}
