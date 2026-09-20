@@ -13,6 +13,7 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * this class enables copy of an interconnected system. <br>
@@ -38,6 +39,8 @@ public class BattleObj extends ImgCore implements Cloneable {
 	private static final Set<Class<?>> OLD = new HashSet<>();
 	private static final Set<Class<?>> UNCHECKED = new HashSet<>();
 	private static final Map<Object, Object> ARRMAP = new IdentityHashMap<>();
+	private static final Map<Class<?>, List<Field>> FIELD_CACHE = new ConcurrentHashMap<>();
+	private static final Map<Class<?>, Boolean> FIELD_TYPE_CACHE = new ConcurrentHashMap<>();
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	protected static Object hardCopy(Object obj) {
@@ -93,37 +96,40 @@ public class BattleObj extends ImgCore implements Cloneable {
 	}
 
 	private static boolean checkField(Class<?> tc) {
-		if (tc.isPrimitive())
-			return true;
-		boolean b0 = BattleObj.class.isAssignableFrom(tc);
-		boolean b1 = BattleStatic.class.isAssignableFrom(tc);
-		if (b0 && b1)
-			return false;
-		if (b0 || b1)
-			return true;
-		for (Class<?> cls : EXCLUDE)
-			if (cls.isAssignableFrom(tc))
-				return true;
-		if (tc.isArray())
-			return checkField(tc.getComponentType());
-		return false;
+		Boolean cached=FIELD_TYPE_CACHE.get(tc);
+		if(cached!=null)return cached;
+		boolean result;
+		if (tc.isPrimitive()) result=true;
+		else {
+			boolean b0 = BattleObj.class.isAssignableFrom(tc);
+			boolean b1 = BattleStatic.class.isAssignableFrom(tc);
+			if (b0 && b1) result=false;
+			else if (b0 || b1) result=true;
+			else {
+				result=false;
+				for (Class<?> cls : EXCLUDE)
+					if (cls.isAssignableFrom(tc)) {result=true;break;}
+				if (!result && tc.isArray()) result=checkField(tc.getComponentType());
+			}
+		}
+		FIELD_TYPE_CACHE.put(tc,result);
+		return result;
 	}
 
 	@SuppressWarnings("unchecked")
 	private static List<Field> getField(Class<? extends BattleObj> cls) {
-		List<Field> fl = new ArrayList<Field>();
-		Field[] fs = cls.getDeclaredFields();
-		for (Field f : fs)
-			if (!Modifier.isStatic(f.getModifiers())) {
-				f.setAccessible(true);
-				fl.add(f);
-			}
-		Class<? extends BattleObj> sc = null;
-		if (BattleObj.class.isAssignableFrom(cls) && BattleObj.class != cls.getSuperclass())
-			sc = (Class<? extends BattleObj>) cls.getSuperclass();
-		if (sc != null)
-			fl.addAll(getField(sc));
-		return fl;
+		return FIELD_CACHE.computeIfAbsent(cls,key->{
+			List<Field> fl = new ArrayList<>();
+			for (Field f : key.getDeclaredFields())
+				if (!Modifier.isStatic(f.getModifiers())) {
+					f.setAccessible(true);
+					fl.add(f);
+				}
+			Class<?> parent=key.getSuperclass();
+			if (parent!=null && parent!=BattleObj.class && BattleObj.class.isAssignableFrom(parent))
+				fl.addAll(getField((Class<? extends BattleObj>)parent));
+			return Collections.unmodifiableList(fl);
+		});
 	}
 
 	protected BattleObj copy = null;
