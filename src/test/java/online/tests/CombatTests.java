@@ -178,7 +178,8 @@ private static void postDeploySlotRerollTests() throws Exception {
     }
     Form original=first.left().pvpSlotForm(0,0);
     first.step(new InputFrame(0,1,0));second.step(new InputFrame(0,1,0));
-    EUnit deployed=(EUnit)first.le.stream().filter(e->e instanceof EUnit&&e.dire==1).findFirst().orElseThrow();
+    EUnit deployed=(EUnit)first.le.stream().filter(e->e instanceof EUnit&&e.dire==1).findFirst()
+            .orElseThrow(()->new AssertionError("reroll fixture did not deploy the original unit"));
     Check.that(deployed.data==original.du,"pressed slot deploys its current character before reroll");
     Form next=first.left().pvpSlotForm(0,0);
     Check.that(!next.unit.id.equals(original.unit.id),"successful production replaces the slot with a different character");
