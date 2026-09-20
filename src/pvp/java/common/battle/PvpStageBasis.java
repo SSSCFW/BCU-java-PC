@@ -181,7 +181,7 @@ public final class PvpStageBasis extends StageBasis {
     }
     public int timeLimitTicks(){return st.timeLimit<=0?0:st.timeLimit*60*TPS;}
     public int remainingTimeTicks(){int limit=timeLimitTicks();return limit<=0?-1:Math.max(0,limit-time);}
-    public PvpStageBasis displayCopy() { return (PvpStageBasis)clone(); }
+    public PvpStageBasis displayCopy() { return (PvpStageBasis)fastClone(); }
     /** Only call on a displayCopy; never on the canonical battle state. */
     public void advanceDisplay() {
         PvpTiming.halfStep(() -> {updateAnimation();pvpOther.canon.updateAnimation();});
