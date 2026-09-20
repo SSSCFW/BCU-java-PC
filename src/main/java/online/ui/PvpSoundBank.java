@@ -151,6 +151,10 @@ public final class PvpSoundBank {
         }
         void cancel(){
             synchronized(PvpSoundBank.class){if(cancelled)return;cancelled=true;forget();}
+            // Silence immediately at a battle/session boundary. Clip.close() can block
+            // on some mixers, so device release remains on the audio worker.
+            Clip current=clip;
+            if(current!=null)try{current.stop();}catch(Exception ignored){}
             SwingUtilities.invokeLater(()->{if(timer!=null){timer.stop();timer=null;}});
             executor().execute(this::release);
         }
