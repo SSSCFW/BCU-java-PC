@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.Properties;
 
-/** Per-installation, non-secret lobby fields only. Never save passwords, room IDs or transport keys. */
+/** Per-installation, non-secret lobby fields only. Never save passwords or transport keys. */
 final class LobbyPreferences {
     static final String DEFAULT_SERVER = "ws://127.0.0.1:8766";
     static final int LINEUP_SAVED=0, LINEUP_RANDOM=1, LINEUP_RANDOM_VANILLA=2;
@@ -43,7 +43,7 @@ final class LobbyPreferences {
                      double castleHealthMultiplier,int creatorSideIndex,int lineupKind,int lineupSetIndex,int lineupIndex) {
         this(serverAddress,displayName,castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
                 hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
-                maxUnits,castleHitMoneyEnabled,castleHitMoney,castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,0,RandomLineupFactory.SortOrder.SHUFFLED);
+                maxUnits,castleHitMoneyEnabled,castleHitMoney,castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,0,RandomLineupFactory.SortOrder.SHUFFLED,"",false);
     }
 
     LobbyPreferences(String serverAddress,String displayName,
