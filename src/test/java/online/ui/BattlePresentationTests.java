@@ -13,6 +13,7 @@ import page.battle.BattleBox;
 import page.battle.BBCtrl;
 import java.awt.*;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelEvent;
 import java.lang.reflect.*;
 import java.nio.file.*;
 import java.util.concurrent.*;
@@ -107,6 +108,25 @@ public final class BattlePresentationTests {
                     Check.equal(1,view.canonicalSlotForVisible(0),"middle-button drag swaps visible slot mapping");
                     Check.equal(0,view.canonicalSlotForVisible(1),"middle-button drag preserves inverse mapping");
                     Check.that(view.visibleForm(0)==null&&view.visibleForm(1)!=null,"middle-button drag visibly moves the unit to the destination slot");
+                    return null;
+                });
+                if(args[0].equals("hold-wheel"))edt(()->{
+                    BattleBox box=(BattleBox)field(page,"bb");Canvas canvas=(Canvas)box;
+                    BBCtrl painter=(BBCtrl)box.getPainter();OnlineBattleField view=(OnlineBattleField)field(page,"online");
+                    Point slot=slotPoint(painter,canvas,0);long now=System.currentTimeMillis();
+                    pageMouse("mousePressed",new MouseEvent(canvas,MouseEvent.MOUSE_PRESSED,now,MouseEvent.BUTTON1_DOWN_MASK,slot.x,slot.y,1,false,MouseEvent.BUTTON1));
+                    PvpUnitAbilityOverlay overlay=(PvpUnitAbilityOverlay)field(page,"unitAbilityOverlay");
+                    overlay.show(view.visibleForm(0),view.playerState());
+                    overlay.setBounds(100,100,700,130);overlay.doLayout();overlay.scrollPane().doLayout();overlay.scrollPane().getViewport().doLayout();
+                    JScrollBar bar=overlay.scrollPane().getVerticalScrollBar();
+                    Check.that(bar.getMaximum()>bar.getVisibleAmount(),"hold-wheel fixture has vertical overflow");
+                    int before=bar.getValue();
+                    pageMouse("mouseWheel",new MouseWheelEvent(canvas,MouseEvent.MOUSE_WHEEL,now+1,MouseEvent.BUTTON1_DOWN_MASK,
+                            slot.x,slot.y,0,false,MouseWheelEvent.WHEEL_UNIT_SCROLL,3,3));
+                    Check.that(bar.getValue()>before,"Canvas-origin mouse wheel scrolls unit details while left button remains held");
+                    Check.equal(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER,overlay.scrollPane().getHorizontalScrollBarPolicy(),
+                            "held unit details never expose horizontal scrolling");
+                    pageMouse("mouseReleased",new MouseEvent(canvas,MouseEvent.MOUSE_RELEASED,now+2,0,slot.x,slot.y,1,false,MouseEvent.BUTTON1));
                     return null;
                 });
                 if(args[0].endsWith("result")){
