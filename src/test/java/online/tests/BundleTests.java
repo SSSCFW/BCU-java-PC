@@ -29,5 +29,19 @@ public final class BundleTests {
             try {read.invoke(null,p);}catch(java.lang.reflect.InvocationTargetException e){rejected=e.getCause() instanceof IOException;}
             Check.that(rejected,"oversized expanded member rejected");
         } finally {Files.deleteIfExists(p);}
+
+        FixtureNativeUi.init();
+        common.util.unit.Unit lineupUnit=FixtureNativeUi.unit("bundle_pool_lineup",0xff224466);
+        common.util.unit.Unit extraUnit=FixtureNativeUi.unit("bundle_pool_extra",0xff662244);
+        ((common.battle.data.CustomUnit)extraUnit.forms[0].du).price=7777;
+        Path full=online.bundle.MatchBundle.export(Fixture.lineup(lineupUnit),true);
+        try{
+            online.bundle.MatchBundle bundle=online.bundle.MatchBundle.read(full);
+            try(online.bundle.MatchBundle.Mounted mounted=bundle.mount("0123456789abcdef0123456789abcdef",0)){
+                Check.that(mounted.productionPool.length>=2,"post-deploy reroll bundle contains more than the active lineup");
+                Check.that(Arrays.stream(mounted.productionPool).anyMatch(form->form.du.getPrice()==7777),
+                        "post-deploy reroll bundle includes eligible characters from packs outside the current lineup");
+            }
+        }finally{Files.deleteIfExists(full);}
     }
 }
