@@ -41,6 +41,8 @@ public class BattleObj extends ImgCore implements Cloneable {
 	private static final Map<Object, Object> ARRMAP = new IdentityHashMap<>();
 	private static final Map<Class<?>, List<Field>> FIELD_CACHE = new ConcurrentHashMap<>();
 	private static final Map<Class<?>, Boolean> FIELD_TYPE_CACHE = new ConcurrentHashMap<>();
+	/** Objects whose temporary original<->copy links were created by the current clone pass. */
+	private static final ArrayList<BattleObj> COPY_LINKS = new ArrayList<>();
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	protected static Object hardCopy(Object obj) {
@@ -141,9 +143,24 @@ public class BattleObj extends ImgCore implements Cloneable {
 		// clone operations globally instead of allowing two battle graphs to corrupt
 		// those temporary structures.
 		synchronized(BattleObj.class) {
-			BattleObj c = sysCopy();
-			terminate();
-			ARRMAP.clear();
+			COPY_LINKS.clear();
+			BattleObj c;
+			try {
+				c = sysCopy();
+			} finally {
+				// Legacy terminate() recursively reflected over the entire battle graph a
+				// second time just to clear these links. sysCopy already knows every object
+				// for which a link was created, so clear them directly in one linear pass.
+				for (int i = 0; i < COPY_LINKS.size(); i++) {
+					BattleObj original = COPY_LINKS.get(i);
+					BattleObj duplicate = original.copy;
+					original.copy = null;
+					if (duplicate != null && duplicate.copy == original)
+						duplicate.copy = null;
+				}
+				COPY_LINKS.clear();
+				ARRMAP.clear();
+			}
 			UNCHECKED.removeAll(OLD);
 			for (Class<?> cls : UNCHECKED)
 				CommonStatic.ctx.printErr(ErrType.WARN, "Unchecked Class in Battle: " + cls);
@@ -307,6 +324,7 @@ public class BattleObj extends ImgCore implements Cloneable {
 			e.printStackTrace();
 		}
 		copy.copy = this;
+		COPY_LINKS.add(this);
 		performDeepCopy();
 		return copy;
 	}
