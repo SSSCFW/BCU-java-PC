@@ -43,6 +43,15 @@ public final class TraitOverlayTests {
         long baseHp=base.maxH;int baseAtk=base.getAtk();double baseSpeed=base.displayMoveSpeed();
         PvpUnitAbilityOverlay overlay=new PvpUnitAbilityOverlay();
         overlay.show(form,owner);
+        JScrollPane scroller=find(overlay,JScrollPane.class);
+        Check.that(scroller!=null,"hold details use a scroll pane instead of clipping overflow");
+        Check.that(scroller.isWheelScrollingEnabled(),"hold details support mouse-wheel scrolling");
+        Check.that(scroller.getVerticalScrollBarPolicy()!=ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER,
+                "hold details allow vertical overflow");
+        Check.that(scroller.getVerticalScrollBar().getUnitIncrement()>=20,
+                "hold details wheel scroll moves a useful amount");
+        Check.that(overlay.getPreferredSize().width>=900&&overlay.getPreferredSize().height>=380,
+                "hold details request a larger default frame");
         List<String> before=texts(overlay);
         Check.that(before.contains("HP "+format(baseHp)),"hold details show current HP stat");
         Check.that(before.contains("攻撃力 "+format(baseAtk)),"hold details show current attack stat");
@@ -60,6 +69,13 @@ public final class TraitOverlayTests {
         Check.that(after.contains("HP "+format(boosted.maxH)),"hold details refresh roulette-adjusted HP");
         Check.that(after.contains("攻撃力 "+format(boosted.getAtk())),"hold details refresh roulette-adjusted attack");
         Check.that(after.contains("移動速度 "+format(boosted.displayMoveSpeed())),"hold details refresh roulette-adjusted movement");
+    }
+    private static <T extends Component> T find(Component root,Class<T> type){
+        if(type.isInstance(root))return type.cast(root);
+        if(root instanceof Container)for(Component child:((Container)root).getComponents()){
+            T found=find(child,type);if(found!=null)return found;
+        }
+        return null;
     }
     private static List<String> texts(Component root){
         List<String> out=new ArrayList<>();
