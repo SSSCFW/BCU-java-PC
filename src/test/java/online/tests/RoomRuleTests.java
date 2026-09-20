@@ -8,6 +8,7 @@ import common.system.files.FDByte;
 import common.util.stage.Music;
 import online.net.Protocol;
 import online.net.lobby.RoomRules;
+import online.net.lobby.PvpBattleMusic;
 import online.net.lobby.PvpTraitRules;
 import online.sync.*;
 import online.ui.OnlineBattleField;
@@ -81,14 +82,16 @@ public final class RoomRuleTests {
         common.util.pack.Background bg4=new common.util.pack.Background(new Identifier<>(Identifier.DEF,common.util.pack.Background.class,4),FixtureNativeUi.image(64,64,0xff556677));
         UserProfile.getBCData().bgs.set(4,bg4);
         UserProfile.getBCData().musics.set(3,new Music(new Identifier<>(Identifier.DEF,Music.class,3),0,new FDByte(new byte[]{4,5,6})));
-        RoomRules randomRules=new RoomRules(4400,RoomRules.RANDOM_BACKGROUND,3,false,RoomRules.SpecialMode.ROULETTE,true);
+        RoomRules randomRules=new RoomRules(4400,RoomRules.RANDOM_BACKGROUND,RoomRules.RANDOM_MUSIC,false,RoomRules.SpecialMode.ROULETTE,true);
         PvpStageBasis.validateRulesAssets(randomRules);
         RoomRules resolvedA=PvpStageBasis.resolveRandomRules(randomRules,123456789L),resolvedB=PvpStageBasis.resolveRandomRules(randomRules,123456789L);
-        Check.equal(resolvedA,resolvedB,"random background resolves deterministically from the shared match seed");
+        Check.equal(resolvedA,resolvedB,"random background/BGM resolve deterministically from the shared match seed");
         Check.that(resolvedA.backgroundId>=0,"random background resolves to a concrete standard background ID");
-        Check.equal(3,resolvedA.musicId,"curated BGM remains unchanged while resolving random background");
+        Check.that(PvpBattleMusic.isAllowed(resolvedA.musicId),"random BGM resolves to a curated concrete BGM");
+        Check.that(resolvedA.musicId!=RoomRules.RANDOM_MUSIC,"random BGM sentinel is gone before arena creation");
+        PvpStageBasis randomBattleA=new PvpStageBasis(l,r,24680,0,randomRules),randomBattleB=new PvpStageBasis(l,r,24680,0,randomRules);
+        Check.equal(randomBattleA.st.mus0.id,randomBattleB.st.mus0.id,"both peers resolve the same random BGM for the same battle seed");
         Check.rejects(()->new RoomRules(4400,0,7,false),"non-curated BGM identifier rejected");
-        Check.rejects(()->new RoomRules(4400,0,RoomRules.RANDOM_MUSIC,false),"random BGM is not available in online PvP");
 
         JsonObject invalidMode=Protocol.message("rules");invalidMode.add("rules",RoomRules.DEFAULT.json());
         invalidMode.getAsJsonObject("rules").addProperty("specialMode","NOT_A_MODE");
