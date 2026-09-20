@@ -485,6 +485,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	@Override
 	protected void mouseClicked(MouseEvent e) {
 		if (e.getSource() == bb) {
+            if(online!=null&&e.getButton()==MouseEvent.BUTTON2)return;
             if(suppressHeldUnitClick){suppressHeldUnitClick=false;return;}
 			bb.click(e.getPoint(), e.getButton());
         }
@@ -493,6 +494,11 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	@Override
 	protected void mouseDragged(MouseEvent e) {
 		if (e.getSource() == bb) {
+            if(onlineSlotDragSource>=0){
+                if(onlineSlotDragPoint!=null&&onlineSlotDragPoint.distance(e.getPoint())>4)
+                    ((Canvas)bb).setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+                return;
+            }
             if(heldUnitForm!=null&&heldUnitPoint!=null&&heldUnitPoint.distance(e.getPoint())>8){
                 if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;
                 bb.press(heldUnitPoint);bb.drag(e.getPoint(),e.getButton());return;
@@ -504,6 +510,13 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	@Override
 	protected void mousePressed(MouseEvent e) {
 		if (e.getSource() == bb) {
+            if(online!=null&&e.getButton()==MouseEvent.BUTTON2&&bb.getPainter() instanceof BBCtrl){
+                int slot=((BBCtrl)bb.getPainter()).slotAt(e.getPoint());
+                if(slot>=0){
+                    onlineSlotDragSource=slot;onlineSlotDragPoint=e.getPoint();getPress().clear();
+                    ((Canvas)bb).setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));return;
+                }
+            }
             if(online!=null&&e.getButton()==MouseEvent.BUTTON1&&bb.getPainter() instanceof BBCtrl){
                 Form form=((BBCtrl)bb.getPainter()).formAt(e.getPoint());
                 if(form!=null){
@@ -518,6 +531,14 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	@Override
 	protected void mouseReleased(MouseEvent e) {
 		if (e.getSource() == bb) {
+            if(onlineSlotDragSource>=0&&e.getButton()==MouseEvent.BUTTON2){
+                int source=onlineSlotDragSource;
+                int target=bb.getPainter() instanceof BBCtrl?((BBCtrl)bb.getPainter()).slotAt(e.getPoint()):-1;
+                boolean changed=target>=0&&online!=null&&online.swapVisibleSlots(source,target);
+                clearOnlineSlotDrag();
+                if(changed){bb.reset();((Canvas)bb).repaint();}
+                return;
+            }
             if(heldUnitForm!=null){
                 if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;heldUnitPoint=null;return;
             }
