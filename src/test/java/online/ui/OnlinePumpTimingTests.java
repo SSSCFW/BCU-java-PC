@@ -20,6 +20,10 @@ public final class OnlinePumpTimingTests {
         Check.equal(3,OnlineLobbyPage.presentationStride(100,17_000_000L),"16ms copies use 10Hz snapshots");
         Check.equal(4,OnlineLobbyPage.presentationStride(100,40_000_000L),"over-budget copies use 7.5Hz snapshots");
         Check.equal(5,OnlineLobbyPage.presentationStride(100,60_000_000L),"extreme copies use 6Hz snapshots");
+        Check.that(OnlineLobbyPage.fullSnapshotDue(true,true,true,7,5),"terminal tick always publishes a full snapshot");
+        Check.that(!OnlineLobbyPage.fullSnapshotDue(false,true,false,10,5),"catch-up suppresses presentation clones");
+        Check.that(!OnlineLobbyPage.fullSnapshotDue(false,false,true,10,5),"unconsumed snapshot applies backpressure");
+        Check.that(OnlineLobbyPage.fullSnapshotDue(false,false,false,10,5),"ordinary due tick publishes a snapshot");
         System.out.println("Online pump timing tests passed");
     }
     public static void main(String[] args){run();}
