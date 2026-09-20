@@ -184,7 +184,9 @@ private static void postDeploySlotRerollTests() throws Exception {
     Form next=first.left().pvpSlotForm(0,0);
     Check.that(!next.unit.id.equals(original.unit.id),"successful production replaces the slot with a different character");
     Check.equal(next.unit.id,second.left().pvpSlotForm(0,0).unit.id,"same seed and input reroll to the same next character");
-    Check.equal(next.du.getPrice()*100,first.left().elu.basePrice[0][0],"rerolled slot recalculates the next character price");
+    EForm nextEForm=new EForm(next,first.left().b.lu.getLv(next));
+    int expectedNextPrice=100*(int)nextEForm.getPrice(first.left().st.getCont().price);
+    Check.equal(expectedNextPrice,first.left().elu.basePrice[0][0],"rerolled slot recalculates the next character battle price");
     Check.that(first.left().elu.cool[0][0]>0,"rerolled slot begins the next character's production cooldown");
     Check.equal(BattleDigest.of(first),BattleDigest.of(second),"slot reroll state remains deterministic");
 
