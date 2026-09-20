@@ -236,7 +236,8 @@ public final class LobbyUiTests {
                     Check.equal(60,nativePage.onlineFps(),"room force60 overrides a 30FPS preference locally");
                     Check.equal(!host,CommonStatic.getConfig().performanceModeBattle,"force60 must not rewrite saved client preference");
                     PvpStageBasis live=(PvpStageBasis)field(page,"battle");Check.equal(8000f,live.ubase.pos-live.ebase.pos,"exact castle separation from host rules");
-                    Check.equal(4,live.st.bg.id,"host background selected");Check.equal(6,live.st.mus0.id,"host curated BGM selected");
+                    Check.equal(4,live.st.bg.id,"host background selected");
+                    Check.that(online.net.lobby.PvpBattleMusic.isAllowed(live.st.mus0.id),"random BGM resolves to a concrete curated track before battle");
                     Check.equal(online.net.lobby.RoomRules.SpecialMode.ROULETTE,live.specialMode(),"battle uses synchronized roulette special mode");
                     Check.equal(1,live.st.timeLimit,"battle uses host one-minute time limit");
                     Check.equal((int)common.util.Data.TRAIT_BLACK,live.leftTrait(),"guest random exclusions resolve left-side attribute to black");
