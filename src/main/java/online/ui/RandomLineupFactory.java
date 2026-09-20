@@ -14,14 +14,29 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /** Creates a fresh ten-unit PvP lineup every time a random choice enters a match. */
 public final class RandomLineupFactory {
+    public enum SortOrder {
+        SHUFFLED("シャッフル順"), PRICE_ASC("価格の安い順"), PRICE_DESC("価格の高い順");
+        private final String label;
+        SortOrder(String label){this.label=label;}
+        @Override public String toString(){return label;}
+    }
     private RandomLineupFactory(){}
 
     public static BasisLU create(boolean vanilla) throws IOException {
-        return create(vanilla,ThreadLocalRandom.current());
+        return create(vanilla,ThreadLocalRandom.current(),SortOrder.SHUFFLED);
+    }
+
+    public static BasisLU create(boolean vanilla,SortOrder order) throws IOException {
+        return create(vanilla,ThreadLocalRandom.current(),order);
     }
 
     public static BasisLU create(boolean vanilla,Random random) throws IOException {
+        return create(vanilla,random,SortOrder.SHUFFLED);
+    }
+
+    public static BasisLU create(boolean vanilla,Random random,SortOrder order) throws IOException {
         if(random==null)throw new IllegalArgumentException("random");
+        if(order==null)throw new IllegalArgumentException("order");
         List<Unit> candidates=candidates(vanilla);
         if(candidates.size()<10)throw new IOException((vanilla?"バニラ":"全パック")+"の有効キャラが10体未満です");
         Collections.shuffle(candidates,random);
@@ -31,8 +46,13 @@ public final class RandomLineupFactory {
         result.name=vanilla?"ランダム(バニラ)":"ランダム";
         BasisLU base=set.sele;
         if(base!=null&&base.nyc!=null)result.nyc=base.nyc.clone();
+        List<Form> chosen=new ArrayList<>(10);
+        for(int i=0;i<10;i++)chosen.add(bestForm(candidates.get(i)));
+        Comparator<Form> price=Comparator.comparingInt(f->f.du.getPrice());
+        if(order==SortOrder.PRICE_ASC)chosen.sort(price);
+        else if(order==SortOrder.PRICE_DESC)chosen.sort(price.reversed());
         for(int i=0;i<10;i++){
-            Form form=bestForm(candidates.get(i));
+            Form form=chosen.get(i);
             result.lu.fs[i/5][i%5]=form;
             result.lu.getLv(form);
         }
