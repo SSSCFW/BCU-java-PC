@@ -36,7 +36,7 @@ public class StageBasis extends BattleObj {
     public boolean pvpCastleHitMoneyEnabled, pvpRerollSlotAfterDeploy;
     public int pvpCastleHitMoney;
     /** Dynamic PvP production slots. 0 = original lineup form, n+1 = productionPool[n]. */
-    public Form[] pvpProductionPool=new Form[0];
+    public Form[] NONC_pvpProductionPool=new Form[0];
     public int[][] pvpSlotPoolChoice=new int[2][5],pvpDuplicatePoolChoice=new int[2][5];
     public CopRand pvpSlotRandom;
     /** One-time roulette over-cap ceiling. Zero means the normal wallet cap. */
@@ -57,16 +57,16 @@ public class StageBasis extends BattleObj {
             if(form==null||form.unit==null||form.du==null||form.anim==null)throw new IllegalArgumentException("Invalid production-pool form");
             if(!b.lu.map.containsKey(form.unit.id))throw new IllegalArgumentException("Missing synchronized production-pool level: "+form.unit.id);
         }
-        pvpProductionPool=pool.clone();pvpSlotRandom=random;
+        NONC_pvpProductionPool=pool.clone();pvpSlotRandom=random;
     }
     public Form pvpSlotForm(int row,int col){
         int choice=pvpSlotPoolChoice[row][col];
-        return choice<=0?b.lu.fs[row][col]:pvpProductionPool[choice-1];
+        return choice<=0?b.lu.fs[row][col]:NONC_pvpProductionPool[choice-1];
     }
     private EForm pvpSlotEForm(int row,int col){return pvpEFormForChoice(row,col,pvpSlotPoolChoice[row][col]);}
     private EForm pvpEFormForChoice(int row,int col,int choice){
         if(choice<=0)return b.lu.efs[row][col];
-        Form form=pvpProductionPool[choice-1];
+        Form form=NONC_pvpProductionPool[choice-1];
         return new EForm(form,b.lu.getLv(form));
     }
     private EForm pvpSlotSpiritEForm(int row,int col){
@@ -80,11 +80,11 @@ public class StageBasis extends BattleObj {
         return new EForm(unit.forms[0],spiritLevel);
     }
     private void rerollPvpSlot(int row,int col){
-        if(!pvpRerollSlotAfterDeploy||pvpProductionPool.length<2||pvpSlotRandom==null)return;
-        Form current=pvpSlotForm(row,col);int count=pvpProductionPool.length;
+        if(!pvpRerollSlotAfterDeploy||NONC_pvpProductionPool.length<2||pvpSlotRandom==null)return;
+        Form current=pvpSlotForm(row,col);int count=NONC_pvpProductionPool.length;
         int start=Math.min(count-1,(int)(pvpSlotRandom.nextFloat()*count)),pick=-1;
         for(int step=0;step<count;step++){
-            int candidate=(start+step)%count;Form form=pvpProductionPool[candidate];
+            int candidate=(start+step)%count;Form form=NONC_pvpProductionPool[candidate];
             if(current==null||current.unit==null||!form.unit.id.equals(current.unit.id)){pick=candidate;break;}
         }
         if(pick<0)return;
