@@ -83,6 +83,7 @@ public class StageBasis extends BattleObj {
     }
     /** Presentation-only acceleration structure; excluded from clone/hash by NONC_ prefix. */
     private PvpSpatialIndex NONC_pvpSpatialIndex;
+    private boolean NONC_pvpSpatialTracking;
     private ArrayList<Entity> NONC_pvpIdOrder;
     private long NONC_pvpIdOrderSequence=-1;
     private int NONC_pvpIdOrderSize=-1;
@@ -436,7 +437,11 @@ public class StageBasis extends BattleObj {
 			right -= 1;
 
 		PvpSpatialIndex spatial=activePvpSpatialIndex();
-		if(spatial!=null){spatial.ensure(le,world().pvpSequence);ans.addAll(spatial.query(le,dire,touch,left,right));}
+		if(spatial!=null){
+            StageBasis root=world();
+            if(root.NONC_pvpSpatialTracking)spatial.ensure(le,root.pvpSequence);else spatial.rebuild(le,root.pvpSequence);
+            ans.addAll(spatial.query(le,dire,touch,left,right));
+        }
 		else for (int i = 0; i < le.size(); i++)
 			if (le.get(i).dire == dire && (le.get(i).touchable() & touch) != 0 && le.get(i).pos >= left && le.get(i).pos <= right)
 				ans.add(le.get(i));
@@ -468,7 +473,8 @@ public class StageBasis extends BattleObj {
 
 		PvpSpatialIndex spatial=activePvpSpatialIndex();
 		if(spatial!=null) {
-            spatial.ensure(le,world().pvpSequence);
+            StageBasis root=world();
+            if(root.NONC_pvpSpatialTracking)spatial.ensure(le,root.pvpSequence);else spatial.rebuild(le,root.pvpSequence);
 			for(Entity entity:spatial.query(le,dire,touch,farLeft,farRight))
 				if(entity.pos<=innerLeft||entity.pos>=innerRight)ans.add(entity);
 		} else for (int i = 0; i < le.size(); i++)
@@ -1145,6 +1151,7 @@ public class StageBasis extends BattleObj {
 				frontLineup = 1 - frontLineup;
 			}
 		}
+        if(isPvp())world().NONC_pvpSpatialTracking=false;
 	}
 
 	protected void updateAnimation() {
@@ -1262,6 +1269,7 @@ public class StageBasis extends BattleObj {
         for (int i = 0; i < tlw.size(); i++) if (advance || tlw.get(i).IMUTime()) tlw.get(i).update();
         for (int i = 0; i < lw.size(); i++) if (advance || lw.get(i).IMUTime()) lw.get(i).update();
         StageBasis root=world();List<Entity> idOrder=pvpIdOrder();
+        root.NONC_pvpSpatialTracking=true;
         PvpSpatialIndex spatial=null;
         if(!root.NONC_disablePvpSpatialIndex){
             spatial=root.NONC_pvpSpatialIndex;
