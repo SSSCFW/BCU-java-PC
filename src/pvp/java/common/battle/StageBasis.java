@@ -627,9 +627,13 @@ public class StageBasis extends BattleObj {
 		EForm f = b.lu.efs[i][j];
 		if (f == null)
 			return false;
+		if(!manual&&!locks[i][j])
+			return false;
 
-		List<Entity> summoners = findEntitiesOf(i, j).stream().filter(e -> e.anim.dead < 0).collect(Collectors.toList());
-		if (manual && f.du.getProc().SPIRIT.exists() && summonerSummoned[i][j] && !summoners.isEmpty() && !spiritSummoned[i][j]) {
+		List<Entity> summoners=Collections.emptyList();
+		if(manual&&f.du.getProc().SPIRIT.exists()&&summonerSummoned[i][j]&&!spiritSummoned[i][j])
+			summoners=findEntitiesOf(i,j).stream().filter(e->e.anim.dead<0).collect(Collectors.toList());
+		if (!summoners.isEmpty()) {
 			if (spiritCooldown[i][j] > 0) {
 				PvpAudio.notification(this, SE_SPEND_FAIL);
 				return false;
