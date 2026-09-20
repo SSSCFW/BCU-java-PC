@@ -25,6 +25,7 @@ final class LobbyPreferences {
     final int maxUnits, castleHitMoney;
     final double castleHealthMultiplier;
     final int creatorSideIndex, lineupKind, lineupSetIndex, lineupIndex;
+    final RandomLineupFactory.SortOrder randomLineupSort;
 
     LobbyPreferences(String serverAddress, String displayName) {
         this(serverAddress,displayName,
@@ -32,7 +33,7 @@ final class LobbyPreferences {
                 RoomRules.DEFAULT.force60Fps,RoomRules.DEFAULT.specialMode,RoomRules.DEFAULT.debugMode,
                 PvpTraitRules.NONE,PvpTraitRules.NONE,0,0,RoomRules.DEFAULT_TIME_LIMIT_MINUTES,
                 RoomRules.DEFAULT_MAX_UNITS,false,RoomRules.DEFAULT_CASTLE_HIT_MONEY,
-                PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER,0,LINEUP_SAVED,-1,-1);
+                PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER,0,LINEUP_SAVED,-1,-1,RandomLineupFactory.SortOrder.SHUFFLED);
     }
 
     LobbyPreferences(String serverAddress,String displayName,
@@ -42,14 +43,15 @@ final class LobbyPreferences {
                      double castleHealthMultiplier,int creatorSideIndex,int lineupKind,int lineupSetIndex,int lineupIndex) {
         this(serverAddress,displayName,castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
                 hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
-                maxUnits,castleHitMoneyEnabled,castleHitMoney,castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,0);
+                maxUnits,castleHitMoneyEnabled,castleHitMoney,castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,0,RandomLineupFactory.SortOrder.SHUFFLED);
     }
 
     LobbyPreferences(String serverAddress,String displayName,
                      int castleDistance,int backgroundId,int musicId,boolean force60Fps,RoomRules.SpecialMode specialMode,boolean debugMode,
                      int hostTraitChoice,int guestTraitChoice,int hostTraitExclusions,int guestTraitExclusions,int timeLimitMinutes,
                      int maxUnits,boolean castleHitMoneyEnabled,int castleHitMoney,
-                     double castleHealthMultiplier,int creatorSideIndex,int lineupKind,int lineupSetIndex,int lineupIndex,int udpPortOverride) {
+                     double castleHealthMultiplier,int creatorSideIndex,int lineupKind,int lineupSetIndex,int lineupIndex,int udpPortOverride,
+                     RandomLineupFactory.SortOrder randomLineupSort) {
         RoomRules validated=new RoomRules(castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
                 hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
                 maxUnits,castleHitMoneyEnabled,castleHitMoney);
@@ -57,6 +59,7 @@ final class LobbyPreferences {
         if(creatorSideIndex<0||creatorSideIndex>1)throw new IllegalArgumentException("Invalid saved creator side");
         if(lineupKind<LINEUP_SAVED||lineupKind>LINEUP_RANDOM_VANILLA)throw new IllegalArgumentException("Invalid saved lineup kind");
         if(udpPortOverride<0||udpPortOverride>65535)throw new IllegalArgumentException("Invalid saved UDP port override");
+        if(randomLineupSort==null)throw new IllegalArgumentException("Invalid random lineup sort");
         this.serverAddress=serverAddress;this.displayName=displayName;this.udpPortOverride=udpPortOverride;
         this.castleDistance=validated.castleDistance;this.backgroundId=validated.backgroundId;this.musicId=validated.musicId;
         this.force60Fps=validated.force60Fps;this.specialMode=validated.specialMode;this.debugMode=validated.debugMode;
@@ -65,7 +68,7 @@ final class LobbyPreferences {
         this.timeLimitMinutes=validated.timeLimitMinutes;this.maxUnits=validated.maxUnits;
         this.castleHitMoneyEnabled=validated.castleHitMoneyEnabled;this.castleHitMoney=validated.castleHitMoney;
         this.castleHealthMultiplier=castleHealthMultiplier;this.creatorSideIndex=creatorSideIndex;
-        this.lineupKind=lineupKind;this.lineupSetIndex=lineupSetIndex;this.lineupIndex=lineupIndex;
+        this.lineupKind=lineupKind;this.lineupSetIndex=lineupSetIndex;this.lineupIndex=lineupIndex;this.randomLineupSort=randomLineupSort;
     }
 
     LobbyPreferences withConnection(String server,String name){return withConnection(server,name,udpPortOverride);}
@@ -73,28 +76,28 @@ final class LobbyPreferences {
         return new LobbyPreferences(server,name,castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
                 hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
                 maxUnits,castleHitMoneyEnabled,castleHitMoney,
-                castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,udpPortOverride);
+                castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,udpPortOverride,randomLineupSort);
     }
 
     LobbyPreferences withHostRules(RoomRules rules){
         return copy(serverAddress,displayName,rules.castleDistance,rules.backgroundId,rules.musicId,rules.force60Fps,rules.specialMode,rules.debugMode,
                 rules.hostTraitChoice,rules.guestTraitChoice,rules.hostTraitExclusions,rules.guestTraitExclusions,rules.timeLimitMinutes,
                 rules.maxUnits,rules.castleHitMoneyEnabled,rules.castleHitMoney,
-                castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex);
+                castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,randomLineupSort);
     }
 
     LobbyPreferences withCastleHealth(double value){
         return copy(serverAddress,displayName,castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
                 hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
                 maxUnits,castleHitMoneyEnabled,castleHitMoney,
-                value,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex);
+                value,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,randomLineupSort);
     }
 
     LobbyPreferences withLocalSetup(int side,int kind,int setIndex,int lineupIndex){
         return copy(serverAddress,displayName,castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
                 hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
                 maxUnits,castleHitMoneyEnabled,castleHitMoney,
-                castleHealthMultiplier,side,kind,setIndex,lineupIndex);
+                castleHealthMultiplier,side,kind,setIndex,lineupIndex,randomLineupSort);
     }
 
     RoomRules hostRules(){
@@ -107,10 +110,16 @@ final class LobbyPreferences {
                                          int distance,int background,int music,boolean force60,RoomRules.SpecialMode special,boolean debug,
                                          int hostTrait,int guestTrait,int hostExclude,int guestExclude,int time,
                                          int maxUnits,boolean castleHitMoneyEnabled,int castleHitMoney,
-                                         double castle,int side,int lineupKind,int setIndex,int lineupIndex){
+                                         double castle,int side,int lineupKind,int setIndex,int lineupIndex,RandomLineupFactory.SortOrder sort){
         return new LobbyPreferences(server,name,distance,background,music,force60,special,debug,
                 hostTrait,guestTrait,hostExclude,guestExclude,time,maxUnits,castleHitMoneyEnabled,castleHitMoney,
-                castle,side,lineupKind,setIndex,lineupIndex,udpPortOverride);
+                castle,side,lineupKind,setIndex,lineupIndex,udpPortOverride,sort);
+    }
+
+    LobbyPreferences withRandomLineupSort(RandomLineupFactory.SortOrder sort){
+        return copy(serverAddress,displayName,castleDistance,backgroundId,musicId,force60Fps,specialMode,debugMode,
+                hostTraitChoice,guestTraitChoice,hostTraitExclusions,guestTraitExclusions,timeLimitMinutes,
+                maxUnits,castleHitMoneyEnabled,castleHitMoney,castleHealthMultiplier,creatorSideIndex,lineupKind,lineupSetIndex,lineupIndex,sort);
     }
 
     static LobbyPreferences load(Path file, String fallbackName) throws IOException {
@@ -140,7 +149,8 @@ final class LobbyPreferences {
                     decimal(p,"castleHealthMultiplier",PvpStageBasis.DEFAULT_CASTLE_HEALTH_MULTIPLIER),
                     integer(p,"creatorSideIndex",0),integer(p,"lineupKind",LINEUP_SAVED),
                     integer(p,"lineupSetIndex",-1),integer(p,"lineupIndex",-1),
-                    integer(p,"udpPortOverride",0));
+                    integer(p,"udpPortOverride",0),
+                    RandomLineupFactory.SortOrder.valueOf(p.getProperty("randomLineupSort",RandomLineupFactory.SortOrder.SHUFFLED.name())));
         }catch(IllegalArgumentException e){
             System.err.println("BCU online preferences: ignoring invalid saved PvP preferences: "+e.getMessage());
             return new LobbyPreferences(server,name);
@@ -166,6 +176,7 @@ final class LobbyPreferences {
             p.setProperty("castleHealthMultiplier",Double.toString(castleHealthMultiplier));
             p.setProperty("creatorSideIndex",Integer.toString(creatorSideIndex));
             p.setProperty("lineupKind",Integer.toString(lineupKind));p.setProperty("lineupSetIndex",Integer.toString(lineupSetIndex));p.setProperty("lineupIndex",Integer.toString(lineupIndex));
+            p.setProperty("randomLineupSort",randomLineupSort.name());
             try(Writer out=Files.newBufferedWriter(temporary,StandardCharsets.UTF_8)){p.store(out,"BCU online lobby (non-secret preferences only)");}
             try{Files.move(temporary,target,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);}
             catch(AtomicMoveNotSupportedException e){Files.move(temporary,target,StandardCopyOption.REPLACE_EXISTING);}
