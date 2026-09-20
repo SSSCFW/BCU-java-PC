@@ -25,8 +25,9 @@ import java.net.URI;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
 
-/** One match per page. Network I/O stays off the EDT; game registry/simulation stay on it. */
+/** One match per page. Network, deterministic simulation, and Swing presentation are isolated. */
 public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private static final long serialVersionUID=1L;
     private static final long BATTLE_STEP_NANOS=1_000_000_000L/Protocol.TPS;
@@ -46,14 +47,20 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private BattleInfoPage battlePage;
     private RoomLobbyPage roomLobby;
     private final ExecutorService io=Executors.newSingleThreadExecutor(r->{Thread t=new Thread(r,"pvp-prepare");t.setDaemon(true);return t;});
+    private final ScheduledExecutorService simulation=Executors.newSingleThreadScheduledExecutor(r->{Thread t=new Thread(r,"pvp-simulation");t.setDaemon(true);return t;});
     private final javax.swing.Timer pulse=new javax.swing.Timer(5,e->pump());
+    private final Object simulationLock=new Object();
+    private final AtomicLong battleEpoch=new AtomicLong();
+    private final AtomicReference<PvpStageBasis> pendingSnapshot=new AtomicReference<>();
     private final MatchBundle.Mounted[] mounted=new MatchBundle.Mounted[2];
     private final String[] hashes=new String[2];
     private final java.util.List<Path> temporary=new ArrayList<>();
-    private RoomClient client;private MatchBundle localBundle;private Path localArchive;private PvpStageBasis battle;
+    private RoomClient client;private MatchBundle localBundle;private Path localArchive;private volatile PvpStageBasis battle;
     private String match,hostName,guestName;private int slot=-1,leftSlot=-1,playerId;
     private DuelRoster roster;
     private Future<?> connecting;
+    private ScheduledFuture<?> simulationTask;
+    private PvpRouletteAudio simulationRouletteAudio;
     private final FriendServerPanel friendServer=new FriendServerPanel((url,udp)->{
         server.setText(url);udpPortOverride.setValue(Math.max(0,udp));
     });
@@ -62,7 +69,8 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private LobbyPreferences preferences;
     private boolean preferencesDirty,roomProtected;
     private volatile int generation;
-    private boolean creating,uploaded,prepared,resultSent,busy;
+    private boolean creating,uploaded,prepared,busy;
+    private volatile boolean resultSent;
     private volatile boolean disposed;
     private long nextPaint,nextBattleStep,lastSnapshotNanos;
     private int snapshotStride=1;
@@ -231,76 +239,99 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private void showBattle(){
         // The native battle page is a direct child of the room lobby so Back/result
         // navigation returns to the room instead of unwinding the whole online session.
-        battlePage=new BattleInfoPage(roomLobby,battle.displayCopy(),slot==leftSlot?1:-1,
+        int direction=slot==leftSlot?1:-1;
+        battlePage=new BattleInfoPage(roomLobby,battle.displayCopy(),direction,
                 this::command,this::requestBattleReturn,
                 leftSlot==0?hostName:guestName,leftSlot==0?guestName:hostName);
         battlePage.force60Fps(client.roomRules().force60Fps);
         battlePage.onlineStatus(transportLabel(),true);
         changePanel(battlePage);
         battlePage.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());
-        long now=System.nanoTime();nextPaint=now;nextBattleStep=now;lastSnapshotNanos=0;snapshotStride=1;pulse.start();
+        simulationRouletteAudio=new PvpRouletteAudio();simulationRouletteAudio.initialize(battle,direction);
+        long now=System.nanoTime();nextPaint=now;nextBattleStep=now;lastSnapshotNanos=0;snapshotStride=1;
+        long epoch=battleEpoch.incrementAndGet();
+        simulationTask=simulation.scheduleWithFixedDelay(()->simulationPump(epoch),0,1,TimeUnit.MILLISECONDS);
+        pulse.start();
     }
+    /** EDT presentation pump. Authoritative gameplay never advances here. */
     private void pump(){
-        if(disposed||battle==null)return;
+        if(disposed)return;
         try{
-            long now=System.nanoTime();
-            // Keep one authoritative tick per EDT callback so animation is never
-            // burst-applied. If rendering/JOGL stalls long enough for resolved frames
-            // to accumulate, temporarily consume one tick every 5ms callback until the
-            // backlog is back to a single frame. Otherwise a one-second stall becomes
-            // a permanent one-second input/display delay for the rest of the match.
-            int backlog=client.resolvedFrameBacklog();
-            boolean catchingUp=backlog>MAX_PRESENTATION_BACKLOG;
-            if(!resultSent&&battleStepDue(now,nextBattleStep,backlog)){
-                ResolvedFrame frame=client.pollResolvedFrame();
-                if(frame!=null){
-                    final InputFrame tickFrame=roster.toDuel(frame);
-                    PvpAudio.forPlayer(slot==leftSlot?1:-1,()->battle.step(tickFrame));
-                    int winner=battle.winner();boolean terminal=winner!=-2;
-                    if(battlePage!=null){
-                        battlePage.observeOnlineAudioTick(battle);
-                        int effectiveStride=catchingUp?Math.max(3,snapshotStride):snapshotStride;
-                        if(terminal||battle.time%effectiveStride==0){
-                            long copyStart=System.nanoTime();
-                            PvpStageBasis display=battle.displayCopy();
-                            lastSnapshotNanos=System.nanoTime()-copyStart;
-                            snapshotStride=presentationStride(battle.le.size(),lastSnapshotNanos);
-                            battlePage.publishOnline(display);
-                        }
-                    }
-                    String digest=null;
-                    if(battle.time%Protocol.HASH_INTERVAL==0){digest=BattleDigest.of(battle);client.checkpoint(battle.time,digest);}
-                    if(terminal){
-                        resultSent=true;
-                        if(battlePage!=null)battlePage.beginOnlineBattleEnd();
-                        if(digest==null)digest=BattleDigest.of(battle);
-                        client.result(battle.time,winner,digest);
-                        message("試合終了。両者の結果を照合しています…");
-                    }
-                    long after=System.nanoTime();
-                    // During catch-up the backlog itself authorizes the next 5ms
-                    // callback. Once caught up, resume the ordinary 30TPS cadence.
-                    nextBattleStep=catchingUp?after+BATTLE_STEP_NANOS:
-                            advanceDeadline(nextBattleStep,after,BATTLE_STEP_NANOS);
-                }
-            }
+            PvpStageBasis snapshot=pendingSnapshot.getAndSet(null);
+            if(snapshot!=null&&battlePage!=null&&!resultSent)battlePage.publishOnlineFromSimulation(snapshot);
             if(battlePage==null)return;
-            now=System.nanoTime();
+            long now=System.nanoTime();
             if(now>=nextPaint){
                 long interval=1_000_000_000L/Math.max(1,battlePage.onlineFps());
-                // Rendering is presentation-only. When lockstep frames have accumulated,
-                // spend EDT time consuming authoritative ticks first instead of drawing
-                // obsolete intermediate frames that would make the backlog permanent.
-                if(client.resolvedFrameBacklog()<=MAX_PRESENTATION_BACKLOG||resultSent){
+                RoomClient connection=client;
+                // If network frames accumulated, drawing stale frames only steals CPU
+                // from the independent simulation thread. Keep the last frame visible
+                // until the authoritative queue is back under control.
+                if(connection==null||connection.resolvedFrameBacklog()<=MAX_PRESENTATION_BACKLOG||resultSent){
                     if(!resultSent)battlePage.onlineStatus(transportLabel(),true);
                     battlePage.renderOnlineFrame();
                 }
-                // Keep the ideal deadline phase. Using now+interval quantized 60 FPS
-                // to roughly 50 FPS with the 5 ms Swing timer and worsened JOGL jitter.
                 nextPaint=advanceDeadline(nextPaint,System.nanoTime(),interval);
             }
-        }catch(Exception e){failed("同期処理を停止しました: "+e.getMessage());}
+        }catch(Exception e){failed("表示処理を停止しました: "+e.getMessage());}
     }
+
+    /** Single-threaded deterministic 30TPS simulation, isolated from Swing/Jogl stalls. */
+    private void simulationPump(long epoch){
+        if(epoch!=battleEpoch.get()||disposed||resultSent)return;
+        PvpStageBasis world=battle;RoomClient connection=client;DuelRoster activeRoster=roster;
+        if(world==null||connection==null||activeRoster==null)return;
+        try{
+            long now=System.nanoTime();int backlog=connection.resolvedFrameBacklog();
+            boolean catchingUp=backlog>MAX_PRESENTATION_BACKLOG;
+            if(!battleStepDue(now,nextBattleStep,backlog))return;
+            ResolvedFrame frame=connection.pollResolvedFrame();if(frame==null)return;
+            PvpStageBasis display=null;String digest=null;int winner;long tick;
+            synchronized(simulationLock){
+                if(epoch!=battleEpoch.get()||world!=battle||resultSent)return;
+                final InputFrame tickFrame=activeRoster.toDuel(frame);
+                final int direction=slot==leftSlot?1:-1;
+                PvpAudio.forPlayer(direction,()->world.step(tickFrame));
+                if(simulationRouletteAudio!=null)simulationRouletteAudio.observe(world,direction);
+                winner=world.winner();boolean terminal=winner!=-2;
+                int effectiveStride=catchingUp?Math.max(3,snapshotStride):snapshotStride;
+                if(terminal||world.time%effectiveStride==0){
+                    long copyStart=System.nanoTime();display=world.displayCopy();
+                    lastSnapshotNanos=System.nanoTime()-copyStart;
+                    snapshotStride=presentationStride(world.le.size(),lastSnapshotNanos);
+                }
+                tick=world.time;
+                if(tick%Protocol.HASH_INTERVAL==0||terminal)digest=BattleDigest.of(world);
+                if(tick%Protocol.HASH_INTERVAL==0)connection.checkpoint(tick,digest);
+                long after=System.nanoTime();
+                nextBattleStep=catchingUp?after+BATTLE_STEP_NANOS:advanceDeadline(nextBattleStep,after,BATTLE_STEP_NANOS);
+                if(terminal)resultSent=true;
+            }
+            if(winner!=-2){
+                pendingSnapshot.set(null);
+                final PvpStageBasis ending=display;final int finalWinner=winner;final long finalTick=tick;final String finalDigest=digest;
+                SwingUtilities.invokeAndWait(()->{
+                    if(epoch!=battleEpoch.get()||battlePage==null)return;
+                    battlePage.publishOnlineFromSimulation(ending);
+                    battlePage.beginOnlineBattleEnd();
+                });
+                if(epoch==battleEpoch.get()){
+                    connection.result(finalTick,finalWinner,finalDigest);
+                    message("試合終了。両者の結果を照合しています…");
+                }
+            }else if(display!=null)pendingSnapshot.set(display);
+        }catch(Exception e){
+            if(epoch!=battleEpoch.get())return;
+            battleEpoch.incrementAndGet();
+            failed("同期処理を停止しました: "+(e.getMessage()==null?e.getClass().getSimpleName():e.getMessage()));
+        }
+    }
+
+    private void stopSimulation(){
+        battleEpoch.incrementAndGet();pendingSnapshot.set(null);simulationRouletteAudio=null;
+        ScheduledFuture<?> task=simulationTask;simulationTask=null;if(task!=null)task.cancel(false);
+    }
+
     static int presentationStride(int entities,long copyNanos){
         int byCount=entities>=400?2:1;
         int byCost=copyNanos>=SNAPSHOT_HARD_NANOS?3:copyNanos>=SNAPSHOT_SOFT_NANOS?2:1;
@@ -318,14 +349,17 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     }
     private void requestBattleReturn(){
         if(client==null||roomLobby==null)return;
+        stopSimulation();
         client.abortBattle();roomLobby.message("対戦を中断してロビーへ戻っています…");
         if(MainFrame.getPanel()!=roomLobby){changePanel(roomLobby);roomLobby.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());}
     }
     private void finishBattleToLobby(String text){
-        pulse.stop();PvpSoundBank.stopAll();BCMusic.stopAll();BCMusic.music=null;
+        stopSimulation();pulse.stop();PvpSoundBank.stopAll();BCMusic.stopAll();BCMusic.music=null;
         if(battlePage!=null){battlePage.detachOnline();battlePage=null;}
-        battle=null;
-        for(MatchBundle.Mounted m:mounted)if(m!=null)m.close();Arrays.fill(mounted,null);Arrays.fill(hashes,null);
+        synchronized(simulationLock){
+            battle=null;
+            for(MatchBundle.Mounted m:mounted)if(m!=null)m.close();Arrays.fill(mounted,null);Arrays.fill(hashes,null);
+        }
         for(Path p:temporary)delete(p);temporary.clear();localBundle=null;localArchive=null;roster=null;
         hostName=null;guestName=null;slot=-1;leftSlot=-1;uploaded=false;prepared=false;resultSent=false;
         if(roomLobby!=null){roomLobby.notice(text);if(MainFrame.getPanel()!=roomLobby){changePanel(roomLobby);roomLobby.componentResized(MainFrame.F.getRootPane().getWidth(),MainFrame.F.getRootPane().getHeight());}}
@@ -418,13 +452,15 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private boolean isSessionChild(){Page p=MainFrame.getPanel();if(p==this)return false;while(p!=null){if(p==this)return true;p=p.getFront();}return false;}
     void returnToConnection(){boolean child=isSessionChild();savePreferences();resetMatch();if(child)changePanel(this);message("部屋から退出しました。友人用サーバーは維持しています。");}
     private void resetMatch(){
-        generation++;pulse.stop();if(connecting!=null){connecting.cancel(true);connecting=null;}
+        generation++;stopSimulation();pulse.stop();if(connecting!=null){connecting.cancel(true);connecting=null;}
         RoomClient previous=client;client=null;
         if(previous!=null)previous.close();
         if(battlePage!=null){battlePage.detachOnline();battlePage=null;}
-        battle=null;
         if(roomLobby!=null){roomLobby.closeLobby();roomLobby=null;}
-        for(MatchBundle.Mounted m:mounted)if(m!=null)m.close();Arrays.fill(mounted,null);Arrays.fill(hashes,null);
+        synchronized(simulationLock){
+            battle=null;
+            for(MatchBundle.Mounted m:mounted)if(m!=null)m.close();Arrays.fill(mounted,null);Arrays.fill(hashes,null);
+        }
         for(Path p:temporary)delete(p);temporary.clear();localBundle=null;localArchive=null;roster=null;
         match=null;hostName=null;guestName=null;slot=-1;leftSlot=-1;playerId=0;
         creating=false;uploaded=false;prepared=false;resultSent=false;busy=false;roomProtected=false;
@@ -433,7 +469,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         setSetupEnabled(true);ready.setEnabled(false);leave.setEnabled(false);copyRoom.setEnabled(false);
     }
     private static void delete(Path p){try{Files.deleteIfExists(p);}catch(java.io.IOException ignored){}}
-    private void cleanup(){if(disposed)return;savePreferences();disposed=true;resetMatch();friendServer.close();io.shutdownNow();}
+    private void cleanup(){if(disposed)return;savePreferences();disposed=true;resetMatch();friendServer.close();io.shutdownNow();simulation.shutdownNow();}
     // Opening the native child battle page must not tear down its sockets/server/packs.
     @Override protected void leave(){if(battlePage==null&&roomLobby==null)cleanup();}
     @Override protected void exit(){cleanup();}
