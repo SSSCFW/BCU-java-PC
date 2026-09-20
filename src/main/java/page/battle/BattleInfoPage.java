@@ -548,6 +548,10 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 
 	@Override
 	protected void mouseWheel(MouseEvent e) {
+        if(online!=null&&unitAbilityOverlay.isVisible()){
+            unitAbilityOverlay.scrollByWheel(((MouseWheelEvent)e).getWheelRotation());
+            return;
+        }
 		if (e.getSource() == bb)
 			bb.wheeled(e.getPoint(), ((MouseWheelEvent) e).getWheelRotation());
 	}
