@@ -91,6 +91,9 @@ public final class BattlePresentationTests {
                         System.out.println(name+" z="+page.getComponentZOrder(c)+" canvas="+page.getComponentZOrder(canvas)+" bounds="+c.getBounds());
                         Check.that(page.getComponentZOrder(c)<page.getComponentZOrder(canvas),"initial-large "+name+" must be above the Canvas without toggling size");
                     }
+                    Component details=(Component)field(page,"unitAbilityOverlay");
+                    Check.that(details.getWidth()>=canvas.getWidth()*0.70,"large-mode unit details are wide enough for long ability rows");
+                    Check.that(details.getHeight()>=canvas.getHeight()*0.30,"large-mode unit details are tall enough to avoid premature clipping");
                     return null;
                 });
                 if(args[0].equals("slot-drag"))edt(()->{
