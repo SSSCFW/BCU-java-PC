@@ -29,22 +29,24 @@ public class FIBI implements FakeImage {
 
 	@Override
 	public int getHeight() {
-		return bimg.getHeight();
+		return bimg==null?1:bimg.getHeight();
 	}
 
 	@Override
 	public int getRGB(int i, int j) {
-		return bimg.getRGB(i, j);
+		return bimg==null?0:bimg.getRGB(i, j);
 	}
 
 	@Override
 	public FIBI getSubimage(int i, int j, int k, int l) {
-		return (FIBI) builder.build(bimg.getSubimage(i, j, k, l));
+		if(bimg==null)return new FIBI(null);
+        try{return (FIBI)builder.build(bimg.getSubimage(i,j,k,l));}
+        catch(RuntimeException e){return new FIBI(null);}
 	}
 
 	@Override
 	public int getWidth() {
-		return bimg.getWidth();
+		return bimg==null?1:bimg.getWidth();
 	}
 
 	@Override
@@ -54,12 +56,12 @@ public class FIBI implements FakeImage {
 
 	@Override
 	public boolean isValid() {
-		return true;
+		return bimg!=null;
 	}
 
 	@Override
 	public void setRGB(int i, int j, int p) {
-		bimg.setRGB(i, j, p);
+		if(bimg!=null)bimg.setRGB(i,j,p);
 	}
 
 	@Override
@@ -88,7 +90,7 @@ public class FIBI implements FakeImage {
 
 	@Override
 	public FakeGraphics getGraphics() {
-		return new FG2D(bimg.getGraphics());
+		return bimg==null?null:new FG2D(bimg.getGraphics());
 	}
 
 }
