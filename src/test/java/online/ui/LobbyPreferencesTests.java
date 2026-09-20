@@ -13,7 +13,7 @@ public final class LobbyPreferencesTests {
                 PvpTraitRules.RANDOM,common.util.Data.TRAIT_RED,5,2,RoomRules.UNLIMITED_TIME,
                 137,true,9);
         LobbyPreferences original=new LobbyPreferences("wss://example.invalid/pvp","tester")
-                .withConnection("wss://example.invalid/pvp","tester",19001)
+                .withConnection("wss://example.invalid/pvp","tester",19001,"my-room_01",true)
                 .withHostRules(rules).withCastleHealth(37.5)
                 .withLocalSetup(1,LobbyPreferences.LINEUP_RANDOM_VANILLA,-1,-1)
                 .withRandomLineupSort(RandomLineupFactory.SortOrder.PRICE_DESC);
@@ -22,6 +22,8 @@ public final class LobbyPreferencesTests {
         online.tests.Check.equal("wss://example.invalid/pvp",loaded.serverAddress,"preference server roundtrip");
         online.tests.Check.equal("tester",loaded.displayName,"preference display name roundtrip");
         online.tests.Check.equal(19001,loaded.udpPortOverride,"participant UDP override preference roundtrip");
+        online.tests.Check.equal("my-room_01",loaded.roomId,"custom room ID preference roundtrip");
+        online.tests.Check.that(loaded.allowDevelopment,"plain WS permission preference roundtrip");
         online.tests.Check.equal(8123,loaded.castleDistance,"castle distance preference roundtrip");
         online.tests.Check.equal(RoomRules.RANDOM_BACKGROUND,loaded.backgroundId,"random background preference roundtrip");
         online.tests.Check.equal(3,loaded.musicId,"curated BGM preference roundtrip");
@@ -65,6 +67,8 @@ public final class LobbyPreferencesTests {
         online.tests.Check.that(!migrated.castleHitMoneyEnabled,"legacy preferences keep castle-hit money mode disabled");
         online.tests.Check.equal(RoomRules.DEFAULT_CASTLE_HIT_MONEY,migrated.castleHitMoney,"legacy preferences use default castle-hit money amount");
         online.tests.Check.equal(0,migrated.udpPortOverride,"legacy preferences keep automatic server-advertised UDP port");
+        online.tests.Check.equal("",migrated.roomId,"legacy preferences default room ID to blank");
+        online.tests.Check.that(!migrated.allowDevelopment,"legacy preferences keep plain WS disabled");
         online.tests.Check.equal(RandomLineupFactory.SortOrder.SHUFFLED,migrated.randomLineupSort,"legacy preferences default random lineup sort to shuffled");
 
         legacy.setProperty("musicId",Integer.toString(online.net.lobby.PvpBattleMusic.DEFAULT_ID));
