@@ -201,7 +201,7 @@ public final class LobbyUiTests {
                         RoomLobbyPage lobby=(RoomLobbyPage)field(page,"roomLobby");
                         ((JSpinner)field(lobby,"distance")).setValue(8000);
                         ((JComboBox<?>)field(lobby,"background")).setSelectedIndex(2);
-                        ((JComboBox<?>)field(lobby,"music")).setSelectedIndex(2);
+                        ((JComboBox<?>)field(lobby,"music")).setSelectedIndex(0); // random BGM
                         ((JSpinner)field(lobby,"timeLimit")).setValue(1);
                         ((JComboBox<?>)field(lobby,"hostTrait")).setSelectedIndex(2); // red
                         ((JComboBox<?>)field(lobby,"guestTrait")).setSelectedIndex(1); // random
@@ -217,6 +217,7 @@ public final class LobbyUiTests {
                 Check.equal(online.net.lobby.RoomRules.SpecialMode.ROULETTE,((RoomClient)field(page,"client")).roomRules().specialMode,"host roulette rule reaches both clients");
                 Check.that(((RoomClient)field(page,"client")).roomRules().debugMode,"host debug mode reaches both clients");
                 Check.equal(1,((RoomClient)field(page,"client")).roomRules().timeLimitMinutes,"host time limit reaches both clients");
+                Check.equal(online.net.lobby.RoomRules.RANDOM_MUSIC,((RoomClient)field(page,"client")).roomRules().musicId,"host random BGM rule reaches both clients");
                 Check.equal((int)common.util.Data.TRAIT_RED,((RoomClient)field(page,"client")).roomRules().hostTraitChoice,"host selected attribute reaches both clients");
                 Check.equal(online.net.lobby.PvpTraitRules.RANDOM,((RoomClient)field(page,"client")).roomRules().guestTraitChoice,"guest random attribute reaches both clients");
                 edt(()->{Object audio=field(field(page,"roomLobby"),"audio");((JSlider)field(audio,"bg")).setValue(host?23:81);((JSlider)field(audio,"se")).setValue(host?45:11);((JSlider)field(audio,"ui")).setValue(host?67:9);return null;});
