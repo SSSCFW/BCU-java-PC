@@ -219,6 +219,8 @@ public class BattleObj extends ImgCore implements Cloneable {
 			temp.terminate();
 		List<Field> lf = getField(getClass());
 		for (Field f : lf) {
+			if (f.getName().startsWith(NONC))
+				continue;
 			f.setAccessible(true);
 			Class<?> tc = f.getType();
 
@@ -245,8 +247,6 @@ public class BattleObj extends ImgCore implements Cloneable {
 							c.terminate();
 			}
 			if (Collection.class.isAssignableFrom(tc)) {
-				if (f.getName().equals(NONC))
-					continue;
 				Collection f2 = null;
 				try {
 					f2 = (Collection) f.get(this);
@@ -284,6 +284,8 @@ public class BattleObj extends ImgCore implements Cloneable {
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	private void check(List<Field> lf) {
 		for (Field f : lf) {
+			if (f.getName().startsWith(NONC))
+				continue;
 			Object obj = null;
 			try {
 				obj = f.get(this);
