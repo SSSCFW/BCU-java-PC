@@ -15,7 +15,8 @@ public final class LobbyPreferencesTests {
         LobbyPreferences original=new LobbyPreferences("wss://example.invalid/pvp","tester")
                 .withConnection("wss://example.invalid/pvp","tester",19001)
                 .withHostRules(rules).withCastleHealth(37.5)
-                .withLocalSetup(1,LobbyPreferences.LINEUP_RANDOM_VANILLA,-1,-1);
+                .withLocalSetup(1,LobbyPreferences.LINEUP_RANDOM_VANILLA,-1,-1)
+                .withRandomLineupSort(RandomLineupFactory.SortOrder.PRICE_DESC);
         original.save(file);
         LobbyPreferences loaded=LobbyPreferences.load(file,"fallback");
         online.tests.Check.equal("wss://example.invalid/pvp",loaded.serverAddress,"preference server roundtrip");
@@ -37,6 +38,7 @@ public final class LobbyPreferencesTests {
         online.tests.Check.equal(37.5,loaded.castleHealthMultiplier,"local castle multiplier preference roundtrip");
         online.tests.Check.equal(1,loaded.creatorSideIndex,"creator side preference roundtrip");
         online.tests.Check.equal(LobbyPreferences.LINEUP_RANDOM_VANILLA,loaded.lineupKind,"lineup choice preference roundtrip");
+        online.tests.Check.equal(RandomLineupFactory.SortOrder.PRICE_DESC,loaded.randomLineupSort,"participant random lineup sort preference roundtrip");
         online.tests.Check.equal(rules,loaded.hostRules(),"all host PvP room rules roundtrip");
 
         java.util.Properties legacy=new java.util.Properties();
@@ -63,6 +65,7 @@ public final class LobbyPreferencesTests {
         online.tests.Check.that(!migrated.castleHitMoneyEnabled,"legacy preferences keep castle-hit money mode disabled");
         online.tests.Check.equal(RoomRules.DEFAULT_CASTLE_HIT_MONEY,migrated.castleHitMoney,"legacy preferences use default castle-hit money amount");
         online.tests.Check.equal(0,migrated.udpPortOverride,"legacy preferences keep automatic server-advertised UDP port");
+        online.tests.Check.equal(RandomLineupFactory.SortOrder.SHUFFLED,migrated.randomLineupSort,"legacy preferences default random lineup sort to shuffled");
 
         legacy.setProperty("musicId",Integer.toString(online.net.lobby.PvpBattleMusic.DEFAULT_ID));
         legacy.setProperty("hostTraitChoice",Integer.toString(common.util.Data.TRAIT_WHITE));
