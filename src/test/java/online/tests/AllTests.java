@@ -14,6 +14,8 @@ public final class AllTests {
         ServerHostTests.run();
         online.net.CheckpointTests.run();
         BundleTests.run();
+        jogl.util.AmbImageTests.run();
+        utilpc.awt.FIBITests.run();
         PackTests.run();
         online.bundle.AnimationSafetyTests.run();
         AnimationRoundTripTests.run();
