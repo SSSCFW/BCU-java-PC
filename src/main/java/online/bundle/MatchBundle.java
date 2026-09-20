@@ -26,11 +26,20 @@ public final class MatchBundle {
     private static JsonElement encode(Object value) throws IOException {
         JsonElement e=JsonEncoder.encode(value);if(e==null || e.isJsonNull())throw new IOException("BCU could not serialize match data");return e;
     }
-    public static Path export(BasisLU lineup) throws Exception {
+    public static Path export(BasisLU lineup) throws Exception {return export(lineup,false);}
+    public static Path export(BasisLU lineup,boolean includeProductionPool) throws Exception {
         if(lineup==null)throw new IOException("Choose a lineup first");
+        BasisLU exported=lineup.copy();
+        List<Form> productionForms=includeProductionPool?productionCandidates():Collections.emptyList();
+        for(Form form:productionForms)exported.lu.getLv(form);
         JsonObject manifest=new JsonObject();manifest.addProperty("format",1);
-        JsonElement basis=encode(lineup),treasure=encode(lineup.t());
-        SortedSet<String> required=new TreeSet<>(); collectRefs(basis,required);
+        JsonElement basis=encode(exported),treasure=encode(exported.t());
+        JsonArray productionPool=new JsonArray();
+        for(Form form:productionForms){
+            JsonObject p=new JsonObject();p.addProperty("pack",form.unit.id.pack);p.addProperty("id",form.unit.id.id);p.addProperty("form",form.fid);
+            productionPool.add(p);
+        }
+        SortedSet<String> required=new TreeSet<>(); collectRefs(basis,required);collectRefs(productionPool,required);
         JsonArray combos=new JsonArray();for(Combo c:lineup.lu.coms) {combos.add(encode(c.id));required.add(c.id.pack);}
         Map<String,UserPack> packs=new TreeMap<>();Map<String,JsonObject> jsons=new TreeMap<>();
         Map<Object,Object> animationAliases=new IdentityHashMap<>();
@@ -89,8 +98,8 @@ public final class MatchBundle {
         JsonObject local=new JsonObject(),desc=new JsonObject();desc.addProperty("id","local");desc.addProperty("BCU_VERSION",AssetLoader.CORE_VER);
         desc.add("dependency",new JsonArray());local.add("desc",desc);
         JsonObject record=new JsonObject();record.addProperty("token","local");record.add("data",local);list.add(record);
-        rewrite(basis,tokens);rewrite(combos,tokens);
-        manifest.add("lineup",basis);manifest.add("treasure",treasure);manifest.add("combos",combos);manifest.add("packs",list);
+        rewrite(basis,tokens);rewrite(combos,tokens);rewrite(productionPool,tokens);
+        manifest.add("lineup",basis);manifest.add("treasure",treasure);manifest.add("combos",combos);manifest.add("productionPool",productionPool);manifest.add("packs",list);
         JsonObject checksums=new JsonObject();for(Map.Entry<String,byte[]> e:files.entrySet())checksums.addProperty(e.getKey(),Hashes.sha256(e.getValue()));
         manifest.add("assets",checksums);files.put("manifest.json",manifest.toString().getBytes(StandardCharsets.UTF_8));
         Path out=Files.createTempFile("bcu-pvp-send-",".zip");
@@ -152,6 +161,38 @@ public final class MatchBundle {
             }
         }
     }
+    private static List<Form> productionCandidates(){
+        Map<String,Form> out=new TreeMap<>();
+        Set<String> spiritTargets=new HashSet<>();
+        for(Unit unit:UserProfile.getBCData().units.getList())collectSpiritTargets(spiritTargets,unit);
+        for(PackData pack:UserProfile.getAllPacks()){
+            if(pack instanceof UserPack&&((UserPack)pack).source instanceof MatchSource)continue;
+            for(Unit unit:pack.units)collectSpiritTargets(spiritTargets,unit);
+        }
+        for(Unit unit:UserProfile.getBCData().units.getList())addProductionCandidate(out,unit,spiritTargets);
+        for(PackData pack:UserProfile.getAllPacks()){
+            if(pack instanceof UserPack&&((UserPack)pack).source instanceof MatchSource)continue;
+            for(Unit unit:pack.units)addProductionCandidate(out,unit,spiritTargets);
+        }
+        return new ArrayList<>(out.values());
+    }
+    private static void addProductionCandidate(Map<String,Form> out,Unit unit,Set<String> spiritTargets){
+        if(unit==null||unit.id==null||unit.lv==null||unit.forms==null)return;
+        Form form=bestProductionForm(unit);if(form==null)return;
+        String key=unit.id.pack+":"+unit.id.id;
+        if(form.du.getPrice()==0&&(spiritTargets.contains(key)||(Identifier.DEF.equals(unit.id.pack)&&unit.id.id==339)))return;
+        out.put(key,form);
+    }
+    private static Form bestProductionForm(Unit unit){
+        for(int i=unit.forms.length-1;i>=0;i--){Form form=unit.forms[i];if(form!=null&&form.du!=null&&form.anim!=null)return form;}
+        return null;
+    }
+    private static void collectSpiritTargets(Set<String> targets,Unit unit){
+        if(unit==null||unit.forms==null)return;
+        for(Form form:unit.forms)if(form!=null&&form.du!=null&&form.du.getProc()!=null&&form.du.getProc().SPIRIT.exists()&&form.du.getProc().SPIRIT.id!=null)
+            targets.add(form.du.getProc().SPIRIT.id.pack+":"+form.du.getProc().SPIRIT.id.id);
+    }
+
     public static MatchBundle read(Path file) throws IOException {
         Map<String,byte[]> files=SafeArchive.read(file);byte[] bytes=files.remove("manifest.json");if(bytes==null)throw new IOException("Missing bundle manifest");
         JsonObject m=SafeJson.object(bytes);
@@ -175,6 +216,9 @@ public final class MatchBundle {
                 pixels+=AssetChecks.check(name,e.getValue());if(pixels>33_554_432L)throw new IOException("Total decoded image limit");
             }
             m.getAsJsonObject("lineup");m.getAsJsonObject("treasure");m.getAsJsonArray("combos");
+            JsonArray productionPool=m.has("productionPool")?m.getAsJsonArray("productionPool"):new JsonArray();
+            if(productionPool.size()>10000)throw new IOException("Production pool size limit");
+            validateReferences(productionPool,tokens);
             return new MatchBundle(m,files);
         }catch(RuntimeException e){throw new IOException("Malformed match manifest",e);}
     }
@@ -218,6 +262,7 @@ public final class MatchBundle {
     }
     public final class Mounted implements AutoCloseable {
         public final BasisLU lineup;
+        public final Form[] productionPool;
         private final List<UserPack> owned=new ArrayList<>();private boolean closed;
         private Mounted(String match,int slot) throws Exception {
             Map<String,String> ids=new TreeMap<>();
@@ -262,6 +307,20 @@ public final class MatchBundle {
                     for(UserPack p:owned)p.useCombos=false;
                 }
                 validateLineup(result);lineup=result;
+                JsonArray pool=m.has("productionPool")?m.getAsJsonArray("productionPool"):new JsonArray();
+                ArrayList<Form> forms=new ArrayList<>(pool.size());
+                for(JsonElement element:pool){
+                    JsonObject entry=element.getAsJsonObject();
+                    String pack=entry.get("pack").getAsString();int unitId=entry.get("id").getAsInt(),formId=entry.get("form").getAsInt();
+                    Unit unit=Identifier.get(new Identifier<>(pack,Unit.class,unitId));
+                    if(unit==null||unit.forms==null||formId<0||formId>=unit.forms.length||unit.forms[formId]==null)
+                        throw new IOException("Invalid production-pool unit");
+                    Form form=unit.forms[formId];
+                    if(!lineup.lu.map.containsKey(unit.id))throw new IOException("Missing synchronized production-pool level");
+                    lineup.lu.getLv(form);
+                    forms.add(form);
+                }
+                productionPool=forms.toArray(new Form[0]);
             }catch(Exception e){close();throw e;}
             finally{UserProfile.setStatic("_current_pack",null);}
         }
