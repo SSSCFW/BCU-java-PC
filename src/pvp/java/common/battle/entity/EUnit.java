@@ -66,6 +66,7 @@ public class EUnit extends Entity {
 	public int legendGrade = -1, coloGrade = -1, counterGrade = -1, bountyGrade = -1;
 	private boolean pvpDefeatRewarded, pvpRouletteDeathCharged;
 	private int pvpAssignedTrait=PvpTraitRules.NONE;
+    private int pvpSpawnPrice=-1,pvpSpawnBasePrice=-1;
 
 	public EUnit(StageBasis b, MaskUnit de, EAnimU ea, float d0, int layer0, int layer1, Level level, PCoin pc,
 				 int[] index, boolean isSpirit, boolean isEveryOther) {
@@ -78,6 +79,10 @@ public class EUnit extends Entity {
 		this.index = index;
 		this.level = level;
 		this.isSpirit = isSpirit;
+        if(b.isPvp()&&index!=null){
+            pvpSpawnPrice=b.elu.price[index[0]][index[1]];
+            pvpSpawnBasePrice=b.elu.basePrice[index[0]][index[1]];
+        }
 
 		processAbilityOrbs();
 		processComboAbilities();
@@ -243,8 +248,10 @@ public class EUnit extends Entity {
         chargePvpRouletteDeath(atk);
 		rewardPvpDefeat(atk);
 
-		if (getProc().MONEYBACK.exists() && index != null)
-			basis.money += basis.elu.price[index[0]][index[1]] * getProc().MONEYBACK.mult / 100;
+		if (getProc().MONEYBACK.exists() && index != null) {
+            int price=basis.isPvp()&&pvpSpawnPrice>=0?pvpSpawnPrice:basis.elu.price[index[0]][index[1]];
+			basis.money += price * getProc().MONEYBACK.mult / 100;
+        }
 		if (getProc().CANONCHARGE.exists() && basis.cannon < basis.maxCannon - 1)
 			basis.cannon = Math.min(basis.maxCannon - 1, basis.cannon + getProc().CANONCHARGE.mult);
 	}
@@ -253,7 +260,7 @@ public class EUnit extends Entity {
         if(pvpRouletteDeathCharged||mode==KillMode.SPIRIT||!basis.isPvp()||index==null||isSpirit)return;
         PvpStageBasis world=(PvpStageBasis)basis.world();
         if(world.specialMode()!=online.net.lobby.RoomRules.SpecialMode.ROULETTE)return;
-        int price=basis.elu.price[index[0]][index[1]];
+        int price=pvpSpawnPrice>=0?pvpSpawnPrice:basis.elu.price[index[0]][index[1]];
         if(price<=0)return;
         pvpRouletteDeathCharged=true;
         StageBasis left=world.left(),right=world.right();
@@ -277,7 +284,7 @@ public class EUnit extends Entity {
 
         // Use the fully calculated battle-start cost. Roulette COST_DOWN mutates
         // elu.price[][] for future deployment, but must not reduce defeat bounty.
-        int cost = basis.elu.basePrice[index[0]][index[1]];
+        int cost = pvpSpawnBasePrice>=0?pvpSpawnBasePrice:basis.elu.basePrice[index[0]][index[1]];
         if (cost <= 0)
             return;
 
