@@ -34,7 +34,7 @@ public final class RoomRuleTests {
         for(int distance:new int[]{1000,4400,24000}) {
             RoomRules rule=new RoomRules(distance,0,3,true,RoomRules.SpecialMode.ROULETTE,true,
                     PvpTraitRules.RANDOM,common.util.Data.TRAIT_RED,1<<PvpTraitRules.optionIndex(common.util.Data.TRAIT_BLACK),0,15,
-                    123,true,7,true);
+                    123,true,7);
             JsonObject message=Protocol.message("rules");message.add("rules",rule.json());
             Check.equal(rule,RoomRules.read(message),"all rules roundtrip without client-local settings");
             Check.equal(RoomRules.SpecialMode.ROULETTE,RoomRules.read(message).specialMode,"special mode is synchronized in room rules");
@@ -45,7 +45,6 @@ public final class RoomRuleTests {
             Check.equal(123,RoomRules.read(message).maxUnits,"maximum deployed unit count is synchronized");
             Check.that(RoomRules.read(message).castleHitMoneyEnabled,"castle-hit money mode is synchronized");
             Check.equal(7,RoomRules.read(message).castleHitMoney,"castle-hit money amount is synchronized");
-            Check.that(RoomRules.read(message).rerollSlotAfterDeploy,"post-deploy slot reroll mode is synchronized");
             BasisLU l=Fixture.lineup(FixtureNativeUi.unit("rule_l"+distance,0xff0055aa));
             BasisLU r=Fixture.lineup(FixtureNativeUi.unit("rule_r"+distance,0xffaa5500));
             PvpStageBasis baseline=new PvpStageBasis(l,r,133,0,rule,1.0,1.0);
@@ -75,6 +74,11 @@ public final class RoomRuleTests {
                 Check.that(!CommonStatic.getConfig().performanceModeBattle,"fixed online 60FPS is not a global preference mutation");
             } finally {CommonStatic.getConfig().performanceModeBattle=old;}
         }
+        RoomRules rerollRule=new RoomRules(4400,0,3,true,RoomRules.SpecialMode.NONE,false,
+                PvpTraitRules.NONE,PvpTraitRules.NONE,0,0,15,RoomRules.DEFAULT_MAX_UNITS,false,RoomRules.DEFAULT_CASTLE_HIT_MONEY,true);
+        JsonObject rerollMessage=Protocol.message("rules");rerollMessage.add("rules",rerollRule.json());
+        Check.that(RoomRules.read(rerollMessage).rerollSlotAfterDeploy,"post-deploy slot reroll mode is synchronized in room rules");
+
         for(RoomRules.SpecialMode mode:RoomRules.SpecialMode.values()){
             RoomRules special=new RoomRules(4400,0,3,false,mode);
             JsonObject msg=Protocol.message("rules");msg.add("rules",special.json());
