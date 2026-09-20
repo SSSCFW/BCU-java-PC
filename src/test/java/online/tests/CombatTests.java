@@ -25,6 +25,7 @@ public final class CombatTests {
         defeatRewardTests();
         castleHitMoneyTests();
         terminalPvpTickPreservesUnits();
+        postDeploySlotRerollTests();
         rouletteAttackCastleTests();
         for(boolean mini:new boolean[]{false,true}) {
             PvpStageBasis b=duel(!mini,mini);
@@ -156,6 +157,44 @@ private static void terminalPvpTickPreservesUnits() throws Exception {
     update.setAccessible(true);update.invoke(b);
     for(Entity entity:before)
         Check.that(entity.anim.dead<0,"PvP terminal tick freezes the field instead of mass-killing every unit");
+}
+
+private static void postDeploySlotRerollTests() throws Exception {
+    Unit a=Fixture.unit("reroll_a",100000),b=Fixture.unit("reroll_b",100000),c=Fixture.unit("reroll_c",100000);
+    Unit ra=Fixture.unit("reroll_ra",100000),rb=Fixture.unit("reroll_rb",100000),rc=Fixture.unit("reroll_rc",100000);
+    ((CustomUnit)a.forms[0].du).price=10;((CustomUnit)b.forms[0].du).price=25;((CustomUnit)c.forms[0].du).price=40;
+    ((CustomUnit)ra.forms[0].du).price=11;((CustomUnit)rb.forms[0].du).price=26;((CustomUnit)rc.forms[0].du).price=41;
+    BasisLU left=Fixture.lineup(a),right=Fixture.lineup(ra);
+    left.lu.getLv(b.forms[0]);left.lu.getLv(c.forms[0]);right.lu.getLv(rb.forms[0]);right.lu.getLv(rc.forms[0]);
+    RoomRules rules=new RoomRules(4400,0,3,false,RoomRules.SpecialMode.NONE,false,
+            online.net.lobby.PvpTraitRules.NONE,online.net.lobby.PvpTraitRules.NONE,0,0,
+            RoomRules.DEFAULT_TIME_LIMIT_MINUTES,RoomRules.DEFAULT_MAX_UNITS,false,RoomRules.DEFAULT_CASTLE_HIT_MONEY,true);
+    PvpStageBasis first=new PvpStageBasis(left,right,445566,0,rules),second=new PvpStageBasis(left,right,445566,0,rules);
+    Form[] leftPool={a.forms[0],b.forms[0],c.forms[0]},rightPool={ra.forms[0],rb.forms[0],rc.forms[0]};
+    first.configureProductionPools(leftPool,rightPool);second.configureProductionPools(leftPool,rightPool);
+    for(PvpStageBasis battle:new PvpStageBasis[]{first,second}){
+        battle.left().money=1_000_000;battle.right().money=1_000_000;
+        battle.left().unitRespawnTime=0;battle.right().unitRespawnTime=0;
+    }
+    Form original=first.left().pvpSlotForm(0,0);
+    first.step(new InputFrame(0,1,0));second.step(new InputFrame(0,1,0));
+    EUnit deployed=(EUnit)first.le.stream().filter(e->e instanceof EUnit&&e.dire==1).findFirst().orElseThrow();
+    Check.that(deployed.data==original.du,"pressed slot deploys its current character before reroll");
+    Form next=first.left().pvpSlotForm(0,0);
+    Check.that(!next.unit.id.equals(original.unit.id),"successful production replaces the slot with a different character");
+    Check.equal(next.unit.id,second.left().pvpSlotForm(0,0).unit.id,"same seed and input reroll to the same next character");
+    Check.equal(next.du.getPrice()*100,first.left().elu.basePrice[0][0],"rerolled slot recalculates the next character price");
+    Check.that(first.left().elu.cool[0][0]>0,"rerolled slot begins the next character's production cooldown");
+    Check.equal(BattleDigest.of(first),BattleDigest.of(second),"slot reroll state remains deterministic");
+
+    for(PvpStageBasis battle:new PvpStageBasis[]{first,second}){
+        battle.left().unitRespawnTime=0;battle.left().elu.cool[0][0]=0;battle.left().money=1_000_000;
+    }
+    first.step(new InputFrame(1,1,0));second.step(new InputFrame(1,1,0));
+    long matching=first.le.stream().filter(e->e instanceof EUnit&&e.dire==1&&e.data==next.du).count();
+    Check.equal(1L,matching,"the next press deploys the character that the slot rerolled into");
+    Check.that(!first.left().pvpSlotForm(0,0).unit.id.equals(next.unit.id),"the slot rerolls again after every successful production");
+    Check.equal(BattleDigest.of(first),BattleDigest.of(second),"repeated slot rerolls remain deterministic");
 }
 
 private static void rouletteAttackCastleTests() throws Exception {
