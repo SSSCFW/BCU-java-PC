@@ -191,9 +191,13 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
             case "prepare":
                 if(playerId<=0)throw new java.io.IOException("No identity assignment");
                 if(roomLobby!=null)roomLobby.state(e);
-                BasisLU selectedBattleLineup=battleLineup();
-                boolean shareProductionPool=client.roomRules().rerollSlotAfterDeploy;
-                localArchive=MatchBundle.export(selectedBattleLineup,shareProductionPool);temporary.add(localArchive);localBundle=MatchBundle.read(localArchive);
+                // Normal lobby flow prebuilds this archive before lobbyReady is sent,
+                // so the all-ready barrier never starts expensive bundle generation.
+                if(localArchive==null||localBundle==null){
+                    BasisLU selectedBattleLineup=battleLineup();
+                    boolean shareProductionPool=client.roomRules().rerollSlotAfterDeploy;
+                    localArchive=MatchBundle.export(selectedBattleLineup,shareProductionPool);temporary.add(localArchive);localBundle=MatchBundle.read(localArchive);
+                }
                 roster=DuelRoster.read(e);slot=roster.indexOf(playerId);leftSlot=roster.leftIndex();prepared=true;
                 hostName=roster.name(0);guestName=roster.name(1);
                 hashes[slot]=Hashes.sha256(localArchive);mounted[slot]=localBundle.mount(match,playerId);
@@ -245,6 +249,65 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         }catch(Exception e){delete(verified);failed(attempt,"受信データを拒否: "+e.getMessage());}});}
         catch(RejectedExecutionException e){delete(verified);}
     }
+    /**
+     * Build the immutable local match bundle before announcing lobby readiness.
+     * Random-production mode can scan a large character library; doing that only
+     * after both players are ready made the start barrier appear to hang.
+     */
+    void prepareLocalReady(long revision){
+        final int attempt=generation;
+        final RoomClient connection=client;
+        final BasisLU selectedBattleLineup;
+        final boolean shareProductionPool;
+        try{
+            if(connection==null)throw new java.io.IOException("接続がありません");
+            selectedBattleLineup=battleLineup();
+            shareProductionPool=connection.roomRules().rerollSlotAfterDeploy;
+        }catch(Exception e){
+            if(roomLobby!=null)roomLobby.notice("対戦データの準備に失敗: "+e.getMessage());
+            return;
+        }
+        try{
+            io.execute(()->{
+                Path archive=null;
+                try{
+                    archive=MatchBundle.export(selectedBattleLineup,shareProductionPool);
+                    MatchBundle bundle=MatchBundle.read(archive);
+                    final Path builtArchive=archive;
+                    archive=null;
+                    SwingUtilities.invokeLater(()->{
+                        if(!current(attempt)||client!=connection||roomLobby==null){
+                            delete(builtArchive);return;
+                        }
+                        if(connection.roomRevision()!=revision){
+                            delete(builtArchive);
+                            roomLobby.notice("編成またはルールが更新されました。内容を確認してもう一度準備完了を押してください");
+                            return;
+                        }
+                        if(localArchive!=null){
+                            temporary.remove(localArchive);
+                            delete(localArchive);
+                        }
+                        localArchive=builtArchive;
+                        localBundle=bundle;
+                        temporary.add(builtArchive);
+                        roomLobby.message("対戦データの準備が完了しました。相手を待っています…");
+                        connection.lobbyReady(true,revision);
+                    });
+                }catch(Exception e){
+                    if(archive!=null)delete(archive);
+                    final String reason=e.getMessage()==null?e.getClass().getSimpleName():e.getMessage();
+                    SwingUtilities.invokeLater(()->{
+                        if(current(attempt)&&client==connection&&roomLobby!=null)
+                            roomLobby.notice("対戦データの準備に失敗: "+reason);
+                    });
+                }
+            });
+        }catch(RejectedExecutionException e){
+            if(roomLobby!=null)roomLobby.notice("対戦データの準備を開始できませんでした");
+        }
+    }
+
     private void updateReady(){if(uploaded&&prepared&&mounted[0]!=null&&mounted[1]!=null&&!client.realtimeTransport().equals("PROBING")){client.ready();message("両者のキャラクターを同期しました。対戦を開始しています…");}}
     private void showBattle(){
         // The native battle page is a direct child of the room lobby so Back/result
