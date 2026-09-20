@@ -17,26 +17,29 @@ public final class PvpPresentationDelta {
     public final int tick;
     private final long[] ids;
     private final float[] positions;
-    private final long[] health;
-    private final int[] shield;
+    private final long[] health,maxHealth,damageGiven,damageTaken;
+    private final int[] shield,livingTime;
     private final PlayerDelta left,right;
 
-    private PvpPresentationDelta(int tick,long[] ids,float[] positions,long[] health,int[] shield,
+    private PvpPresentationDelta(int tick,long[] ids,float[] positions,long[] health,long[] maxHealth,
+                                 long[] damageGiven,long[] damageTaken,int[] shield,int[] livingTime,
                                  PlayerDelta left,PlayerDelta right){
-        this.tick=tick;this.ids=ids;this.positions=positions;this.health=health;this.shield=shield;
+        this.tick=tick;this.ids=ids;this.positions=positions;this.health=health;this.maxHealth=maxHealth;
+        this.damageGiven=damageGiven;this.damageTaken=damageTaken;this.shield=shield;this.livingTime=livingTime;
         this.left=left;this.right=right;
     }
 
     public static PvpPresentationDelta capture(PvpStageBasis world){
         int n=world.le.size();
-        long[] ids=new long[n],health=new long[n];
+        long[] ids=new long[n],health=new long[n],maxHealth=new long[n],damageGiven=new long[n],damageTaken=new long[n];
         float[] positions=new float[n];
-        int[] shield=new int[n];
+        int[] shield=new int[n],livingTime=new int[n];
         for(int i=0;i<n;i++){
             Entity e=world.le.get(i);
-            ids[i]=e.pvpEntityId;positions[i]=e.pos;health[i]=e.health;shield[i]=e.currentShield;
+            ids[i]=e.pvpEntityId;positions[i]=e.pos;health[i]=e.health;maxHealth[i]=e.maxH;
+            damageGiven[i]=e.damageGiven;damageTaken[i]=e.damageTaken;shield[i]=e.currentShield;livingTime[i]=e.livingTime;
         }
-        return new PvpPresentationDelta(world.time,ids,positions,health,shield,
+        return new PvpPresentationDelta(world.time,ids,positions,health,maxHealth,damageGiven,damageTaken,shield,livingTime,
                 new PlayerDelta(world.left()),new PlayerDelta(world.right()));
     }
 
@@ -46,7 +49,8 @@ public final class PvpPresentationDelta {
         display.time=tick;display.left().time=tick;
         for(int i=0;i<ids.length;i++){
             Entity e=entityIndex.get(ids[i]);if(e==null)continue;
-            e.pos=positions[i];e.health=health[i];e.currentShield=shield[i];
+            e.pos=positions[i];e.health=health[i];e.maxH=maxHealth[i];e.currentShield=shield[i];
+            e.damageGiven=damageGiven[i];e.damageTaken=damageTaken[i];e.livingTime=livingTime[i];
         }
     }
 
@@ -62,7 +66,8 @@ public final class PvpPresentationDelta {
         target.work_lv=source.workLevel;target.unitRespawnTime=source.unitRespawnTime;
         target.ownBase().health=source.castleHealth;
         for(int row=0;row<2;row++)for(int col=0;col<5;col++){
-            target.elu.cool[row][col]=source.cool[row][col];
+            target.elu.cool[row][col]=source.cool[row][col];target.elu.price[row][col]=source.price[row][col];
+            target.elu.tick[row][col]=source.tick[row][col];target.elu.maxC[row][col]=source.maxC[row][col];
             System.arraycopy(source.cdDelayVisual[row][col],0,target.cdDelayVisual[row][col],0,
                     Math.min(source.cdDelayVisual[row][col].length,target.cdDelayVisual[row][col].length));
         }
@@ -72,14 +77,15 @@ public final class PvpPresentationDelta {
     private static final class PlayerDelta {
         final int money,maxMoney,cannon,maxCannon,workLevel,unitRespawnTime;
         final long castleHealth;
-        final int[][] cool=new int[2][5];
+        final int[][] cool=new int[2][5],price=new int[2][5],tick=new int[2][5],maxC=new int[2][5];
         final int[][][] cdDelayVisual=new int[2][5][];
         final RouletteDelta roulette;
         PlayerDelta(StageBasis s){
             money=s.money;maxMoney=s.maxMoney;cannon=s.cannon;maxCannon=s.maxCannon;
             workLevel=s.work_lv;unitRespawnTime=s.unitRespawnTime;castleHealth=s.ownBase().health;
             for(int row=0;row<2;row++)for(int col=0;col<5;col++){
-                cool[row][col]=s.elu.cool[row][col];
+                cool[row][col]=s.elu.cool[row][col];price[row][col]=s.elu.price[row][col];
+                tick[row][col]=s.elu.tick[row][col];maxC[row][col]=s.elu.maxC[row][col];
                 cdDelayVisual[row][col]=s.cdDelayVisual[row][col].clone();
             }
             roulette=s.pvpRoulette==null?null:new RouletteDelta(s.pvpRoulette);
