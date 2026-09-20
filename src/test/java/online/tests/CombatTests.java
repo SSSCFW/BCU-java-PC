@@ -164,6 +164,8 @@ private static void postDeploySlotRerollTests() throws Exception {
     Unit ra=Fixture.unit("reroll_ra",100000),rb=Fixture.unit("reroll_rb",100000),rc=Fixture.unit("reroll_rc",100000);
     ((CustomUnit)a.forms[0].du).price=10;((CustomUnit)b.forms[0].du).price=25;((CustomUnit)c.forms[0].du).price=40;
     ((CustomUnit)ra.forms[0].du).price=11;((CustomUnit)rb.forms[0].du).price=26;((CustomUnit)rc.forms[0].du).price=41;
+    ((CustomUnit)a.forms[0].du).resp=30;((CustomUnit)b.forms[0].du).resp=180;((CustomUnit)c.forms[0].du).resp=180;
+    ((CustomUnit)ra.forms[0].du).resp=30;((CustomUnit)rb.forms[0].du).resp=180;((CustomUnit)rc.forms[0].du).resp=180;
     BasisLU left=Fixture.lineup(a),right=Fixture.lineup(ra);
     left.lu.getLv(b.forms[0]);left.lu.getLv(c.forms[0]);right.lu.getLv(rb.forms[0]);right.lu.getLv(rc.forms[0]);
     RoomRules rules=new RoomRules(4400,0,3,false,RoomRules.SpecialMode.NONE,false,
@@ -177,6 +179,7 @@ private static void postDeploySlotRerollTests() throws Exception {
         battle.left().unitRespawnTime=0;battle.right().unitRespawnTime=0;
     }
     Form original=first.left().pvpSlotForm(0,0);
+    int originalMaxCooldown=first.left().elu.maxC[0][0];
     first.step(new InputFrame(0,1,0));second.step(new InputFrame(0,1,0));
     EUnit deployed=(EUnit)first.le.stream().filter(e->e instanceof EUnit&&e.dire==1).findFirst()
             .orElseThrow(()->new AssertionError("reroll fixture did not deploy the original unit"));
@@ -187,13 +190,24 @@ private static void postDeploySlotRerollTests() throws Exception {
     EForm nextEForm=new EForm(next,first.left().b.lu.getLv(next));
     int expectedNextPrice=100*(int)nextEForm.getPrice(first.left().st.getCont().price);
     Check.equal(expectedNextPrice,first.left().elu.basePrice[0][0],"rerolled slot recalculates the next character battle price");
-    Check.that(first.left().elu.cool[0][0]>0,"rerolled slot begins the next character's production cooldown");
+    Check.equal(originalMaxCooldown,first.left().elu.cool[0][0],"rerolled slot keeps the deployed character's cooldown");
+    Check.equal(originalMaxCooldown,first.left().elu.maxC[0][0],"cooldown bar remains based on the deployed character until refresh");
+    Check.that(first.left().elu.pvpNextMaxCPending[0][0],"next character cooldown waits until the old cooldown reaches zero");
+    Check.that(first.left().elu.pvpNextMaxC[0][0]!=originalMaxCooldown,"next character keeps its own future cooldown separately");
     Check.equal(BattleDigest.of(first),BattleDigest.of(second),"slot reroll state remains deterministic");
 
     for(PvpStageBasis battle:new PvpStageBasis[]{first,second}){
-        battle.left().unitRespawnTime=0;battle.left().elu.cool[0][0]=0;battle.left().money=1_000_000;
+        battle.left().unitRespawnTime=0;battle.left().elu.cool[0][0]=1;battle.left().money=1_000_000;
     }
-    first.step(new InputFrame(1,1,0));second.step(new InputFrame(1,1,0));
+    first.step(new InputFrame(1,0,0));second.step(new InputFrame(1,0,0));
+    Check.equal(0,first.left().elu.cool[0][0],"old character cooldown completes before next character becomes ready");
+    Check.that(!first.left().elu.pvpNextMaxCPending[0][0],"next character cooldown max activates when old cooldown finishes");
+    Check.that(first.left().elu.maxC[0][0]!=originalMaxCooldown,"ready slot now carries the rerolled character's cooldown for its next production");
+
+    for(PvpStageBasis battle:new PvpStageBasis[]{first,second}){
+        battle.left().unitRespawnTime=0;battle.left().money=1_000_000;
+    }
+    first.step(new InputFrame(2,1,0));second.step(new InputFrame(2,1,0));
     long matching=first.le.stream().filter(e->e instanceof EUnit&&e.dire==1&&e.data==next.du).count();
     Check.equal(1L,matching,"the next press deploys the character that the slot rerolled into");
     Check.that(!first.left().pvpSlotForm(0,0).unit.id.equals(next.unit.id),"the slot rerolls again after every successful production");
