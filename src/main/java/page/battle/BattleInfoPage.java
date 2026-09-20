@@ -104,6 +104,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
     private String pendingOnlineResultTitle,pendingOnlineResultDetail;
     private boolean onlineResultAcked,opponentRouletteSpinning,onlineBattleEnding,onlineBattleEndSoundDone,onlineResultShown,onlineLayoutPending;
     private volatile long onlineAudioGeneration;
+    private volatile boolean onlineNativeAudioCleanupDone=true;
     private final PvpRouletteAudio rouletteAudio=new PvpRouletteAudio();
     private int rouletteNoticeUntil=-1;
 	private Runnable onlineExit;
@@ -269,8 +270,10 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
             showQueuedOnlineResult();
         });
         long audioGeneration=++onlineAudioGeneration;
+        onlineNativeAudioCleanupDone=false;
         ONLINE_AUDIO_CLEANUP.execute(()->{
-            if(audioGeneration==onlineAudioGeneration)BCMusic.stopAll();
+            try{if(audioGeneration==onlineAudioGeneration)BCMusic.stopAll();}
+            finally{if(audioGeneration==onlineAudioGeneration)onlineNativeAudioCleanupDone=true;}
         });
     }
 
@@ -289,7 +292,8 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
         onlineResultTitle.setText(pendingOnlineResultTitle);onlineResultDetail.setText(pendingOnlineResultDetail);
         onlineResultOk.setText("OK");onlineResultOk.setEnabled(true);onlineResult.setVisible(true);setComponentZOrder(onlineResult,0);onlineResult.repaint();
         long audioGeneration=onlineAudioGeneration;
-        ONLINE_AUDIO_CLEANUP.execute(()->{
+        if(onlineNativeAudioCleanupDone)BCMusic.play(new Identifier<>(Identifier.DEF,Music.class,30));
+        else ONLINE_AUDIO_CLEANUP.execute(()->{
             if(audioGeneration==onlineAudioGeneration)BCMusic.play(new Identifier<>(Identifier.DEF,Music.class,30));
         });
         validateOnlineLayout();onlineResultOk.requestFocusInWindow();
