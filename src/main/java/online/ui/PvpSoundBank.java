@@ -23,7 +23,8 @@ public final class PvpSoundBank {
         Sound(String file,int millis){this.file=file;fallbackMillis=millis;}
     }
     private static final ExecutorService AUDIO=Executors.newSingleThreadExecutor(r->{Thread t=new Thread(r,"pvp-audio");t.setDaemon(true);return t;});
-    private static final Map<Sound,Pcm> CACHE=new EnumMap<>(Sound.class); // audio worker only
+    private static final ExecutorService END_AUDIO=Executors.newSingleThreadExecutor(r->{Thread t=new Thread(r,"pvp-end-audio");t.setDaemon(true);return t;});
+    private static final ConcurrentMap<Sound,Pcm> CACHE=new ConcurrentHashMap<>();
     private static final Set<Managed> ACTIVE=Collections.newSetFromMap(new IdentityHashMap<Managed,Boolean>());
     private static final Map<Sound,Managed> LOOPS=new EnumMap<>(Sound.class);
     private static long generation;
@@ -77,7 +78,7 @@ public final class PvpSoundBank {
                 byte[] buffer=new byte[8192];int n;
                 while((n=decoded.read(buffer))!=-1){if(n>0)out.write(buffer,0,n);}
                 byte[] data=out.toByteArray();if(data.length==0)throw new IOException("Empty decoded sound "+sound);
-                Pcm pcm=new Pcm(format,data);CACHE.put(sound,pcm);return pcm;
+                Pcm pcm=new Pcm(format,data);Pcm prior=CACHE.putIfAbsent(sound,pcm);return prior==null?pcm:prior;
             }
         }
     }
@@ -108,7 +109,7 @@ public final class PvpSoundBank {
         Managed(Sound sound,Runnable after,boolean loop,long epoch){this.sound=sound;this.after=after;this.loop=loop;this.epoch=epoch;}
         void requestOpen(){
             synchronized(PvpSoundBank.class){if(cancelled||completed||opening||clip!=null)return;opening=true;}
-            AUDIO.execute(this::openAndStart);
+            executor().execute(this::openAndStart);
         }
         void openAndStart(){
             Clip opened=null;
@@ -142,7 +143,7 @@ public final class PvpSoundBank {
         private void complete(){
             synchronized(PvpSoundBank.class){if(cancelled||completed)return;completed=true;forget();}
             if(timer!=null){timer.stop();timer=null;}
-            AUDIO.execute(this::release);
+            executor().execute(this::release);
             if(after!=null)SwingUtilities.invokeLater(()->{
                 synchronized(PvpSoundBank.class){if(cancelled||epoch!=generation)return;}
                 after.run();
@@ -151,8 +152,9 @@ public final class PvpSoundBank {
         void cancel(){
             synchronized(PvpSoundBank.class){if(cancelled)return;cancelled=true;forget();}
             SwingUtilities.invokeLater(()->{if(timer!=null){timer.stop();timer=null;}});
-            AUDIO.execute(this::release);
+            executor().execute(this::release);
         }
+        private ExecutorService executor(){return sound==Sound.BATTLE_END?END_AUDIO:AUDIO;}
         void release(){Clip current=clip;clip=null;if(current!=null){current.removeLineListener(this);close(current);}}
         @Override public void update(LineEvent event){
             if(event.getType()!=LineEvent.Type.STOP||loop||cancelled||completed)return;
