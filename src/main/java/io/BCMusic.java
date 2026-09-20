@@ -287,6 +287,13 @@ public class BCMusic extends Data {
     public static synchronized void setSEVol(int vol) { VOL_SE=Math.max(0,Math.min(100,vol));BCPlayer.refreshVolumes();online.ui.PvpSoundBank.refreshVolume(); }
     public static synchronized void setUIVol(int vol) { VOL_UI=Math.max(0,Math.min(100,vol));BCPlayer.refreshVolumes(); }
 
+	/** Stop only the current background track without releasing audio devices. */
+	public static synchronized void stopBackground() {
+		if (BG != null)
+			BG.stop();
+		music = null;
+	}
+
 	public static synchronized void stopAll() {
 		if (BG != null)
 			BG.stop();
