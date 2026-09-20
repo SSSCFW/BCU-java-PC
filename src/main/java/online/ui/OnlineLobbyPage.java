@@ -192,7 +192,8 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 if(playerId<=0)throw new java.io.IOException("No identity assignment");
                 if(roomLobby!=null)roomLobby.state(e);
                 BasisLU selectedBattleLineup=battleLineup();
-                localArchive=MatchBundle.export(selectedBattleLineup);temporary.add(localArchive);localBundle=MatchBundle.read(localArchive);
+                boolean shareProductionPool=client.roomRules().rerollSlotAfterDeploy;
+                localArchive=MatchBundle.export(selectedBattleLineup,shareProductionPool);temporary.add(localArchive);localBundle=MatchBundle.read(localArchive);
                 roster=DuelRoster.read(e);slot=roster.indexOf(playerId);leftSlot=roster.leftIndex();prepared=true;
                 hostName=roster.name(0);guestName=roster.name(1);
                 hashes[slot]=Hashes.sha256(localArchive);mounted[slot]=localBundle.mount(match,playerId);
@@ -213,6 +214,8 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 battle=PvpStageBasis.create(match,mounted[leftSlot].lineup,mounted[1-leftSlot].lineup,battleSeed,leftSlot,activeRules,
                         startedRoster.castleHealthMultiplier(startedRoster.leftIndex()),startedRoster.castleHealthMultiplier(startedRoster.rightIndex()),
                         leftTrait,rightTrait);
+                if(activeRules.rerollSlotAfterDeploy)
+                    battle.configureProductionPools(mounted[leftSlot].productionPool,mounted[1-leftSlot].productionPool);
                 showBattle();break;
             case "result":
                 resultSent=true;int winner=Protocol.integer(e,"winner");
