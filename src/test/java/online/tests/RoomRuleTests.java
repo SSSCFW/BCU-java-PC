@@ -89,7 +89,10 @@ public final class RoomRuleTests {
         Check.that(resolvedA.backgroundId>=0,"random background resolves to a concrete standard background ID");
         Check.that(PvpBattleMusic.isAllowed(resolvedA.musicId),"random BGM resolves to a curated concrete BGM");
         Check.that(resolvedA.musicId!=RoomRules.RANDOM_MUSIC,"random BGM sentinel is gone before arena creation");
-        PvpStageBasis randomBattleA=new PvpStageBasis(l,r,24680,0,randomRules),randomBattleB=new PvpStageBasis(l,r,24680,0,randomRules);
+        BasisLU randomLeft=Fixture.lineup(FixtureNativeUi.unit("random_music_l",0xff225588));
+        BasisLU randomRight=Fixture.lineup(FixtureNativeUi.unit("random_music_r",0xff882255));
+        PvpStageBasis randomBattleA=new PvpStageBasis(randomLeft,randomRight,24680,0,randomRules),
+                randomBattleB=new PvpStageBasis(randomLeft,randomRight,24680,0,randomRules);
         Check.equal(randomBattleA.st.mus0.id,randomBattleB.st.mus0.id,"both peers resolve the same random BGM for the same battle seed");
         Check.rejects(()->new RoomRules(4400,0,7,false),"non-curated BGM identifier rejected");
 
