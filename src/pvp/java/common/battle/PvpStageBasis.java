@@ -199,7 +199,8 @@ public final class PvpStageBasis extends StageBasis {
     }
     public static RoomRules resolveRandomRules(RoomRules rules,long seed) {
         int background=rules.backgroundId==RoomRules.RANDOM_BACKGROUND?randomBackgroundId(seed):rules.backgroundId;
-        RoomRules resolved=new RoomRules(rules.castleDistance,background,rules.musicId,rules.force60Fps,rules.specialMode,rules.debugMode,
+        int music=rules.musicId==RoomRules.RANDOM_MUSIC?randomMusicId(seed):rules.musicId;
+        RoomRules resolved=new RoomRules(rules.castleDistance,background,music,rules.force60Fps,rules.specialMode,rules.debugMode,
                 rules.hostTraitChoice,rules.guestTraitChoice,rules.hostTraitExclusions,rules.guestTraitExclusions,rules.timeLimitMinutes,
                 rules.maxUnits,rules.castleHitMoneyEnabled,rules.castleHitMoney);
         validateRulesAssets(resolved);
@@ -212,15 +213,29 @@ public final class PvpStageBasis extends StageBasis {
         if(ids.isEmpty())throw new IllegalArgumentException("ランダム背景に使える標準背景がありません");
         return ids.get(new Random(seed^0x4d5f0b17913a2c6dL).nextInt(ids.size()));
     }
+    private static int randomMusicId(long seed) {
+        List<Integer> ids=new ArrayList<>();
+        for(PvpBattleMusic.Entry entry:PvpBattleMusic.entries()) {
+            Music music=Identifier.get(new Identifier<>(Identifier.DEF,Music.class,entry.id));
+            if(music!=null&&music.data!=null)ids.add(entry.id);
+        }
+        Collections.sort(ids);
+        if(ids.isEmpty())throw new IllegalArgumentException("ランダムBGMに使える対戦BGMがありません");
+        return ids.get(new Random(seed^0x6a09e667f3bcc909L).nextInt(ids.size()));
+    }
     public static void validateRulesAssets(RoomRules rules) {
         if(rules.backgroundId==RoomRules.RANDOM_BACKGROUND) {
             randomBackgroundId(0);
         } else if(Identifier.get(new Identifier<>(Identifier.DEF,Background.class,rules.backgroundId))==null)
             throw new IllegalArgumentException("背景データがありません: "+rules.backgroundId);
-        if(!PvpBattleMusic.isAllowed(rules.musicId))
-            throw new IllegalArgumentException("対戦BGMとして許可されていません: "+rules.musicId);
-        Music music=Identifier.get(new Identifier<>(Identifier.DEF,Music.class,rules.musicId));
-        if(music==null||music.data==null)throw new IllegalArgumentException("BGMデータがありません: "+rules.musicId);
+        if(rules.musicId==RoomRules.RANDOM_MUSIC) {
+            randomMusicId(0);
+        } else {
+            if(!PvpBattleMusic.isAllowed(rules.musicId))
+                throw new IllegalArgumentException("対戦BGMとして許可されていません: "+rules.musicId);
+            Music music=Identifier.get(new Identifier<>(Identifier.DEF,Music.class,rules.musicId));
+            if(music==null||music.data==null)throw new IllegalArgumentException("BGMデータがありません: "+rules.musicId);
+        }
     }
     private static Stage arena(RoomRules rules) {
         validateRulesAssets(rules);
