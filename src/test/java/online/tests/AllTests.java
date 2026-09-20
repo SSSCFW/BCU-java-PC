@@ -20,6 +20,7 @@ public final class AllTests {
         ClientTests.run();
         CoreTests.run();
         CombatTests.run();
+        PvpStressTests.run();
         RouletteTests.run();
         Pvp3dsAssetsTests.run();
         PvpSoundBankTests.run();
