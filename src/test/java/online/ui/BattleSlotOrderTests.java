@@ -32,12 +32,13 @@ public final class BattleSlotOrderTests {
         };
         OnlineBattleField field=new OnlineBattleField(keys,canonical.displayCopy(),1,sent::set);
 
-        Check.equal(a.forms[0],field.playerState().b.lu.fs[0][0],"slot order begins canonical");
-        Check.equal(b.forms[0],field.playerState().b.lu.fs[0][1],"second slot begins canonical");
+        Check.equal(a.forms[0],field.visibleForm(0),"slot order begins canonical");
+        Check.equal(b.forms[0],field.visibleForm(1),"second slot begins canonical");
         Check.that(field.swapVisibleSlots(0,1),"middle-drag slot swap is accepted while interactive");
         Check.equal(1,field.canonicalSlotForVisible(0),"visible slot zero maps to canonical slot one after swap");
         Check.equal(0,field.canonicalSlotForVisible(1),"visible slot one maps to canonical slot zero after swap");
-        Check.equal(b.forms[0],field.playerState().b.lu.fs[0][0],"local display forms swap");
+        Check.equal(b.forms[0],field.visibleForm(0),"local display form lookup swaps without mutating shared BasisLU");
+        Check.equal(a.forms[0],field.playerState().b.lu.fs[0][0],"shared canonical BasisLU remains immutable");
         Check.equal(222,field.playerState().elu.price[0][0],"slot HUD values swap with the form");
         Check.equal(before,BattleDigest.of(canonical),"local slot reorder never mutates canonical lockstep state");
 
@@ -49,7 +50,7 @@ public final class BattleSlotOrderTests {
         canonical.left().elu.price[0][0]=333;canonical.left().elu.price[0][1]=444;
         canonical.left().elu.cool[0][0]=33;canonical.left().elu.cool[0][1]=44;
         field.publish(canonical.displayCopy());
-        Check.equal(b.forms[0],field.playerState().b.lu.fs[0][0],"full authoritative snapshot preserves local slot order");
+        Check.equal(b.forms[0],field.visibleForm(0),"full authoritative snapshot preserves local slot order");
         Check.equal(444,field.playerState().elu.price[0][0],"full snapshot slot HUD is permuted into visible order");
 
         canonical.left().elu.cool[0][0]=55;canonical.left().elu.cool[0][1]=66;
