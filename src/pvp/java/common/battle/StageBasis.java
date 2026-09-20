@@ -19,6 +19,8 @@ import common.util.stage.MapColc.DefMapColc;
 import common.util.unit.EForm;
 import common.util.unit.EneRand;
 import common.util.unit.Form;
+import common.util.unit.Level;
+import common.util.unit.Unit;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -66,6 +68,16 @@ public class StageBasis extends BattleObj {
         if(choice<=0)return b.lu.efs[row][col];
         Form form=pvpProductionPool[choice-1];
         return new EForm(form,b.lu.getLv(form));
+    }
+    private EForm pvpSlotSpiritEForm(int row,int col){
+        if(pvpSlotPoolChoice[row][col]<=0)return b.lu.spirits[row][col];
+        EForm base=pvpSlotEForm(row,col);
+        if(base==null||!base.du.getProc().SPIRIT.exists()||base.du.getProc().SPIRIT.id==null)return null;
+        Unit unit=Identifier.getOr(base.du.getProc().SPIRIT.id,Unit.class);if(unit==null||unit.forms==null||unit.forms.length==0||unit.forms[0]==null)return null;
+        Level spiritLevel=base.getLevel().clone();
+        spiritLevel.setLevel(Math.min(unit.max,spiritLevel.getLv()+spiritLevel.getPlusLv()));
+        spiritLevel.setPlusLevel(0);spiritLevel.setOrbs(null);Arrays.fill(spiritLevel.getTalents(),0);
+        return new EForm(unit.forms[0],spiritLevel);
     }
     private void rerollPvpSlot(int row,int col){
         if(!pvpRerollSlotAfterDeploy||pvpProductionPool.length<2||pvpSlotRandom==null)return;
@@ -394,17 +406,18 @@ public class StageBasis extends BattleObj {
 
 	public List<Entity> findEntitiesOf(int i, int j) {
 		List<Entity> ans = new ArrayList<>();
-		for (Entity ent : le) {
-			if (ent.dire == ownDirection() && b.lu.efs[i][j] != null && ent.data == b.lu.efs[i][j].du)
-				ans.add(ent);
-		}
+        EForm current=isPvp()?pvpSlotEForm(i,j):b.lu.efs[i][j];
+        if(current==null)return ans;
+		for (Entity ent : le)
+			if (ent.dire == ownDirection() && ent.data == current.du)ans.add(ent);
 		return ans;
 	}
 
 	private boolean hasLiveEntityOf(int i,int j) {
-		if(b.lu.efs[i][j]==null)return false;
+        EForm current=isPvp()?pvpSlotEForm(i,j):b.lu.efs[i][j];
+		if(current==null)return false;
 		for(Entity ent:le)
-			if(ent.dire==ownDirection()&&ent.data==b.lu.efs[i][j].du&&ent.anim.dead!=0)return true;
+			if(ent.dire==ownDirection()&&ent.data==current.du&&ent.anim.dead!=0)return true;
 		return false;
 	}
 
@@ -666,7 +679,7 @@ public class StageBasis extends BattleObj {
 			return false;
 
 		if(buttonDelayOn && manual && selectedUnit[0] == -1) {
-			if(elu.price[i][j] != -1 || b.lu.fs[i][j] == null) {
+			if(elu.price[i][j] != -1 || (isPvp()?pvpSlotForm(i,j):b.lu.fs[i][j]) == null) {
 				if (lineupChanging)
 					return false;
 
@@ -697,7 +710,7 @@ public class StageBasis extends BattleObj {
 				return false;
 			}
 
-			f = b.lu.spirits[i][j];
+			f = isPvp()?pvpSlotSpiritEForm(i,j):b.lu.spirits[i][j];
 			if (f == null)
 				return false;
 
