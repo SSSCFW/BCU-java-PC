@@ -32,7 +32,8 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private static final long serialVersionUID=1L;
     private static final long BATTLE_STEP_NANOS=1_000_000_000L/Protocol.TPS;
     private static final int MAX_PRESENTATION_BACKLOG=1;
-    private static final long SNAPSHOT_SOFT_NANOS=8_000_000L,SNAPSHOT_HARD_NANOS=16_000_000L;
+    private static final long SNAPSHOT_SOFT_NANOS=8_000_000L,SNAPSHOT_MEDIUM_NANOS=16_000_000L,
+            SNAPSHOT_HARD_NANOS=33_000_000L,SNAPSHOT_EXTREME_NANOS=50_000_000L;
     private final JPanel content=new JPanel(new BorderLayout(12,12));
     private final JPanel setup=new JPanel(new GridBagLayout());
     private final JButton back=new JButton("戻る"),create=new JButton("部屋を作成"),join=new JButton("部屋に参加"),ready=new JButton("準備完了"),leave=new JButton("退出"),copyRoom=new JButton("部屋IDをコピー");
@@ -333,8 +334,14 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     }
 
     static int presentationStride(int entities,long copyNanos){
-        int byCount=entities>=400?2:1;
-        int byCost=copyNanos>=SNAPSHOT_HARD_NANOS?3:copyNanos>=SNAPSHOT_SOFT_NANOS?2:1;
+        // Never skip simulation ticks. Only reduce how often the expensive full
+        // presentation graph is cloned when a machine cannot clone it inside one
+        // 33.3ms logic budget.
+        int byCount=entities>=400?3:entities>=250?2:1;
+        int byCost=copyNanos>=SNAPSHOT_EXTREME_NANOS?5:
+                copyNanos>=SNAPSHOT_HARD_NANOS?4:
+                copyNanos>=SNAPSHOT_MEDIUM_NANOS?3:
+                copyNanos>=SNAPSHOT_SOFT_NANOS?2:1;
         return Math.max(byCount,byCost);
     }
     static boolean battleStepDue(long now,long deadline,int backlog){
