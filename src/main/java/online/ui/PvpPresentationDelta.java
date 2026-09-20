@@ -63,11 +63,12 @@ public final class PvpPresentationDelta {
     private static void applyPlayer(StageBasis target,PlayerDelta source){
         target.money=source.money;target.maxMoney=source.maxMoney;
         target.cannon=source.cannon;target.maxCannon=source.maxCannon;
-        target.work_lv=source.workLevel;target.unitRespawnTime=source.unitRespawnTime;
+        target.work_lv=source.workLevel;target.upgradeCost=source.upgradeCost;target.unitRespawnTime=source.unitRespawnTime;target.maxCatSpawns=source.maxCatSpawns;
         target.ownBase().health=source.castleHealth;
         for(int row=0;row<2;row++)for(int col=0;col<5;col++){
             target.elu.cool[row][col]=source.cool[row][col];target.elu.price[row][col]=source.price[row][col];
             target.elu.tick[row][col]=source.tick[row][col];target.elu.maxC[row][col]=source.maxC[row][col];
+            target.frameOffCd[row][col]=source.frameOffCd[row][col];target.locks[row][col]=source.locks[row][col];
             System.arraycopy(source.cdDelayVisual[row][col],0,target.cdDelayVisual[row][col],0,
                     Math.min(source.cdDelayVisual[row][col].length,target.cdDelayVisual[row][col].length));
         }
@@ -75,17 +76,20 @@ public final class PvpPresentationDelta {
     }
 
     private static final class PlayerDelta {
-        final int money,maxMoney,cannon,maxCannon,workLevel,unitRespawnTime;
+        final int money,maxMoney,cannon,maxCannon,workLevel,upgradeCost,unitRespawnTime,maxCatSpawns;
         final long castleHealth;
-        final int[][] cool=new int[2][5],price=new int[2][5],tick=new int[2][5],maxC=new int[2][5];
+        final int[][] cool=new int[2][5],price=new int[2][5],tick=new int[2][5],maxC=new int[2][5],frameOffCd=new int[2][5];
+        final boolean[][] locks=new boolean[2][5];
         final int[][][] cdDelayVisual=new int[2][5][];
         final RouletteDelta roulette;
         PlayerDelta(StageBasis s){
             money=s.money;maxMoney=s.maxMoney;cannon=s.cannon;maxCannon=s.maxCannon;
-            workLevel=s.work_lv;unitRespawnTime=s.unitRespawnTime;castleHealth=s.ownBase().health;
+            workLevel=s.work_lv;upgradeCost=s.upgradeCost;unitRespawnTime=s.unitRespawnTime;maxCatSpawns=s.maxCatSpawns;
+            castleHealth=s.ownBase().health;
             for(int row=0;row<2;row++)for(int col=0;col<5;col++){
                 cool[row][col]=s.elu.cool[row][col];price[row][col]=s.elu.price[row][col];
                 tick[row][col]=s.elu.tick[row][col];maxC[row][col]=s.elu.maxC[row][col];
+                frameOffCd[row][col]=s.frameOffCd[row][col];locks[row][col]=s.locks[row][col];
                 cdDelayVisual[row][col]=s.cdDelayVisual[row][col].clone();
             }
             roulette=s.pvpRoulette==null?null:new RouletteDelta(s.pvpRoulette);
