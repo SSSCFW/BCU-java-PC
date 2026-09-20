@@ -19,6 +19,7 @@ import java.util.function.IntConsumer;
  * sb is ALWAYS a disposable display copy, never the canonical simulation.
  * No native act_* or BattleField.update call may advance gameplay here.
  */
+@SuppressWarnings("unchecked")
 public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerView {
     private final CommonStatic.FakeKey keys;
     private final IntConsumer send;
@@ -28,6 +29,8 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     private boolean autoRoulette, autoRouletteQueued;
     private int authoritativeTick;
     private Map<Long,Entity> entityIndex;
+    /** Local presentation order only: visible slot -> canonical lockstep slot. */
+    private final int[] visibleToCanonical={0,1,2,3,4,5,6,7,8,9};
     /** Online PvP presentation is always 60 FPS; simulation remains fixed at 30 TPS. */
     public void force60Fps(boolean value){/* retained for protocol/UI compatibility */}
     public int renderFps(){return 60;}
@@ -53,6 +56,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
         advancePresentationClock(displayCopy.time);
         displayCopy.pos = sb.pos;
         displayCopy.siz = sb.siz;
+        applyLocalSlotOrder(displayCopy.playerFor(direction));
         sb = displayCopy;
         entityIndex=PvpPresentationDelta.index(displayCopy);
         syncSpecialHud();
@@ -65,7 +69,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     public void applyDelta(PvpPresentationDelta delta) {
         if(delta==null||delta.tick<authoritativeTick)return;
         advancePresentationClock(delta.tick);
-        delta.apply((PvpStageBasis)sb,entityIndex);
+        delta.apply((PvpStageBasis)sb,entityIndex,direction,visibleToCanonical);
         syncSpecialHud();
         syncRow();
         halfAdvanced=false;
@@ -151,13 +155,63 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
             boolean pressed = (twoRows || row == frontRow) && keys.pressed(row, col);
             boolean clicked = action.contains(i);
             if (own.b.lu.fs[row][col] == null || (!pressed && !clicked)) continue;
+            int canonical=visibleToCanonical[i];
             if (lock) {
-                send.accept(1 << (12 + i));
+                send.accept(1 << (12 + canonical));
                 if (pressed) keys.remove(row, col);
-            } else send.accept(1 << i);
+            } else send.accept(1 << canonical);
         }
         action.clear();
     }
+
+    int canonicalSlotForVisible(int visible){
+        return visible<0||visible>=visibleToCanonical.length?-1:visibleToCanonical[visible];
+    }
+
+    public boolean swapVisibleSlots(int from,int to){
+        if(!interactive||battleUiHidden||from<0||from>=10||to<0||to>=10||from==to)return false;
+        int tmp=visibleToCanonical[from];visibleToCanonical[from]=visibleToCanonical[to];visibleToCanonical[to]=tmp;
+        swapSlotState(playerState(),from,to);
+        return true;
+    }
+
+    private void applyLocalSlotOrder(StageBasis own){
+        if(identitySlotOrder())return;
+        permute(own.b.lu.fs);permute(own.b.lu.efs);permute(own.b.lu.spirits);
+        permute(own.elu.price);permute(own.elu.basePrice);permute(own.elu.cool);permute(own.elu.maxC);
+        permute(own.elu.tick);permute(own.elu.cdDownOrb);permute(own.elu.priceDownOrb);
+        permute(own.totalDamageTaken);permute(own.totalDamageGiven);permute(own.locks);
+        permute(own.spiritCooldown);permute(own.frameOffCd);permute(own.cdDelay);permute(own.cdDelayVisual);
+        permute(own.summonerSummoned);permute(own.spiritSummoned);permute(own.spiritEmphasizeCount);permute(own.spiritEmphasizeStartTime);permute(own.deployDupe);
+        if(own.selectedUnit[0]>=0&&own.selectedUnit[1]>=0){
+            int canonical=own.selectedUnit[0]*5+own.selectedUnit[1],visible=visibleForCanonical(canonical);
+            own.selectedUnit[0]=visible<0?-1:visible/5;own.selectedUnit[1]=visible<0?-1:visible%5;
+        }
+    }
+
+    private boolean identitySlotOrder(){for(int i=0;i<10;i++)if(visibleToCanonical[i]!=i)return false;return true;}
+    private int visibleForCanonical(int canonical){for(int i=0;i<10;i++)if(visibleToCanonical[i]==canonical)return i;return -1;}
+
+    private void swapSlotState(StageBasis own,int a,int b){
+        swap(own.b.lu.fs,a,b);swap(own.b.lu.efs,a,b);swap(own.b.lu.spirits,a,b);
+        swap(own.elu.price,a,b);swap(own.elu.basePrice,a,b);swap(own.elu.cool,a,b);swap(own.elu.maxC,a,b);
+        swap(own.elu.tick,a,b);swap(own.elu.cdDownOrb,a,b);swap(own.elu.priceDownOrb,a,b);
+        swap(own.totalDamageTaken,a,b);swap(own.totalDamageGiven,a,b);swap(own.locks,a,b);
+        swap(own.spiritCooldown,a,b);swap(own.frameOffCd,a,b);swap(own.cdDelay,a,b);swap(own.cdDelayVisual,a,b);
+        swap(own.summonerSummoned,a,b);swap(own.spiritSummoned,a,b);swap(own.spiritEmphasizeCount,a,b);swap(own.spiritEmphasizeStartTime,a,b);swap(own.deployDupe,a,b);
+    }
+
+    private <T> void permute(T[][] values){Object[] old=new Object[10];for(int i=0;i<10;i++)old[i]=values[i/5][i%5];for(int i=0;i<10;i++)values[i/5][i%5]=(T)old[visibleToCanonical[i]];}
+    private void permute(int[][] values){int[] old=new int[10];for(int i=0;i<10;i++)old[i]=values[i/5][i%5];for(int i=0;i<10;i++)values[i/5][i%5]=old[visibleToCanonical[i]];}
+    private void permute(long[][] values){long[] old=new long[10];for(int i=0;i<10;i++)old[i]=values[i/5][i%5];for(int i=0;i<10;i++)values[i/5][i%5]=old[visibleToCanonical[i]];}
+    private void permute(boolean[][] values){boolean[] old=new boolean[10];for(int i=0;i<10;i++)old[i]=values[i/5][i%5];for(int i=0;i<10;i++)values[i/5][i%5]=old[visibleToCanonical[i]];}
+    private void permute(int[][][] values){int[][] old=new int[10][];for(int i=0;i<10;i++)old[i]=values[i/5][i%5];for(int i=0;i<10;i++)values[i/5][i%5]=old[visibleToCanonical[i]];}
+
+    private static <T> void swap(T[][] values,int a,int b){T t=values[a/5][a%5];values[a/5][a%5]=values[b/5][b%5];values[b/5][b%5]=t;}
+    private static void swap(int[][] values,int a,int b){int t=values[a/5][a%5];values[a/5][a%5]=values[b/5][b%5];values[b/5][b%5]=t;}
+    private static void swap(long[][] values,int a,int b){long t=values[a/5][a%5];values[a/5][a%5]=values[b/5][b%5];values[b/5][b%5]=t;}
+    private static void swap(boolean[][] values,int a,int b){boolean t=values[a/5][a%5];values[a/5][a%5]=values[b/5][b%5];values[b/5][b%5]=t;}
+    private static void swap(int[][][] values,int a,int b){int[] t=values[a/5][a%5];values[a/5][a%5]=values[b/5][b%5];values[b/5][b%5]=t;}
 
     private void changeRow(boolean up) {
         changeFrame = Data.LINEUP_CHANGE_TIME; goingUp = up; syncRow();
