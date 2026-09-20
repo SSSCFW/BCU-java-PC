@@ -302,7 +302,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 // A full graph clone is presentation-only. During catch-up, or while
                 // Swing still owns an unconsumed snapshot, cloning would directly
                 // compete with the 30TPS simulation for no visible benefit.
-                boolean fullSnapshotDue=terminal||(!catchingUp&&pendingSnapshot.get()==null&&world.time%snapshotStride==0);
+                boolean fullSnapshotDue=fullSnapshotDue(terminal,catchingUp,pendingSnapshot.get()!=null,world.time,snapshotStride);
                 if(fullSnapshotDue){
                     long copyStart=System.nanoTime();display=world.displayCopy();
                     lastSnapshotNanos=System.nanoTime()-copyStart;
@@ -343,6 +343,9 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         ScheduledFuture<?> task=simulationTask;simulationTask=null;if(task!=null)task.cancel(false);
     }
 
+    static boolean fullSnapshotDue(boolean terminal,boolean catchingUp,boolean pending,int tick,int stride){
+        return terminal||(!catchingUp&&!pending&&tick%Math.max(1,stride)==0);
+    }
     static int presentationStride(int entities,long copyNanos){
         // Never skip simulation ticks. Only reduce how often the expensive full
         // presentation graph is cloned when a machine cannot clone it inside one
