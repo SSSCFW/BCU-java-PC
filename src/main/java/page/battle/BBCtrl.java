@@ -41,27 +41,32 @@ public class BBCtrl extends BBPainter {
 	}
 
 	public synchronized Form formAt(Point p) {
+        int slot=slotAt(p);return slot<0?null:controlState().b.lu.fs[slot/5][slot%5];
+    }
+
+    /** Visible lineup slot under the pointer, including empty slots. */
+    public synchronized int slotAt(Point p) {
 		BCAuxAssets aux=CommonStatic.getBCAssets();int w=box.getWidth(),h=box.getHeight();double hr=unir;
-		if(p==null||hr<=0)return null;
+		if(p==null||hr<=0)return -1;
 		double term=hr*aux.slot[0].getImg().getWidth()*0.2;
 		if(CommonStatic.getConfig().twoRow){
 			double termh=hr*aux.slot[0].getImg().getHeight()*0.1;
-			for(int i=0;i<2;i++)for(int j=0;j<5;j++){
-				Form f=controlState().b.lu.fs[i][j];if(f==null)continue;
-				FakeImage img=f.anim.getUni().getImg();int iw=(int)(hr*img.getWidth()),ih=(int)(hr*img.getHeight());
-				int x=(w-iw*5)/2+iw*j+(int)(term*(j-2)),y=(int)(h-(2-i)*(ih+termh));
-				if(!new PP(p).out(new P(x,y),new P(x+iw,y+ih),0))return f;
+			for(int row=0;row<2;row++)for(int col=0;col<5;col++){
+				Form f=controlState().b.lu.fs[row][col];
+				FakeImage img=f==null?aux.slot[0].getImg():f.anim.getUni().getImg();int iw=(int)(hr*img.getWidth()),ih=(int)(hr*img.getHeight());
+				int x=(w-iw*5)/2+iw*col+(int)(term*(col-2)),y=(int)(h-(2-row)*(ih+termh));
+				if(!new PP(p).out(new P(x,y),new P(x+iw,y+ih),0))return row*5+col;
 			}
 		}else{
 			int row=controlState().frontLineup;
-			for(int i=0;i<5;i++){
-				Form f=controlState().b.lu.fs[row][i];if(f==null)continue;
-				FakeImage img=f.anim.getUni().getImg();int iw=(int)(hr*img.getWidth()),ih=(int)(hr*img.getHeight());
-				int x=(w-iw*5)/2+iw*i+(int)(term*(i-2)+(row==0?0:term/2)),y=h-(int)(ih*1.1);
-				if(!new PP(p).out(new P(x,y),new P(x+iw,y+ih),0))return f;
+			for(int col=0;col<5;col++){
+				Form f=controlState().b.lu.fs[row][col];
+				FakeImage img=f==null?aux.slot[0].getImg():f.anim.getUni().getImg();int iw=(int)(hr*img.getWidth()),ih=(int)(hr*img.getHeight());
+				int x=(w-iw*5)/2+iw*col+(int)(term*(col-2)+(row==0?0:term/2)),y=h-(int)(ih*1.1);
+				if(!new PP(p).out(new P(x,y),new P(x+iw,y+ih),0))return row*5+col;
 			}
 		}
-		return null;
+		return -1;
 	}
 
 	@Override
