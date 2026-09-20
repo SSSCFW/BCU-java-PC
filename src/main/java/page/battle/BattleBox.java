@@ -616,6 +616,17 @@ public interface BattleBox {
             return sb.b.lu.fs[row][col];
         }
 
+        private FakeImage lineupImage(Form form){
+            FakeImage fallback=aux.slot[0].getImg();
+            if(form==null||form.anim==null)return fallback;
+            try{
+                VImg icon=form.anim.getUni();if(icon==null)return fallback;
+                FakeImage image=icon.getImg();
+                if(image==null||!image.isValid()||image.getWidth()<=1||image.getHeight()<=1)return fallback;
+                return image;
+            }catch(RuntimeException e){return fallback;}
+        }
+
         private int canonicalLineupSlot(int row,int col){
             int visible=row*5+col;
             return bf instanceof OnlineBattleField?((OnlineBattleField)bf).canonicalSlotForVisible(visible):visible;
@@ -630,7 +641,7 @@ public interface BattleBox {
 			for (int i = 0; i < 2; i++) {
 				for(int j = 0; j < 5; j++) {
 					Form f = lineupForm(i,j);
-					FakeImage img = f == null ? aux.slot[0].getImg() : f.anim.getUni().getImg();
+					FakeImage img = lineupImage(f);
 
 					iw = (int) (hr * img.getWidth());
 					ih = (int) (hr * img.getHeight());
@@ -794,7 +805,7 @@ public interface BattleBox {
 
 			for (int i = 0; i < 5; i++) {
 				Form f = lineupForm(index,i);
-				FakeImage img = f == null ? aux.slot[0].getImg() : f.anim.getUni().getImg();
+				FakeImage img = lineupImage(f);
 				iw = (int) (hr * img.getWidth());
 				ih = (int) (hr * img.getHeight());
 
