@@ -5,6 +5,8 @@ import common.battle.entity.EUnit;
 import common.pack.Identifier;
 import common.pack.UserProfile;
 import common.util.stage.*;
+import common.util.CopRand;
+import common.util.unit.Form;
 import common.util.pack.Background;
 import online.sync.InputFrame;
 import online.net.lobby.RoomRules;
@@ -73,6 +75,10 @@ public final class PvpStageBasis extends StageBasis {
         other.pvpRoulette = new PvpRouletteState(r);
         pvpCastleHitMoneyEnabled=other.pvpCastleHitMoneyEnabled=rules.castleHitMoneyEnabled;
         pvpCastleHitMoney=other.pvpCastleHitMoney=rules.castleHitMoney;
+        pvpRerollSlotAfterDeploy=other.pvpRerollSlotAfterDeploy=rules.rerollSlotAfterDeploy;
+        // Keep slot rerolls deterministic without perturbing combat/roulette RNG streams.
+        this.pvpSlotRandom=new CopRand(seed^0x51a7e2d491c36b0fL);
+        other.pvpSlotRandom=new CopRand(seed^0x2c9f4a65d18be703L);
         other.le = le; other.tempe = tempe; other.lw = lw; other.tlw = tlw; other.lea = lea; other.la = la;
         other.ebaseSmoke = ebaseSmoke; other.ubaseSmoke = ubaseSmoke;
         ebase = new ECastle(other, left); ebase.added(1,800);
@@ -93,10 +99,17 @@ public final class PvpStageBasis extends StageBasis {
     public int rightTrait(){return pvpRightTrait;}
     public StageBasis left() { return pvpOther; }
     public StageBasis right() { return this; }
+    public void configureProductionPools(Form[] leftPool,Form[] rightPool){
+        if(!pvpRerollSlotAfterDeploy)return;
+        left().configurePvpProductionPool(leftPool,left().pvpSlotRandom);
+        right().configurePvpProductionPool(rightPool,right().pvpSlotRandom);
+    }
     /** tick starts at zero, time counts the number of COMPLETED simulation ticks. */
     public void step(InputFrame frame) {
         if (frame.tick != time) throw new IllegalArgumentException("Non-sequential simulation tick");
         if (winner() != -2) throw new IllegalStateException("Battle already finished");
+        if(pvpRerollSlotAfterDeploy&&(left().pvpProductionPool.length<2||right().pvpProductionPool.length<2))
+            throw new IllegalStateException("Random production pool is not synchronized");
         try { PvpTiming.inMatch(matchScope, () -> { PvpTiming.logic(() -> {
             time++; pvpOther.time = time;
             // Stable player identity, not physical side, determines simultaneous command order.
@@ -202,7 +215,7 @@ public final class PvpStageBasis extends StageBasis {
         int music=rules.musicId==RoomRules.RANDOM_MUSIC?randomMusicId(seed):rules.musicId;
         RoomRules resolved=new RoomRules(rules.castleDistance,background,music,rules.force60Fps,rules.specialMode,rules.debugMode,
                 rules.hostTraitChoice,rules.guestTraitChoice,rules.hostTraitExclusions,rules.guestTraitExclusions,rules.timeLimitMinutes,
-                rules.maxUnits,rules.castleHitMoneyEnabled,rules.castleHitMoney);
+                rules.maxUnits,rules.castleHitMoneyEnabled,rules.castleHitMoney,rules.rerollSlotAfterDeploy);
         validateRulesAssets(resolved);
         return resolved;
     }
