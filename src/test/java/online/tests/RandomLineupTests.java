@@ -16,7 +16,7 @@ public final class RandomLineupTests {
             Unit u=new Unit(new Identifier<>(Identifier.DEF,Unit.class,100+i));
             u.rarity=0;u.max=50;u.lv=common.CommonStatic.getBCAssets().defLv;
             common.battle.data.CustomUnit d=new common.battle.data.CustomUnit();
-            d.hp=1000;d.death=null;d.price=10;d.resp=30;d.atks[0].atk=100;d.atks[0].pre=1;
+            d.hp=1000;d.death=null;d.price=10+i*7;d.resp=30;d.atks[0].atk=100;d.atks[0].pre=1;
             u.forms=new Form[]{new Form(u,0,"vanilla-"+i,Fixture.animation(Identifier.DEF,"random-"+i),d)};
             UserProfile.getBCData().units.set(100+i,u);
         }
@@ -72,6 +72,13 @@ public final class RandomLineupTests {
         }
         Check.equal(10,count,"random lineup contains ten units");
         Check.equal(10,ids.size(),"random lineup does not duplicate units");
+
+        BasisLU cheap=RandomLineupFactory.create(true,new Random(42),RandomLineupFactory.SortOrder.PRICE_ASC);
+        BasisLU expensive=RandomLineupFactory.create(true,new Random(42),RandomLineupFactory.SortOrder.PRICE_DESC);
+        int previous=Integer.MIN_VALUE;
+        for(Form[] row:cheap.lu.fs)for(Form form:row){int price=form.du.getPrice();Check.that(price>=previous,"random lineup can sort selected units by ascending price");previous=price;}
+        previous=Integer.MAX_VALUE;
+        for(Form[] row:expensive.lu.fs)for(Form form:row){int price=form.du.getPrice();Check.that(price<=previous,"random lineup can sort selected units by descending price");previous=price;}
     }
     public static void main(String[] args)throws Exception{run();System.out.println("Random lineup tests passed");}
 }
