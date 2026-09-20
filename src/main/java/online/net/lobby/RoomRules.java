@@ -48,7 +48,7 @@ public final class RoomRules {
                      int hostTrait,int guestTrait,int hostExclusions,int guestExclusions,int timeLimit,
                      int maxUnits,boolean castleHitMoneyEnabled,int castleHitMoney) {
         boolean backgroundValid=background==RANDOM_BACKGROUND||(background>=0&&background<=65535);
-        boolean musicValid=PvpBattleMusic.isAllowed(music);
+        boolean musicValid=music==RANDOM_MUSIC||PvpBattleMusic.isAllowed(music);
         boolean timeValid=timeLimit==UNLIMITED_TIME||(timeLimit>=MIN_TIME_LIMIT_MINUTES&&timeLimit<=MAX_TIME_LIMIT_MINUTES);
         boolean maxUnitsValid=maxUnits>=MIN_MAX_UNITS&&maxUnits<=MAX_MAX_UNITS;
         boolean hitMoneyValid=castleHitMoney>=MIN_CASTLE_HIT_MONEY&&castleHitMoney<=MAX_CASTLE_HIT_MONEY;
