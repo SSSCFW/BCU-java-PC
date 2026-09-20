@@ -766,6 +766,16 @@ public class StageBasis extends BattleObj {
 	@Override
 	protected void performDeepCopy() {
 		super.performDeepCopy();
+        // NONC_ acceleration structures are derived from the canonical entity graph.
+        // super.clone() initially shallow-copies them, so explicitly reset them on every
+        // independent battle/display clone instead of sharing mutable cache state.
+        StageBasis copied=(StageBasis)copy;
+        copied.NONC_pvpSpatialIndex=null;
+        copied.NONC_pvpSpatialTracking=false;
+        copied.NONC_pvpIdOrder=null;
+        copied.NONC_pvpIdOrderSequence=-1;
+        copied.NONC_pvpIdOrderSize=-1;
+        copied.NONC_disablePvpSpatialIndex=false;
 		for (EneRand er : rege)
 			er.updateCopy((StageBasis) hardCopy(this), hardCopy(er.map.get(this)));
 	}
