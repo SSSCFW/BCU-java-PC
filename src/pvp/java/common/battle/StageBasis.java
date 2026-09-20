@@ -958,7 +958,10 @@ public class StageBasis extends BattleObj {
 			}
 		}
 
-		if (s_stop == 0) {
+		// Online PvP freezes on the decisive tick. The single-player cleanup below
+		// kills every unit and calls checkGuard() from each kill, turning a crowded
+		// terminal frame into an avoidable O(n^2) stall before the ending UI appears.
+		if (s_stop == 0 && !isPvp()) {
 			if (ebase.health <= 0) {
 				for (Entity entity : le)
 					if (entity.dire == 1)
