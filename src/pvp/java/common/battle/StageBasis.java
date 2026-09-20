@@ -436,7 +436,7 @@ public class StageBasis extends BattleObj {
 			right -= 1;
 
 		PvpSpatialIndex spatial=activePvpSpatialIndex();
-		if(spatial!=null)ans.addAll(spatial.query(le,dire,touch,left,right));
+		if(spatial!=null){spatial.ensure(le,world().pvpSequence);ans.addAll(spatial.query(le,dire,touch,left,right));}
 		else for (int i = 0; i < le.size(); i++)
 			if (le.get(i).dire == dire && (le.get(i).touchable() & touch) != 0 && le.get(i).pos >= left && le.get(i).pos <= right)
 				ans.add(le.get(i));
@@ -468,6 +468,7 @@ public class StageBasis extends BattleObj {
 
 		PvpSpatialIndex spatial=activePvpSpatialIndex();
 		if(spatial!=null) {
+            spatial.ensure(le,world().pvpSequence);
 			for(Entity entity:spatial.query(le,dire,touch,farLeft,farRight))
 				if(entity.pos<=innerLeft||entity.pos>=innerRight)ans.add(entity);
 		} else for (int i = 0; i < le.size(); i++)
