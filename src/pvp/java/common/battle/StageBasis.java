@@ -44,6 +44,45 @@ public class StageBasis extends BattleObj {
         return !isPvp() || pvpDirection == direction ? this : pvpOther;
     }
     public final long allocateEntityId() { return ++world().pvpSequence; }
+    private static final int PVP_SPATIAL_BUCKET=256;
+    private static final class PvpSpatialIndex {
+        private final Map<Integer,ArrayList<Entity>> buckets=new HashMap<>();
+        private final IdentityHashMap<Entity,Integer> order=new IdentityHashMap<>();
+        private int indexedSize;
+        private static int bucket(float pos){return (int)Math.floor(pos/PVP_SPATIAL_BUCKET);}
+        void rebuild(List<Entity> entities){
+            buckets.clear();order.clear();indexedSize=entities.size();
+            for(int i=0;i<entities.size();i++){
+                Entity entity=entities.get(i);order.put(entity,i);
+                buckets.computeIfAbsent(bucket(entity.pos),unused->new ArrayList<>()).add(entity);
+            }
+        }
+        void ensure(List<Entity> entities){if(indexedSize!=entities.size())rebuild(entities);}
+        void reorder(List<Entity> entities){
+            indexedSize=entities.size();order.clear();
+            for(int i=0;i<entities.size();i++)order.put(entities.get(i),i);
+        }
+        void moved(Entity entity,float oldPos){
+            int from=bucket(oldPos),to=bucket(entity.pos);if(from==to)return;
+            ArrayList<Entity> old=buckets.get(from);
+            if(old!=null){for(int i=0;i<old.size();i++)if(old.get(i)==entity){old.remove(i);break;}if(old.isEmpty())buckets.remove(from);}
+            buckets.computeIfAbsent(to,unused->new ArrayList<>()).add(entity);
+        }
+        List<Entity> query(List<Entity> entities,int direction,int touch,float left,float right){
+            ensure(entities);ArrayList<Entity> found=new ArrayList<>();
+            int first=bucket(left),last=bucket(right);
+            for(int key=first;key<=last;key++){
+                ArrayList<Entity> bucket=buckets.get(key);if(bucket==null)continue;
+                for(Entity entity:bucket)
+                    if(entity.dire==direction&&(entity.touchable()&touch)!=0&&entity.pos>=left&&entity.pos<=right)found.add(entity);
+            }
+            if(found.size()>1)found.sort(Comparator.comparingInt(e->order.getOrDefault(e,Integer.MAX_VALUE)));
+            return found;
+        }
+    }
+    /** Presentation-only acceleration structure; excluded from clone/hash by NONC_ prefix. */
+    private PvpSpatialIndex NONC_pvpSpatialIndex;
+    private PvpSpatialIndex activePvpSpatialIndex(){return isPvp()?world().NONC_pvpSpatialIndex:null;}
     public final void onOwnCastleDamaged() {
         if(!isPvp()||!pvpCastleHitMoneyEnabled||pvpCastleHitMoney<=0)return;
         // StageBasis stores currency in hundredths; room rules/UI use displayed yen.
@@ -306,6 +345,13 @@ public class StageBasis extends BattleObj {
 		return ans;
 	}
 
+	private boolean hasLiveEntityOf(int i,int j) {
+		if(b.lu.efs[i][j]==null)return false;
+		for(Entity ent:le)
+			if(ent.dire==ownDirection()&&ent.data==b.lu.efs[i][j].du&&ent.anim.dead!=0)return true;
+		return false;
+	}
+
 	public int entityCount(int d) {
 		int ans = 0;
 		if (ebase instanceof EEnemy && d == 1)
@@ -372,7 +418,9 @@ public class StageBasis extends BattleObj {
 		if (excludeRightEdge)
 			right -= 1;
 
-		for (int i = 0; i < le.size(); i++)
+		PvpSpatialIndex spatial=activePvpSpatialIndex();
+		if(spatial!=null)ans.addAll(spatial.query(le,dire,touch,left,right));
+		else for (int i = 0; i < le.size(); i++)
 			if (le.get(i).dire == dire && (le.get(i).touchable() & touch) != 0 && le.get(i).pos >= left && le.get(i).pos <= right)
 				ans.add(le.get(i));
 
@@ -401,7 +449,11 @@ public class StageBasis extends BattleObj {
 			farRight -= 1;
 		}
 
-		for (int i = 0; i < le.size(); i++)
+		PvpSpatialIndex spatial=activePvpSpatialIndex();
+		if(spatial!=null) {
+			for(Entity entity:spatial.query(le,dire,touch,farLeft,farRight))
+				if(entity.pos<=innerLeft||entity.pos>=innerRight)ans.add(entity);
+		} else for (int i = 0; i < le.size(); i++)
 			if (le.get(i).dire == dire && (le.get(i).touchable() & touch) != 0
 					&& (le.get(i).pos >= farLeft && le.get(i).pos <= innerLeft || le.get(i).pos >= innerRight && le.get(i).pos <= farRight))
 				ans.add(le.get(i));
@@ -598,7 +650,7 @@ public class StageBasis extends BattleObj {
 				le.add(su);
 			}
 
-			le.sort(Comparator.comparingInt(e -> e.currentLayer));
+			if(!isPvp())le.sort(Comparator.comparingInt(e -> e.currentLayer));
 
 			spiritSummoned[i][j] = true;
 			unitRespawnTime = 1;
@@ -667,7 +719,7 @@ public class StageBasis extends BattleObj {
 			}
 
 			le.add(eu);
-			le.sort(Comparator.comparingInt(e -> e.currentLayer));
+			if(!isPvp())le.sort(Comparator.comparingInt(e -> e.currentLayer));
 
 			money -= price;
 			unitRespawnTime = 1;
@@ -786,7 +838,7 @@ public class StageBasis extends BattleObj {
         updateDuplicateDeployments();
         if (isPvp() && pvpRoot == this) pvpOther.updateDuplicateDeployments();
 
-		le.sort(Comparator.comparingInt(e -> e.currentLayer));
+		if(!isPvp())le.sort(Comparator.comparingInt(e -> e.currentLayer));
 
 		// i would prefer "dev only" code to be on its own separate branch so it's not clogging main branch, im too lazy to do that, sorry  -- red
 
@@ -799,7 +851,7 @@ public class StageBasis extends BattleObj {
 		tempe.removeIf(e -> {
 			if (e.t == 0) {
 				le.add(e.ent);
-				le.sort(Comparator.comparingInt(en -> en.currentLayer));
+				if(!isPvp())le.sort(Comparator.comparingInt(en -> en.currentLayer));
 			}
 			return e.t == 0;
 		});
@@ -831,7 +883,7 @@ public class StageBasis extends BattleObj {
 					e.added(1, e.mark >= 1 ? boss_spawn : 700f);
 
 					le.add(e);
-					le.sort(Comparator.comparingInt(en -> en.currentLayer));
+					if(!isPvp())le.sort(Comparator.comparingInt(en -> en.currentLayer));
 
 					if (st.minSpawn <= 0 || st.maxSpawn <= 0)
 						respawnTime = 1;
@@ -1020,7 +1072,7 @@ public class StageBasis extends BattleObj {
 				if (dead && e instanceof EUnit && e.getProc().SPIRIT.exists()) {
 					int[] index = ((EUnit) e).index;
 					StageBasis owner = isPvp() ? e.basis : this;
-                    if (index != null && owner.findEntitiesOf(index[0], index[1]).stream().noneMatch(ent -> ent.anim.dead != 0)) {
+                    if (index != null && !owner.hasLiveEntityOf(index[0], index[1])) {
                         owner.summonerSummoned[index[0]][index[1]] = false;
                         owner.spiritSummoned[index[0]][index[1]] = false;
 					}
@@ -1071,6 +1123,7 @@ public class StageBasis extends BattleObj {
 				frontLineup = 1 - frontLineup;
 			}
 		}
+        if(isPvp())world().NONC_pvpSpatialIndex=null;
 	}
 
 	protected void updateAnimation() {
@@ -1188,14 +1241,23 @@ public class StageBasis extends BattleObj {
         for (int i = 0; i < tlw.size(); i++) if (advance || tlw.get(i).IMUTime()) tlw.get(i).update();
         for (int i = 0; i < lw.size(); i++) if (advance || lw.get(i).IMUTime()) lw.get(i).update();
         le.sort(Comparator.comparingLong(e -> e.pvpEntityId));
+        StageBasis root=world();
+        PvpSpatialIndex spatial=root.NONC_pvpSpatialIndex;
+        if(spatial==null)root.NONC_pvpSpatialIndex=spatial=new PvpSpatialIndex();
+        spatial.rebuild(le);
         ebase.update(); ubase.update();
-        for (int i = 0; i < le.size(); i++) if (advance || (le.get(i).getAbi() & AB_TIMEI) != 0) le.get(i).update();
+        for (int i = 0; i < le.size(); i++) if (advance || (le.get(i).getAbi() & AB_TIMEI) != 0) {
+            Entity entity=le.get(i);float before=entity.pos;entity.update();spatial.moved(entity,before);
+        }
         ebase.update2(); ubase.update2();
-        for (int i = 0; i < le.size(); i++) if (advance || (le.get(i).getAbi() & AB_TIMEI) != 0) le.get(i).update2();
+        for (int i = 0; i < le.size(); i++) if (advance || (le.get(i).getAbi() & AB_TIMEI) != 0) {
+            Entity entity=le.get(i);float before=entity.pos;entity.update2();spatial.moved(entity,before);
+        }
         la.forEach(AttackAb::capture);
         la.forEach(AttackAb::excuse);
         la.removeIf(a -> a.duration <= 0);
         le.sort(Comparator.comparingInt((Entity e) -> e.currentLayer).thenComparingLong(e -> e.pvpEntityId));
+        spatial.reorder(le);
     }
 
 	private void updateEntitiesAnimation(boolean time) {
