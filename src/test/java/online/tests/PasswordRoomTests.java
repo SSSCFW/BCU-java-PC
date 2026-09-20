@@ -43,12 +43,6 @@ public final class PasswordRoomTests {
         RoomServer server = new RoomServer(new InetSocketAddress("127.0.0.1", 0));
         server.start(); Check.that(server.awaitStarted(5, TimeUnit.SECONDS), "password test server starts");
         try {
-            try (Peer host = new Peer(server.getPort())) {
-                host.enter(true, "my-room_01", "");JsonObject joined=host.take("joined");
-                Check.equal("MY-ROOM_01",joined.get("room").getAsString(),"host-selected room ID is normalized and preserved");
-                try(Peer duplicate=new Peer(server.getPort())){duplicate.enter(true,"MY-ROOM_01","");duplicate.rejected("ROOM_EXISTS");}
-                try(Peer guest=new Peer(server.getPort())){guest.enter(false,"my-room_01","");Check.equal("MY-ROOM_01",guest.take("joined").get("room").getAsString(),"custom room ID joins case-insensitively");}
-            }
             try (Peer host = new Peer(server.getPort()); Peer guest = new Peer(server.getPort())) {
                 host.enter(true, "", ""); JsonObject joined = host.take("joined");
                 Check.equal(false, joined.get("passwordRequired").getAsBoolean(), "blank password creates open room");
@@ -77,6 +71,15 @@ public final class PasswordRoomTests {
                 Check.that(true, "open room ignores an accidentally supplied password");
             }
         } finally { server.stop(1000); }
+
+        RoomServer customServer = new RoomServer(new InetSocketAddress("127.0.0.1", 0));
+        customServer.start();Check.that(customServer.awaitStarted(5,TimeUnit.SECONDS),"custom room ID server starts");
+        try(Peer host=new Peer(customServer.getPort())){
+            host.enter(true,"my-room_01","");JsonObject joined=host.take("joined");
+            Check.equal("MY-ROOM_01",joined.get("room").getAsString(),"host-selected room ID is normalized and preserved");
+            try(Peer duplicate=new Peer(customServer.getPort())){duplicate.enter(true,"MY-ROOM_01","");duplicate.rejected("ROOM_EXISTS");}
+            try(Peer guest=new Peer(customServer.getPort())){guest.enter(false,"my-room_01","");Check.equal("MY-ROOM_01",guest.take("joined").get("room").getAsString(),"custom room ID joins case-insensitively");}
+        }finally{customServer.stop(1000);}
     }
     public static void main(String[] args) throws Exception { run(); System.out.println("Optional password tests passed"); }
 }
