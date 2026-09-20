@@ -53,6 +53,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     private final Object simulationLock=new Object();
     private final AtomicLong battleEpoch=new AtomicLong();
     private final AtomicReference<PvpStageBasis> pendingSnapshot=new AtomicReference<>();
+    private final AtomicReference<PvpPresentationDelta> pendingDelta=new AtomicReference<>();
     private final MatchBundle.Mounted[] mounted=new MatchBundle.Mounted[2];
     private final String[] hashes=new String[2];
     private final java.util.List<Path> temporary=new ArrayList<>();
@@ -260,6 +261,8 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
         try{
             PvpStageBasis snapshot=pendingSnapshot.getAndSet(null);
             if(snapshot!=null&&battlePage!=null&&!resultSent)battlePage.publishOnlineFromSimulation(snapshot);
+            PvpPresentationDelta delta=pendingDelta.getAndSet(null);
+            if(delta!=null&&battlePage!=null&&!resultSent)battlePage.applyOnlinePresentationDelta(delta);
             if(battlePage==null)return;
             long now=System.nanoTime();
             if(now>=nextPaint){
@@ -287,7 +290,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
             boolean catchingUp=backlog>MAX_PRESENTATION_BACKLOG;
             if(!battleStepDue(now,nextBattleStep,backlog))return;
             ResolvedFrame frame=connection.pollResolvedFrame();if(frame==null)return;
-            PvpStageBasis display=null;String digest=null;int winner;long tick;
+            PvpStageBasis display=null;PvpPresentationDelta delta=null;String digest=null;int winner;long tick;
             synchronized(simulationLock){
                 if(epoch!=battleEpoch.get()||world!=battle||resultSent)return;
                 final InputFrame tickFrame=activeRoster.toDuel(frame);
@@ -295,6 +298,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                 PvpAudio.forPlayer(direction,()->world.step(tickFrame));
                 if(simulationRouletteAudio!=null)simulationRouletteAudio.observe(world,direction);
                 winner=world.winner();boolean terminal=winner!=-2;
+                if(!terminal)delta=PvpPresentationDelta.capture(world);
                 int effectiveStride=catchingUp?Math.max(3,snapshotStride):snapshotStride;
                 if(terminal||world.time%effectiveStride==0){
                     long copyStart=System.nanoTime();display=world.displayCopy();
@@ -320,7 +324,10 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
                     connection.result(finalTick,finalWinner,finalDigest);
                     message("試合終了。両者の結果を照合しています…");
                 }
-            }else if(display!=null)pendingSnapshot.set(display);
+            }else{
+                if(display!=null)pendingSnapshot.set(display);
+                if(delta!=null)pendingDelta.set(delta);
+            }
         }catch(Exception e){
             if(epoch!=battleEpoch.get())return;
             battleEpoch.incrementAndGet();
@@ -329,7 +336,7 @@ public final class OnlineLobbyPage extends Page implements RoomClient.Listener {
     }
 
     private void stopSimulation(){
-        battleEpoch.incrementAndGet();pendingSnapshot.set(null);simulationRouletteAudio=null;
+        battleEpoch.incrementAndGet();pendingSnapshot.set(null);pendingDelta.set(null);simulationRouletteAudio=null;
         ScheduledFuture<?> task=simulationTask;simulationTask=null;if(task!=null)task.cancel(false);
     }
 
