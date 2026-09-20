@@ -58,14 +58,18 @@ public final class PvpUnitAbilityOverlay extends JPanel {
         JLabel l=new JLabel(name);l.setForeground(new Color(255,232,150));l.setPreferredSize(new Dimension(110,38));p.add(l);return p;
     }
     private static JLabel traitChip(Trait trait){
-        JLabel l=new JLabel();l.setOpaque(true);l.setBackground(new Color(48,52,58));l.setForeground(Color.WHITE);l.setBorder(new EmptyBorder(3,5,3,7));
+        JLabel l=new JLabel();l.setOpaque(true);l.setBackground(new Color(48,52,58));l.setBorder(new EmptyBorder(3,5,3,5));
         ImageIcon icon=null;
         if(trait!=null&&trait.id!=null){
             if(Identifier.DEF.equals(trait.id.pack))icon=UtilPC.createIcon(3,trait.id.id);
             else if(trait.icon!=null)icon=UtilPC.getIcon(trait.icon);
         }
         if(icon!=null)l.setIcon(scale(icon,28,28));
-        l.setText(trait==null?"?":trait.toString());return l;
+        // Do not expose pack/id/debug names such as "000000/3 - new trait" in the
+        // normal HUD. Keep the full name only as a hover tooltip for diagnostics.
+        l.setText("");l.setToolTipText(trait==null?null:trait.toString());
+        l.setPreferredSize(new Dimension(38,34));
+        return l;
     }
     private static JLabel procChip(Interpret.ProcDisplay d){
         JLabel l=textChip(d.toString());if(d.getIcon()!=null)l.setIcon(scale(d.getIcon(),30,30));l.setToolTipText(d.toString());return l;
