@@ -1266,7 +1266,10 @@ public class StageBasis extends BattleObj {
         if(!root.NONC_disablePvpSpatialIndex){
             spatial=root.NONC_pvpSpatialIndex;
             if(spatial==null)root.NONC_pvpSpatialIndex=spatial=new PvpSpatialIndex();
-            spatial.ensure(idOrder,root.pvpSequence);spatial.reorder(idOrder);
+            // Positions may also be changed by knockback/warp/test setup outside the
+            // ordinary movement path. Rebuild buckets once per logic tick, but keep
+            // the expensive pvpEntityId sort cached across unchanged membership.
+            spatial.rebuild(idOrder,root.pvpSequence);
         }
         ebase.update(); ubase.update();
         for (int i = 0; i < idOrder.size(); i++) if (advance || (idOrder.get(i).getAbi() & AB_TIMEI) != 0) {
