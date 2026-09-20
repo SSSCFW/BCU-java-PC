@@ -93,6 +93,17 @@ public final class RoomServerCore implements AutoCloseable {
             }
         } catch (Exception e) { fail(peer, e); }
     }
+    private static String normalizeRoomId(String value)throws IOException {
+        String id=value==null?"":value.trim();
+        if(id.isEmpty())return "";
+        if(id.length()>32)throw new IOException("Room ID must be 1-32 characters");
+        for(int i=0;i<id.length();i++){
+            char c=id.charAt(i);
+            if(Character.isISOControl(c)||Character.isWhitespace(c))throw new IOException("Room ID cannot contain spaces or control characters");
+        }
+        return id.toUpperCase(Locale.ROOT);
+    }
+
     private void enter(ControlPeer peer, JsonObject o, boolean create) {
         PasswordVerifier verifier = null;
         try {
@@ -100,6 +111,7 @@ public final class RoomServerCore implements AutoCloseable {
                 error(peer, "VERSION", "PvP versions differ; update both clients and server"); return;
             }
             String name = Protocol.string(o, "name", 40).trim(), password = Protocol.string(o, "password", 128), game = Protocol.string(o, "game", 64);
+            String requestedRoom = normalizeRoomId(Protocol.string(o, "room", 32));
             if (name.isEmpty() || !Hashes.valid(game)) throw new IOException("Name and game fingerprint required");
             if (create && !password.isEmpty() && password.length() < 8)
                 throw new IOException("Password must be empty (open room) or 8-128 characters");
@@ -109,7 +121,7 @@ public final class RoomServerCore implements AutoCloseable {
                 long now = System.nanoTime(); long[] a = attempts.get(peer.address());
                 if (a == null || now - a[0] > 60 * SECOND) { a = new long[]{now, 0}; attempts.put(peer.address(), a); }
                 if (++a[1] > 12) { error(peer, "RATE", "Too many password attempts; wait one minute"); return; }
-                existing = create ? null : rooms.get(Protocol.string(o, "room", 32).trim().toUpperCase(Locale.ROOT));
+                existing = create ? null : rooms.get(requestedRoom);
             }
             // Password derivation cannot stall ticks in other rooms.
             if (create) verifier = new PasswordVerifier(password, random);
@@ -123,7 +135,9 @@ public final class RoomServerCore implements AutoCloseable {
                     GameMode mode = modes.get(modeId);
                     if (mode == null || mode.maxPlayers() > config.maxParticipantsPerRoom) throw new IOException("Unsupported game mode");
                     seat = mode.assign(Collections.emptyList(), Protocol.string(o, "side", 16));
-                    String id; do { byte[] b = new byte[9]; random.nextBytes(b); id = Hashes.hex(b).toUpperCase(Locale.ROOT); } while (rooms.containsKey(id));
+                    String id=requestedRoom;
+                    if(id.isEmpty())do { byte[] b = new byte[9]; random.nextBytes(b); id = Hashes.hex(b).toUpperCase(Locale.ROOT); } while (rooms.containsKey(id));
+                    else if(rooms.containsKey(id)){error(peer,"ROOM_EXISTS","その部屋IDは既に使用されています");return;}
                     room = new RoomSession(id, UUID.randomUUID().toString().replace("-", ""), game, mode, config.inputDelayTicks, verifier,
                             config.bundleMaxMiB * 1024L * 1024, config.maxParticipantsPerRoom);
                     verifier = null; rooms.put(id, room);
