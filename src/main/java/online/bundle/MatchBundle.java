@@ -33,7 +33,7 @@ public final class MatchBundle {
         List<Form> productionForms=includeProductionPool?productionCandidates():Collections.emptyList();
         for(Form form:productionForms)exported.lu.getLv(form);
         JsonObject manifest=new JsonObject();manifest.addProperty("format",1);
-        JsonElement basis=encode(exported),treasure=encode(exported.t());
+        JsonElement basis=encode(exported),treasure=encode(lineup.t());
         JsonArray productionPool=new JsonArray();
         for(Form form:productionForms){
             JsonObject p=new JsonObject();p.addProperty("pack",form.unit.id.pack);p.addProperty("id",form.unit.id.id);p.addProperty("form",form.fid);
