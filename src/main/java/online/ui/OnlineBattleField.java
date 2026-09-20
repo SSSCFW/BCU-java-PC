@@ -164,7 +164,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
         action.clear();
     }
 
-    int canonicalSlotForVisible(int visible){
+    public int canonicalSlotForVisible(int visible){
         return visible<0||visible>=visibleToCanonical.length?-1:visibleToCanonical[visible];
     }
 
@@ -184,7 +184,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
         if(identitySlotOrder())return;
         permute(own.elu.price);permute(own.elu.basePrice);permute(own.elu.cool);permute(own.elu.maxC);
         permute(own.elu.tick);permute(own.elu.cdDownOrb);permute(own.elu.priceDownOrb);
-        permute(own.totalDamageTaken);permute(own.totalDamageGiven);permute(own.locks);
+        permute(own.locks);
         permute(own.spiritCooldown);permute(own.frameOffCd);permute(own.cdDelay);permute(own.cdDelayVisual);
         permute(own.summonerSummoned);permute(own.spiritSummoned);permute(own.spiritEmphasizeCount);permute(own.spiritEmphasizeStartTime);permute(own.deployDupe);
         if(own.selectedUnit[0]>=0&&own.selectedUnit[1]>=0){
@@ -199,7 +199,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
     private void swapSlotState(StageBasis own,int a,int b){
         swap(own.elu.price,a,b);swap(own.elu.basePrice,a,b);swap(own.elu.cool,a,b);swap(own.elu.maxC,a,b);
         swap(own.elu.tick,a,b);swap(own.elu.cdDownOrb,a,b);swap(own.elu.priceDownOrb,a,b);
-        swap(own.totalDamageTaken,a,b);swap(own.totalDamageGiven,a,b);swap(own.locks,a,b);
+        swap(own.locks,a,b);
         swap(own.spiritCooldown,a,b);swap(own.frameOffCd,a,b);swap(own.cdDelay,a,b);swap(own.cdDelayVisual,a,b);
         swap(own.summonerSummoned,a,b);swap(own.spiritSummoned,a,b);swap(own.spiritEmphasizeCount,a,b);swap(own.spiritEmphasizeStartTime,a,b);swap(own.deployDupe,a,b);
     }
