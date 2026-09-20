@@ -487,14 +487,23 @@ public class EUnit extends Entity {
 		return -1;
 	}
 
+	/** Effective user-facing speed after stage/combo/PvP roulette modifiers. */
+	public double displayMoveSpeed() {
+		int raw=data.getSpeed();
+		int resolved=raw>0&&basis.getGlobalSpeed(dire,raw)>-1?basis.getGlobalSpeed(dire,raw):raw;
+		double speed=resolved*(1.0+basis.b.getInc(C_SPE,((MaskUnit)data).getPack().unit)/100.0);
+		if(basis.pvpRoulette!=null&&basis.pvpRoulette.moveLevel>0)speed*=basis.pvpRoulette.moveMultiplier();
+		return speed;
+	}
+
 	@Override
 	protected void updateMove(float extmov) {
-		int speed = data.getSpeed();
-		extmov += (float) ((speed > 0 && basis.getGlobalSpeed(-1, speed) > -1 ? basis.getGlobalSpeed(-1, speed) : data.getSpeed())
-				* basis.b.getInc(C_SPE, ((MaskUnit) data).getPack().unit) / 50);
-		if (basis.pvpRoulette != null && basis.pvpRoulette.moveLevel > 0)
-			extmov *= basis.pvpRoulette.moveMultiplier();
-		super.updateMove(extmov / 4f);
+		int raw=data.getSpeed();
+		int resolved=raw>0&&basis.getGlobalSpeed(dire,raw)>-1?basis.getGlobalSpeed(dire,raw):raw;
+		// Entity.updateMove already contributes resolved*0.5. Supply only the
+		// extra distance required to reach the same effective speed shown by the UI.
+		float extra=(float)((displayMoveSpeed()-resolved)*0.5);
+		super.updateMove(extra+extmov/4f);
 	}
 
 	public int getOrbAtk(List<Trait> trait, MaskAtk matk) {
