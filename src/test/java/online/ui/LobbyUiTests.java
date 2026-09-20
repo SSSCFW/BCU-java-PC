@@ -177,10 +177,11 @@ public final class LobbyUiTests {
                     Check.equal("ランダム(バニラ)",String.valueOf(lineupChoices.getItemAt(1)),"vanilla random lineup is the second lineup choice");
                     Check.equal("ランダム",String.valueOf(((JComboBox<?>)field(lobby,"background")).getItemAt(0)),"random background option is first");
                     JComboBox<?> battleMusic=(JComboBox<?>)field(lobby,"music");
-                    Check.equal("003.ogg 日本侵略！",String.valueOf(battleMusic.getItemAt(0)),"curated BGM shows file id and Japanese name");
-                    Check.equal("004.ogg 西表島の戦い",String.valueOf(battleMusic.getItemAt(1)),"curated BGM keeps requested ordering");
-                    Check.equal("006.ogg チャレンジバトル",String.valueOf(battleMusic.getItemAt(2)),"curated BGM exposes only requested tracks");
-                    Check.that(((JButton)field(lobby,"musicPreview")).isEnabled(),"BGM preview button is available");
+                    Check.equal("ランダム",String.valueOf(battleMusic.getItemAt(0)),"random BGM option is first");
+                    Check.equal("003.ogg 日本侵略！",String.valueOf(battleMusic.getItemAt(1)),"curated BGM shows file id and Japanese name");
+                    Check.equal("004.ogg 西表島の戦い",String.valueOf(battleMusic.getItemAt(2)),"curated BGM keeps requested ordering");
+                    Check.equal("006.ogg チャレンジバトル",String.valueOf(battleMusic.getItemAt(3)),"curated BGM exposes only requested tracks");
+                    Check.that(((JButton)field(lobby,"musicPreview")).isEnabled(),"fixed BGM preview button is available");
                     Check.that(!((JButton)field(lobby,"musicStop")).isEnabled(),"BGM stop button is disabled until a preview starts");
                     Check.that(((JSpinner)field(lobby,"distance")).isEnabled()==host,"only host can edit distance");
                     Check.that(((JComboBox<?>)field(lobby,"special")).isEnabled()==host,"only host can edit cannon/roulette/none");
