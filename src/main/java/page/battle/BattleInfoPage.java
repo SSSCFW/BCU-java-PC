@@ -35,6 +35,8 @@ import java.awt.event.MouseWheelEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class BattleInfoPage extends KeyHandler implements OuterBox {
 
@@ -43,6 +45,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	public static boolean DEF_LARGE = false;
 
 	public static BattleInfoPage current = null;
+    private static final ExecutorService ONLINE_AUDIO_CLEANUP=Executors.newSingleThreadExecutor(r->{Thread t=new Thread(r,"pvp-native-audio-cleanup");t.setDaemon(true);return t;});
 
 	public static void redefine() {
 		ComingTable.redefine();
@@ -100,6 +103,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
     private Runnable onlineResultAck,pendingOnlineResultAck;
     private String pendingOnlineResultTitle,pendingOnlineResultDetail;
     private boolean onlineResultAcked,opponentRouletteSpinning,onlineBattleEnding,onlineBattleEndSoundDone,onlineResultShown,onlineLayoutPending;
+    private volatile long onlineAudioGeneration;
     private final PvpRouletteAudio rouletteAudio=new PvpRouletteAudio();
     private int rouletteNoticeUntil=-1;
 	private Runnable onlineExit;
@@ -251,7 +255,9 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
         onlineBattleEnding=true;online.interactive(false);online.setBattleUiHidden(true);getPress().clear();
         if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;heldUnitPoint=null;
         if(audioDialog!=null){audioDialog.dispose();audioDialog=null;}
-        PvpSoundBank.stopAll();BCMusic.stopAll();BCMusic.music=null;
+        // Stop playback immediately, but do not close every native Clip on the EDT.
+        // Clip.close() can block for seconds on some Java Sound backends.
+        PvpSoundBank.stopAll();BCMusic.stopBackground();
         Canvas canvas=(Canvas)bb;
         onlineBackdrop.capture(bb,canvas.getWidth(),canvas.getHeight());
         hideOnlineBattleChrome();canvas.setVisible(false);
@@ -261,6 +267,10 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
             if(onlineClosed)return;
             onlineBattleEndSoundDone=true;
             showQueuedOnlineResult();
+        });
+        long audioGeneration=++onlineAudioGeneration;
+        ONLINE_AUDIO_CLEANUP.execute(()->{
+            if(audioGeneration==onlineAudioGeneration)BCMusic.stopAll();
         });
     }
 
@@ -278,8 +288,10 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
         onlineResultAck=pendingOnlineResultAck;onlineResultAcked=false;
         onlineResultTitle.setText(pendingOnlineResultTitle);onlineResultDetail.setText(pendingOnlineResultDetail);
         onlineResultOk.setText("OK");onlineResultOk.setEnabled(true);onlineResult.setVisible(true);setComponentZOrder(onlineResult,0);onlineResult.repaint();
-        BCMusic.stopAll();
-        BCMusic.play(new Identifier<>(Identifier.DEF,Music.class,30));
+        long audioGeneration=onlineAudioGeneration;
+        ONLINE_AUDIO_CLEANUP.execute(()->{
+            if(audioGeneration==onlineAudioGeneration)BCMusic.play(new Identifier<>(Identifier.DEF,Music.class,30));
+        });
         validateOnlineLayout();onlineResultOk.requestFocusInWindow();
     }
 
@@ -391,6 +403,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		onlineClosed = true;
         if(audioDialog!=null){audioDialog.dispose();audioDialog=null;}
         if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;heldUnitPoint=null;
+        onlineAudioGeneration++;
         PvpSoundBank.stopAll();BCMusic.stopAll();BCMusic.music=null;onlineBackdrop.clear();
 		online.interactive(false);
 		getPress().clear();
