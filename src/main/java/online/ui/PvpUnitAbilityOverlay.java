@@ -1,10 +1,12 @@
 package online.ui;
 
 import common.battle.StageBasis;
+import common.battle.entity.EUnit;
 import common.battle.data.MaskUnit;
 import common.battle.data.PCoin;
 import common.pack.Identifier;
 import common.util.unit.Form;
+import common.util.unit.EForm;
 import common.util.unit.Level;
 import common.util.unit.Trait;
 import utilpc.Interpret;
@@ -32,6 +34,13 @@ public final class PvpUnitAbilityOverlay extends JPanel {
         Level level=player.b.lu.getLv(form);
         MaskUnit du=form.du;
         PCoin pc=du.getPCoin();if(pc!=null)du=pc.improve(level.getTalents());
+
+        EUnit preview=new EForm(form,level).invokeEntity(player,level.getLv()+level.getPlusLv(),0,0);
+        JPanel stats=row("ステータス");
+        stats.add(textChip("HP "+format(preview.maxH)));
+        stats.add(textChip("攻撃力 "+format(preview.getAtk())));
+        stats.add(textChip("移動速度 "+format(preview.displayMoveSpeed())));
+        rows.add(stats);
 
         JPanel target=row("対象属性");
         java.util.List<Trait> traits=du.getTraits();
@@ -73,6 +82,11 @@ public final class PvpUnitAbilityOverlay extends JPanel {
     }
     private static JLabel procChip(Interpret.ProcDisplay d){
         JLabel l=textChip(d.toString());if(d.getIcon()!=null)l.setIcon(scale(d.getIcon(),30,30));l.setToolTipText(d.toString());return l;
+    }
+    private static String format(long value){return String.format(java.util.Locale.ROOT,"%,d",value);}
+    private static String format(double value){
+        if(Math.abs(value-Math.rint(value))<1e-9)return format(Math.round(value));
+        return String.format(java.util.Locale.ROOT,"%,.1f",value);
     }
     private static JLabel textChip(String text){
         JLabel l=new JLabel(text);l.setOpaque(true);l.setBackground(new Color(48,52,58));l.setForeground(Color.WHITE);
