@@ -31,8 +31,12 @@ public class StageBasis extends BattleObj {
     public int pvpDirection = -1, pvpSeat = -1;
     public long pvpSequence;
     public PvpRouletteState pvpRoulette;
-    public boolean pvpCastleHitMoneyEnabled;
+    public boolean pvpCastleHitMoneyEnabled, pvpRerollSlotAfterDeploy;
     public int pvpCastleHitMoney;
+    /** Dynamic PvP production slots. 0 = original lineup form, n+1 = productionPool[n]. */
+    public Form[] pvpProductionPool=new Form[0];
+    public int[][] pvpSlotPoolChoice=new int[2][5],pvpDuplicatePoolChoice=new int[2][5];
+    public CopRand pvpSlotRandom;
     /** One-time roulette over-cap ceiling. Zero means the normal wallet cap. */
     public int pvpMoneyOvercapLimit;
     public final boolean isPvp() { return pvpRoot != null; }
@@ -44,6 +48,40 @@ public class StageBasis extends BattleObj {
         return !isPvp() || pvpDirection == direction ? this : pvpOther;
     }
     public final long allocateEntityId() { return ++world().pvpSequence; }
+    public void configurePvpProductionPool(Form[] pool,CopRand random){
+        if(!isPvp())throw new IllegalStateException("Production pool is PvP-only");
+        if(pool==null||pool.length<2)throw new IllegalArgumentException("生産後ランダム化には2体以上の有効キャラが必要です");
+        for(Form form:pool){
+            if(form==null||form.unit==null||form.du==null||form.anim==null)throw new IllegalArgumentException("Invalid production-pool form");
+            if(!b.lu.map.containsKey(form.unit.id))throw new IllegalArgumentException("Missing synchronized production-pool level: "+form.unit.id);
+        }
+        pvpProductionPool=pool.clone();pvpSlotRandom=random;
+    }
+    public Form pvpSlotForm(int row,int col){
+        int choice=pvpSlotPoolChoice[row][col];
+        return choice<=0?b.lu.fs[row][col]:pvpProductionPool[choice-1];
+    }
+    private EForm pvpSlotEForm(int row,int col){return pvpEFormForChoice(row,col,pvpSlotPoolChoice[row][col]);}
+    private EForm pvpEFormForChoice(int row,int col,int choice){
+        if(choice<=0)return b.lu.efs[row][col];
+        Form form=pvpProductionPool[choice-1];
+        return new EForm(form,b.lu.getLv(form));
+    }
+    private void rerollPvpSlot(int row,int col){
+        if(!pvpRerollSlotAfterDeploy||pvpProductionPool.length<2||pvpSlotRandom==null)return;
+        Form current=pvpSlotForm(row,col);int count=pvpProductionPool.length;
+        int start=Math.min(count-1,(int)(pvpSlotRandom.nextFloat()*count)),pick=-1;
+        for(int step=0;step<count;step++){
+            int candidate=(start+step)%count;Form form=pvpProductionPool[candidate];
+            if(current==null||current.unit==null||!form.unit.id.equals(current.unit.id)){pick=candidate;break;}
+        }
+        if(pick<0)return;
+        pvpSlotPoolChoice[row][col]=pick+1;
+        summonerSummoned[row][col]=false;spiritSummoned[row][col]=false;spiritCooldown[row][col]=0;
+        spiritEmphasizeCount[row][col]=0;spiritEmphasizeStartTime[row][col]=time;
+        cdDelay[row][col]=new int[3];cdDelayVisual[row][col]=DELAY_BASE.clone();
+        elu.pvpReplace(row,col,pvpSlotEForm(row,col));
+    }
     private static final int PVP_SPATIAL_BUCKET=256;
     private static final class PvpSpatialIndex {
         private final Map<Integer,ArrayList<Entity>> buckets=new HashMap<>();
@@ -644,7 +682,7 @@ public class StageBasis extends BattleObj {
 		if (unitRespawnTime > 0)
 			return false;
 
-		EForm f = b.lu.efs[i][j];
+		EForm f = isPvp()?pvpSlotEForm(i,j):b.lu.efs[i][j];
 		if (f == null)
 			return false;
 		if(!manual&&!locks[i][j])
@@ -682,17 +720,20 @@ public class StageBasis extends BattleObj {
 
 			spiritSummoned[i][j] = true;
 			unitRespawnTime = 1;
+            if(isPvp()&&pvpRerollSlotAfterDeploy)rerollPvpSlot(i,j);
 
 			return true;
 		} else if (locks[i][j] || manual) {
-			int rar = b.lu.fs[i][j].unit.rarity;
+            Form slotForm=isPvp()?pvpSlotForm(i,j):b.lu.fs[i][j];
+            if(slotForm==null)return false;
+			int rar = slotForm.unit.rarity;
 			if (entityCount(ownDirection()) >= maxNum - f.du.getWill()) {
 				if (manual)
 					PvpAudio.notification(this, SE_SPEND_FAIL);
 
 				return false;
 			}
-			if (maxRarityNum[rar] > -1 && entityCountRar(rar) >= maxRarityNum[rar] - b.lu.fs[i][j].du.getWill()) {
+			if (maxRarityNum[rar] > -1 && entityCountRar(rar) >= maxRarityNum[rar] - slotForm.du.getWill()) {
 				if (manual)
 					PvpAudio.notification(this, SE_SPEND_FAIL);
 
@@ -741,6 +782,7 @@ public class StageBasis extends BattleObj {
 				spiritCooldown[i][j] = SPIRIT_SUMMON_DELAY;
 			}
 			if (getDupeCount(rar) > 0) {
+                if(isPvp())pvpDuplicatePoolChoice[i][j]=pvpSlotPoolChoice[i][j];
 				deployDupe[i][j][0] += getDupeCount(rar);
 				if (deployDupe[i][j][1] == 0)
 					deployDupe[i][j][1] = getDupeDelay(rar);
@@ -756,6 +798,7 @@ public class StageBasis extends BattleObj {
 
 			if (elu.tick[i][j] != -1)
 				elu.tick[i][j] = (elu.tick[i][j] + 1) % 2;
+            if(isPvp()&&pvpRerollSlotAfterDeploy)rerollPvpSlot(i,j);
 
 			return true;
 		}
@@ -853,8 +896,8 @@ public class StageBasis extends BattleObj {
 				if (deployDupe[i][j][0] > 0)
 					while (deployDupe[i][j][0] > 0 && deployDupe[i][j][1] == 0) {
 						deployDupe[i][j][0]--;
-						EForm f = b.lu.efs[i][j];
-						EUnit eu = b.lu.efs[i][j].getEntity(this, new int[] {i, j}, false, false);
+                        EForm f=isPvp()?pvpEFormForChoice(i,j,pvpDuplicatePoolChoice[i][j]):b.lu.efs[i][j];
+						EUnit eu = f.getEntity(this, new int[] {i, j}, false, false);
 						eu.added(ownDirection(), spawnPosition());
 						le.add(eu);
 						deployDupe[i][j][1] = getDupeDelay(f.du.getPack().unit.rarity);
