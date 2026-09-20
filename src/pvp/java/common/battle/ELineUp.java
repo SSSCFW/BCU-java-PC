@@ -11,6 +11,9 @@ import java.util.Arrays;
 public class ELineUp extends BattleObj {
 
 	public final int[][] price, basePrice, cool, maxC, tick, cdDownOrb, priceDownOrb;
+    /** Next rerolled character's cooldown; active cooldown keeps the deployed character's maxC until it reaches zero. */
+    public final int[][] pvpNextMaxC;
+    public final boolean[][] pvpNextMaxCPending;
 	private final StageBasis b;
 
 	protected ELineUp(LineUp lu, StageBasis sb) {
@@ -22,6 +25,8 @@ public class ELineUp extends BattleObj {
 		tick = new int[2][5];
 		cdDownOrb = new int[2][5];
 		priceDownOrb = new int[2][5];
+        pvpNextMaxC = new int[2][5];
+        pvpNextMaxCPending = new boolean[2][5];
 		Limit lim = sb.est.lim;
 		for (int i = 0; i < 2; i++)
 			for (int j = 0; j < 5; j++) {
@@ -67,23 +72,30 @@ public class ELineUp extends BattleObj {
 			}
 	}
 
-    /** Recalculate one dynamic PvP slot after its character is rerolled. */
+    /** Recalculate a rerolled slot without replacing the cooldown already started by the deployed character. */
     protected void pvpReplace(int i,int j,common.util.unit.EForm f) {
-        price[i][j]=-1;basePrice[i][j]=-1;cool[i][j]=0;maxC[i][j]=0;tick[i][j]=0;cdDownOrb[i][j]=0;priceDownOrb[i][j]=0;
-        if(f==null)return;
+        int activeCool=cool[i][j],activeMax=maxC[i][j];
+        price[i][j]=-1;basePrice[i][j]=-1;tick[i][j]=0;cdDownOrb[i][j]=0;priceDownOrb[i][j]=0;
+        if(f==null){
+            pvpNextMaxC[i][j]=0;pvpNextMaxCPending[i][j]=false;
+            if(activeCool<=0)maxC[i][j]=0;
+            return;
+        }
         Form form=f.du.getPack();
         Limit lim=b.est.lim;
         if(lim!=null&&((lim.line==1&&i==1)||lim.unusable(f.du,b.st.getCont().price)))price[i][j]=-1;
         else price[i][j]=100*(b.globalCost()>-1?b.globalCost():(int)f.getPrice(b.st.getCont().price));
         if(!StageLimit.isComboBanned(lim,C_DISCOUNT))
             price[i][j]-=price[i][j]*b.b.getInc(C_DISCOUNT,form.du.getPack().unit)/100;
-        maxC[i][j]=b.globalCdLimit()>0
+
+        int nextMax=b.globalCdLimit()>0
                 ?b.b.t().getFinResGlobal(b.globalCdLimit(),StageLimit.isComboBanned(b.est.lim,C_RESP)?0:b.b.getInc(C_RESP,f.du.getPack().unit))
                 :b.b.t().getFinRes(f.du.getRespawn(),StageLimit.isComboBanned(b.est.lim,C_RESP)?0:b.b.getInc(C_RESP,f.du.getPack().unit));
         if(lim!=null&&lim.stageLimit!=null){
             if(price[i][j]!=-1)price[i][j]=price[i][j]*lim.stageLimit.costMultiplier[form.unit.rarity]/100;
-            maxC[i][j]=maxC[i][j]*lim.stageLimit.cooldownMultiplier[form.unit.rarity]/100;
+            nextMax=nextMax*lim.stageLimit.cooldownMultiplier[form.unit.rarity]/100;
         }
+
         int[][] orbs=f.getLevel().getOrbs();boolean hasEveryOther=false;
         if(orbs!=null)for(int[] orb:orbs){
             if(orb.length!=ORB_INTS)continue;
@@ -95,13 +107,29 @@ public class ELineUp extends BattleObj {
         basePrice[i][j]=price[i][j];
         if(b.pvpRoulette!=null&&b.pvpRoulette.costLevel>0&&price[i][j]>0)
             for(int level=0;level<b.pvpRoulette.costLevel;level++)price[i][j]=Math.max(1,price[i][j]/2);
-        get(i,j);
+
+        pvpNextMaxC[i][j]=nextMax;
+        pvpNextMaxCPending[i][j]=activeCool>0;
+        if(activeCool>0){
+            cool[i][j]=activeCool;
+            maxC[i][j]=activeMax;
+        }else{
+            maxC[i][j]=nextMax;
+            pvpNextMaxCPending[i][j]=false;
+        }
+    }
+
+    private void applyPendingPvpMaxC(int i,int j){
+        if(!pvpNextMaxCPending[i][j])return;
+        maxC[i][j]=pvpNextMaxC[i][j];
+        pvpNextMaxCPending[i][j]=false;
     }
 
 	/**
 	 * reset cooldown of a unit
 	 */
 	protected void get(int i, int j) {
+        if(cool[i][j]<=0)applyPendingPvpMaxC(i,j);
 		cool[i][j] = maxC[i][j];
 		if (b.pvpRoulette != null && b.pvpRoulette.productionLevel > 0)
 			cool[i][j] = Math.max(0, cool[i][j] / b.pvpRoulette.productionDivisor());
@@ -151,6 +179,7 @@ public class ELineUp extends BattleObj {
 //						delay(i, j, -30, 0);
 
 					if (cool[i][j] == 0) {
+                        applyPendingPvpMaxC(i,j);
 						PvpAudio.notification(b, SE_SPEND_REF);
 						b.frameOffCd[i][j] = b.time;
 					}
