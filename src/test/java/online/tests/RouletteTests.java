@@ -2,6 +2,7 @@ package online.tests;
 
 import common.battle.*;
 import common.battle.entity.*;
+import common.battle.data.CustomUnit;
 import common.util.CopRand;
 import common.util.unit.Unit;
 import online.net.lobby.RoomRules;
@@ -13,6 +14,7 @@ public final class RouletteTests {
         FixtureAssets.init();
         reelTests();
         effectTests();
+        moveBoostMovementTest();
         modeTests();
     }
     private static void reelTests() {
@@ -406,6 +408,27 @@ public final class RouletteTests {
         Check.that(moneyOwner.money>maximum,"roulette over-cap survives the normal end-of-tick clamp");
         moneyOwner.money=maximum-1;moneyOwner.clampMoney();
         Check.equal(0,moneyOwner.pvpMoneyOvercapLimit,"over-cap privilege ends once money falls back under normal maximum");
+    }
+
+    private static void moveBoostMovementTest() throws Exception {
+        Unit normalUnit=Fixture.unit("roulette_move_normal",100000),normalEnemy=Fixture.unit("roulette_move_normal_enemy",100000);
+        Unit boostUnit=Fixture.unit("roulette_move_boost",100000),boostEnemy=Fixture.unit("roulette_move_boost_enemy",100000);
+        ((CustomUnit)normalUnit.forms[0].du).speed=20;
+        ((CustomUnit)boostUnit.forms[0].du).speed=20;
+        RoomRules rules=new RoomRules(4400,0,3,false,RoomRules.SpecialMode.ROULETTE);
+        PvpStageBasis normal=new PvpStageBasis(Fixture.lineup(normalUnit),Fixture.lineup(normalEnemy),99221,0,rules);
+        PvpStageBasis boosted=new PvpStageBasis(Fixture.lineup(boostUnit),Fixture.lineup(boostEnemy),99221,0,rules);
+        normal.left().money=boosted.left().money=100000;
+        normal.step(new InputFrame(normal.time,1,0));boosted.step(new InputFrame(boosted.time,1,0));
+        EUnit normalCat=unit(normal,1),boostedCat=unit(boosted,1);
+        boosted.left().pvpRoulette.forceResult(boosted,boosted.left(),PvpRouletteState.MOVE_UP);
+        float normalStart=normalCat.pos,boostedStart=boostedCat.pos;
+        normal.step(new InputFrame(normal.time,0,0));boosted.step(new InputFrame(boosted.time,0,0));
+        float normalDistance=Math.abs(normalCat.pos-normalStart),boostedDistance=Math.abs(boostedCat.pos-boostedStart);
+        Check.that(normalDistance>0,"movement fixture advances a normal unit");
+        Check.equal(normalCat.displayMoveSpeed()*1.5,boostedCat.displayMoveSpeed(),"move-up status speed is 1.5x at Lv1");
+        Check.that(Math.abs(boostedDistance-normalDistance*1.5f)<0.01f,
+                "roulette MOVE_UP changes actual unit movement by the same multiplier shown in details");
     }
 
     private static void modeTests() throws Exception {
