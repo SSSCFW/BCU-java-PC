@@ -276,7 +276,8 @@ public final class RoomLobbyPage extends Page {
     void toggleReady(){
         if(closed||!editable()||pending)return;
         stopMusicPreview();
-        if(!ownReady())try{
+        boolean becomingReady=!ownReady();
+        if(becomingReady)try{
             distance.commitEdit();
             if(dirty)throw new IllegalArgumentException("変更したルールを先に適用してください");
             if(playerDirty)throw new IllegalArgumentException("城体力倍率を先に適用してください");
@@ -285,7 +286,15 @@ public final class RoomLobbyPage extends Page {
             if(!owner.canReadyLineup(selected))throw new IllegalArgumentException("編成には1体以上のキャラが必要です");
             PvpStageBasis.validateRulesAssets(client.roomRules());
         }catch(Exception e){message(e.getMessage());return;}
-        pending=true;client.lobbyReady(!ownReady(),state.get("revision").getAsLong());refreshControls();
+        pending=true;
+        long revision=state.get("revision").getAsLong();
+        if(becomingReady){
+            message("対戦データを先に準備しています…");
+            owner.prepareLocalReady(revision);
+        }else{
+            client.lobbyReady(false,revision);
+        }
+        refreshControls();
     }
 
     private String summary(){
