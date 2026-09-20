@@ -170,7 +170,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
 
     public common.util.unit.Form visibleForm(int visible){
         int canonical=canonicalSlotForVisible(visible);
-        return canonical<0?null:playerState().b.lu.fs[canonical/5][canonical%5];
+        return canonical<0?null:playerState().pvpSlotForm(canonical/5,canonical%5);
     }
 
     public boolean swapVisibleSlots(int from,int to){
