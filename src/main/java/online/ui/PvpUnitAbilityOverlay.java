@@ -21,7 +21,7 @@ import java.util.List;
 public final class PvpUnitAbilityOverlay extends JPanel {
     private static final long serialVersionUID=1L;
     private final JLabel title=new JLabel("",SwingConstants.CENTER);
-    private final JPanel rows=new JPanel();
+    private final ScrollRows rows=new ScrollRows();
     private final JScrollPane scroll;
     public PvpUnitAbilityOverlay(){
         super(new BorderLayout(8,8));setOpaque(true);setBackground(new Color(28,32,36));
@@ -29,9 +29,10 @@ public final class PvpUnitAbilityOverlay extends JPanel {
         setMinimumSize(new Dimension(640,300));setPreferredSize(new Dimension(920,390));
         title.setForeground(Color.WHITE);title.setFont(title.getFont().deriveFont(Font.BOLD,18f));add(title,BorderLayout.NORTH);
         rows.setOpaque(false);rows.setLayout(new BoxLayout(rows,BoxLayout.Y_AXIS));
-        scroll=new JScrollPane(rows,JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scroll=new JScrollPane(rows,JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setBorder(null);scroll.setOpaque(false);scroll.getViewport().setOpaque(false);
-        scroll.setWheelScrollingEnabled(true);scroll.getVerticalScrollBar().setUnitIncrement(28);scroll.getHorizontalScrollBar().setUnitIncrement(28);
+        scroll.setWheelScrollingEnabled(true);scroll.getVerticalScrollBar().setUnitIncrement(28);
+        scroll.getHorizontalScrollBar().setUnitIncrement(0);
         add(scroll,BorderLayout.CENTER);setVisible(false);
     }
     public void show(Form form,StageBasis player){
@@ -66,15 +67,23 @@ public final class PvpUnitAbilityOverlay extends JPanel {
         if(procCount==0)abilities.add(textChip("なし"));rows.add(abilities);
 
         revalidate();repaint();
-        scroll.getVerticalScrollBar().setValue(0);scroll.getHorizontalScrollBar().setValue(0);
+        scroll.getVerticalScrollBar().setValue(0);
         setVisible(true);
     }
     public void close(){
         setVisible(false);
-        scroll.getVerticalScrollBar().setValue(0);scroll.getHorizontalScrollBar().setValue(0);
+        scroll.getVerticalScrollBar().setValue(0);
     }
+    public void scrollByWheel(int rotation){
+        if(!isVisible()||rotation==0)return;
+        JScrollBar bar=scroll.getVerticalScrollBar();
+        int amount=Math.max(1,bar.getUnitIncrement(1))*3;
+        bar.setValue(bar.getValue()+rotation*amount);
+    }
+    public JScrollPane scrollPane(){return scroll;}
     private static JPanel row(String name){
-        JPanel p=new JPanel(new FlowLayout(FlowLayout.LEADING,6,3));p.setOpaque(false);
+        JPanel p=new JPanel(new WrapLayout(FlowLayout.LEADING,6,3));p.setOpaque(false);
+        p.setAlignmentX(Component.LEFT_ALIGNMENT);p.setMaximumSize(new Dimension(Integer.MAX_VALUE,Integer.MAX_VALUE));
         JLabel l=new JLabel(name);l.setForeground(new Color(255,232,150));l.setPreferredSize(new Dimension(110,38));p.add(l);return p;
     }
     private static JLabel traitChip(Trait trait){
@@ -105,5 +114,54 @@ public final class PvpUnitAbilityOverlay extends JPanel {
     }
     private static ImageIcon scale(ImageIcon icon,int w,int h){
         return new ImageIcon(icon.getImage().getScaledInstance(w,h,Image.SCALE_SMOOTH));
+    }
+
+    private static final class ScrollRows extends JPanel implements Scrollable {
+        private static final long serialVersionUID=1L;
+        @Override public Dimension getPreferredScrollableViewportSize(){return getPreferredSize();}
+        @Override public int getScrollableUnitIncrement(Rectangle visibleRect,int orientation,int direction){return 28;}
+        @Override public int getScrollableBlockIncrement(Rectangle visibleRect,int orientation,int direction){return Math.max(28,visibleRect.height-28);}
+        @Override public boolean getScrollableTracksViewportWidth(){return true;}
+        @Override public boolean getScrollableTracksViewportHeight(){return false;}
+    }
+
+    /** FlowLayout whose preferred height accounts for wrapped rows at the viewport width. */
+    private static final class WrapLayout extends FlowLayout {
+        private static final long serialVersionUID=1L;
+        WrapLayout(int align,int hgap,int vgap){super(align,hgap,vgap);}
+        @Override public Dimension preferredLayoutSize(Container target){return layoutSize(target,true);}
+        @Override public Dimension minimumLayoutSize(Container target){
+            Dimension d=layoutSize(target,false);d.width-=getHgap()+1;return d;
+        }
+        private Dimension layoutSize(Container target,boolean preferred){
+            synchronized(target.getTreeLock()){
+                int width=target.getWidth();
+                if(width<=0&&target.getParent()!=null)width=target.getParent().getWidth();
+                if(width<=0)width=920;
+                Insets insets=target.getInsets();
+                int horizontal=insets.left+insets.right+getHgap()*2;
+                int maxWidth=Math.max(1,width-horizontal);
+                Dimension out=new Dimension(0,0);
+                int rowWidth=0,rowHeight=0,visible=0;
+                for(Component c:target.getComponents()){
+                    if(!c.isVisible())continue;
+                    Dimension d=preferred?c.getPreferredSize():c.getMinimumSize();
+                    if(rowWidth>0&&rowWidth+getHgap()+d.width>maxWidth){
+                        out.width=Math.max(out.width,rowWidth);
+                        out.height+=rowHeight+(visible>0?getVgap():0);
+                        rowWidth=0;rowHeight=0;
+                    }
+                    if(rowWidth>0)rowWidth+=getHgap();
+                    rowWidth+=d.width;rowHeight=Math.max(rowHeight,d.height);visible++;
+                }
+                if(rowWidth>0){
+                    out.width=Math.max(out.width,rowWidth);
+                    out.height+=rowHeight+(out.height>0?getVgap():0);
+                }
+                out.width=Math.min(width,Math.max(out.width+horizontal,width));
+                out.height+=insets.top+insets.bottom+getVgap()*2;
+                return out;
+            }
+        }
     }
 }
