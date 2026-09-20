@@ -611,6 +611,11 @@ public interface BattleBox {
 			}
 		}
 
+        private Form lineupForm(int row,int col){
+            if(bf instanceof OnlineBattleField)return ((OnlineBattleField)bf).visibleForm(row*5+col);
+            return sb.b.lu.fs[row][col];
+        }
+
 		private void drawLineupWithTwoRows(FakeGraphics g, int w, int h, float hr, float term, float termh) {
 			int iw;
 			int ih;
@@ -619,7 +624,7 @@ public interface BattleBox {
 
 			for (int i = 0; i < 2; i++) {
 				for(int j = 0; j < 5; j++) {
-					Form f = sb.b.lu.fs[i][j];
+					Form f = lineupForm(i,j);
 					FakeImage img = f == null ? aux.slot[0].getImg() : f.anim.getUni().getImg();
 
 					iw = (int) (hr * img.getWidth());
@@ -782,7 +787,7 @@ public interface BattleBox {
 			int imh;
 
 			for (int i = 0; i < 5; i++) {
-				Form f = sb.b.lu.fs[index][i];
+				Form f = lineupForm(index,i);
 				FakeImage img = f == null ? aux.slot[0].getImg() : f.anim.getUni().getImg();
 				iw = (int) (hr * img.getWidth());
 				ih = (int) (hr * img.getHeight());
