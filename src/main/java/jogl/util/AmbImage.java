@@ -6,6 +6,7 @@ import jogl.GLStatic;
 import utilpc.awt.FIBI;
 
 import javax.imageio.ImageIO;
+import java.awt.GraphicsEnvironment;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.awt.image.WritableRaster;
@@ -176,7 +177,7 @@ public class AmbImage implements FakeImage {
 	private void check() {
 		if (gl != null || bimg != null)
 			return;
-		if (GLStatic.ALWAYS_GLIMG || GLGraphics.count > 0)
+		if (!GraphicsEnvironment.isHeadless() && (GLGraphics.count > 0 || GLStatic.ALWAYS_GLIMG))
 			checkGL();
 		if (gl == null)
 			checkBI();
