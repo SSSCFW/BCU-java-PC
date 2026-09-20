@@ -49,15 +49,16 @@ public class StageBasis extends BattleObj {
         private final Map<Integer,ArrayList<Entity>> buckets=new HashMap<>();
         private final IdentityHashMap<Entity,Integer> order=new IdentityHashMap<>();
         private int indexedSize;
+        private long indexedSequence=-1;
         private static int bucket(float pos){return (int)Math.floor(pos/PVP_SPATIAL_BUCKET);}
-        void rebuild(List<Entity> entities){
-            buckets.clear();order.clear();indexedSize=entities.size();
+        void rebuild(List<Entity> entities,long sequence){
+            buckets.clear();order.clear();indexedSize=entities.size();indexedSequence=sequence;
             for(int i=0;i<entities.size();i++){
                 Entity entity=entities.get(i);order.put(entity,i);
                 buckets.computeIfAbsent(bucket(entity.pos),unused->new ArrayList<>()).add(entity);
             }
         }
-        void ensure(List<Entity> entities){if(indexedSize!=entities.size())rebuild(entities);}
+        void ensure(List<Entity> entities,long sequence){if(indexedSize!=entities.size()||indexedSequence!=sequence)rebuild(entities,sequence);}
         void reorder(List<Entity> entities){
             indexedSize=entities.size();order.clear();
             for(int i=0;i<entities.size();i++)order.put(entities.get(i),i);
@@ -69,7 +70,7 @@ public class StageBasis extends BattleObj {
             buckets.computeIfAbsent(to,unused->new ArrayList<>()).add(entity);
         }
         List<Entity> query(List<Entity> entities,int direction,int touch,float left,float right){
-            ensure(entities);ArrayList<Entity> found=new ArrayList<>();
+            ArrayList<Entity> found=new ArrayList<>();
             int first=bucket(left),last=bucket(right);
             for(int key=first;key<=last;key++){
                 ArrayList<Entity> bucket=buckets.get(key);if(bucket==null)continue;
@@ -82,6 +83,18 @@ public class StageBasis extends BattleObj {
     }
     /** Presentation-only acceleration structure; excluded from clone/hash by NONC_ prefix. */
     private PvpSpatialIndex NONC_pvpSpatialIndex;
+    private ArrayList<Entity> NONC_pvpIdOrder;
+    private long NONC_pvpIdOrderSequence=-1;
+    private int NONC_pvpIdOrderSize=-1;
+    private List<Entity> pvpIdOrder(){
+        StageBasis root=world();
+        if(root.NONC_pvpIdOrder==null||root.NONC_pvpIdOrderSequence!=root.pvpSequence||root.NONC_pvpIdOrderSize!=le.size()){
+            root.NONC_pvpIdOrder=new ArrayList<>(le);
+            root.NONC_pvpIdOrder.sort(Comparator.comparingLong(e->e.pvpEntityId));
+            root.NONC_pvpIdOrderSequence=root.pvpSequence;root.NONC_pvpIdOrderSize=le.size();
+        }
+        return root.NONC_pvpIdOrder;
+    }
     /** Test-only fallback switch, excluded from deterministic state. */
     private boolean NONC_disablePvpSpatialIndex;
     private PvpSpatialIndex activePvpSpatialIndex(){
@@ -1131,7 +1144,6 @@ public class StageBasis extends BattleObj {
 				frontLineup = 1 - frontLineup;
 			}
 		}
-        if(isPvp())world().NONC_pvpSpatialIndex=null;
 	}
 
 	protected void updateAnimation() {
@@ -1248,21 +1260,20 @@ public class StageBasis extends BattleObj {
     private void updatePvpEntities(boolean advance) {
         for (int i = 0; i < tlw.size(); i++) if (advance || tlw.get(i).IMUTime()) tlw.get(i).update();
         for (int i = 0; i < lw.size(); i++) if (advance || lw.get(i).IMUTime()) lw.get(i).update();
-        le.sort(Comparator.comparingLong(e -> e.pvpEntityId));
-        StageBasis root=world();
+        StageBasis root=world();List<Entity> idOrder=pvpIdOrder();
         PvpSpatialIndex spatial=null;
         if(!root.NONC_disablePvpSpatialIndex){
             spatial=root.NONC_pvpSpatialIndex;
             if(spatial==null)root.NONC_pvpSpatialIndex=spatial=new PvpSpatialIndex();
-            spatial.rebuild(le);
+            spatial.ensure(idOrder,root.pvpSequence);spatial.reorder(idOrder);
         }
         ebase.update(); ubase.update();
-        for (int i = 0; i < le.size(); i++) if (advance || (le.get(i).getAbi() & AB_TIMEI) != 0) {
-            Entity entity=le.get(i);float before=entity.pos;entity.update();if(spatial!=null)spatial.moved(entity,before);
+        for (int i = 0; i < idOrder.size(); i++) if (advance || (idOrder.get(i).getAbi() & AB_TIMEI) != 0) {
+            Entity entity=idOrder.get(i);float before=entity.pos;entity.update();if(spatial!=null)spatial.moved(entity,before);
         }
         ebase.update2(); ubase.update2();
-        for (int i = 0; i < le.size(); i++) if (advance || (le.get(i).getAbi() & AB_TIMEI) != 0) {
-            Entity entity=le.get(i);float before=entity.pos;entity.update2();if(spatial!=null)spatial.moved(entity,before);
+        for (int i = 0; i < idOrder.size(); i++) if (advance || (idOrder.get(i).getAbi() & AB_TIMEI) != 0) {
+            Entity entity=idOrder.get(i);float before=entity.pos;entity.update2();if(spatial!=null)spatial.moved(entity,before);
         }
         la.forEach(AttackAb::capture);
         la.forEach(AttackAb::excuse);
