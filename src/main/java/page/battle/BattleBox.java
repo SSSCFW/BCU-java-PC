@@ -616,6 +616,11 @@ public interface BattleBox {
             return sb.b.lu.fs[row][col];
         }
 
+        private int canonicalLineupSlot(int row,int col){
+            int visible=row*5+col;
+            return bf instanceof OnlineBattleField?((OnlineBattleField)bf).canonicalSlotForVisible(visible):visible;
+        }
+
 		private void drawLineupWithTwoRows(FakeGraphics g, int w, int h, float hr, float term, float termh) {
 			int iw;
 			int ih;
@@ -671,7 +676,8 @@ public interface BattleBox {
 						g.colRect((int) (x - (imw - iw) / 2.0), (int) (y - (imh - ih) / 2.0), imw, imh, 0, 255, 0, 100);
 
 					if (sb.summonerSummoned[i][j]) {
-						List<Entity> summoners = sb.findEntitiesOf(i, j).stream().filter(e -> e.anim.dead >= 0).collect(Collectors.toList());
+						int canonical=canonicalLineupSlot(i,j);
+                        List<Entity> summoners = sb.findEntitiesOf(canonical/5, canonical%5).stream().filter(e -> e.anim.dead >= 0).collect(Collectors.toList());
 						if (sb.spiritSummoned[i][j] || !summoners.isEmpty()) {
 							g.colRect((int) (x - (imw - iw) / 2.0), (int) (y - (imh - ih) / 2.0), imw, imh, 64, 0, 0, 160);
 						} else {
@@ -846,7 +852,8 @@ public interface BattleBox {
 					g.colRect((int) (x - (imw - iw) / 2.0), (int) (y - (imh - ih) / 2.0), imw, imh, 0, 255, 0, 100);
 
 				if (sb.summonerSummoned[index][i]) {
-					List<Entity> summoners = sb.findEntitiesOf(index, i).stream().filter(e -> e.anim.dead >= 0).collect(Collectors.toList());
+					int canonical=canonicalLineupSlot(index,i);
+                    List<Entity> summoners = sb.findEntitiesOf(canonical/5, canonical%5).stream().filter(e -> e.anim.dead >= 0).collect(Collectors.toList());
 					if (sb.spiritSummoned[index][i] || !summoners.isEmpty()) {
 						g.colRect((int) (x - (imw - iw) / 2.0), (int) (y - (imh - ih) / 2.0), imw, imh, 64, 0, 0, 160);
 					} else {
