@@ -177,6 +177,7 @@ public final class OnlineBattleField extends SBCtrl implements BattleBox.PlayerV
         if(!interactive||battleUiHidden||from<0||from>=10||to<0||to>=10||from==to)return false;
         int tmp=visibleToCanonical[from];visibleToCanonical[from]=visibleToCanonical[to];visibleToCanonical[to]=tmp;
         swapSlotState(playerState(),from,to);
+        send.accept(InputFrame.slotSwap(from,to));
         return true;
     }
 

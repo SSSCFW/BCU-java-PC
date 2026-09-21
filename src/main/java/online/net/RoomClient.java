@@ -31,6 +31,7 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
     private final int udpPortOverride;
     private final BlockingQueue<ResolvedFrame> frames = new ArrayBlockingQueue<>(128);
     private final AtomicInteger commands = new AtomicInteger();
+    private final ArrayDeque<Integer> slotSwaps = new ArrayDeque<>();
     private final ExecutorService transfer = Executors.newSingleThreadExecutor(r -> daemon(r, "pvp-assets"));
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(r -> daemon(r, "pvp-client-network"));
     private final LinkedHashSet<Integer> roster = new LinkedHashSet<>();
@@ -218,8 +219,15 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
         checkpoints.headMap(data.checkpointAck, true).clear();
         for (ResolvedFrame received : data.frames) for (ResolvedFrame frame : frameBuffer.accept(received)) {
             if (!frames.offer(frame)) throw new IOException("Simulation cannot keep up with the room");
-            inputHistory.add(frame.tick + delay, commands.getAndSet(0));
+            inputHistory.add(frame.tick + delay, nextCommandMask());
             lastFrameProgress = System.nanoTime();
+        }
+    }
+    private int nextCommandMask() {
+        synchronized(state) {
+            int mask=commands.getAndSet(0);
+            Integer swap=slotSwaps.pollFirst();
+            return swap==null?mask:mask|swap;
         }
     }
     private RealtimeData outbound() throws IOException {
@@ -358,8 +366,14 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
     public void resultAck(){synchronized(state){if(!completed||ended||resultAckSent)return;resultAckSent=true;send(Protocol.message("result_ack").toString());}}
     public void abortBattle(){synchronized(state){if(ended)return;send(Protocol.message("battle_abort").toString());}}
     public void queueCommand(int bit) {
-        synchronized (state) { if (!started || ended || completed || !InputFrame.valid(bit)) return; }
-        commands.getAndUpdate(old -> (old | (bit & 4095)) ^ (bit & ~4095));
+        final int base;
+        synchronized (state) {
+            if (!started || ended || completed || !InputFrame.valid(bit)) return;
+            if(InputFrame.hasSlotSwap(bit))
+                slotSwaps.addLast(InputFrame.slotSwap(InputFrame.slotSwapFrom(bit),InputFrame.slotSwapTo(bit)));
+            base=InputFrame.baseCommands(bit);
+        }
+        if(base!=0)commands.getAndUpdate(old -> (old | (base & 4095)) ^ (base & ~4095));
     }
     public ResolvedFrame pollResolvedFrame() { return frames.poll(); }
     public int resolvedFrameBacklog() { return frames.size(); }
@@ -383,7 +397,7 @@ public class RoomClient extends WebSocketClient implements AutoCloseable {
         started=false;completed=false;manifestSeen=false;readyRequested=false;readySent=false;resultAckSent=false;
         roster.clear();hashes.clear();recipients.clear();manifestSizes.clear();delivered.clear();downloadQueue.clear();
         cached.clear();for(Path path:cacheTemps)try{Files.deleteIfExists(path);}catch(IOException ignored){}cacheTemps.clear();
-        frames.clear();commands.set(0);checkpoints.clear();frameBuffer=null;inputHistory=new InputHistory();
+        frames.clear();commands.set(0);slotSwaps.clear();checkpoints.clear();frameBuffer=null;inputHistory=new InputHistory();
         ownHash=null;ownArchive=null;downloadingHash=null;serverExpected=0;serverRequest=-1;maxCheckpoint=0;
         lastFrameProgress=lastRescue=lastWsSend=0;expectedBytes=received=0;
         if(output!=null)try{output.close();}catch(IOException ignored){}

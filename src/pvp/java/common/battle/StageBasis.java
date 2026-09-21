@@ -38,6 +38,8 @@ public class StageBasis extends BattleObj {
     /** Dynamic PvP production slots. 0 = original lineup form, n+1 = productionPool[n]. */
     public Form[] NONC_pvpProductionPool=new Form[0];
     public int[][] pvpSlotPoolChoice=new int[2][5],pvpDuplicatePoolChoice=new int[2][5];
+    /** Canonical slot ids in the player's current visible order; auto production follows this order. */
+    public int[] pvpAutoSlotOrder={0,1,2,3,4,5,6,7,8,9};
     public CopRand pvpSlotRandom;
     /** One-time roulette over-cap ceiling. Zero means the normal wallet cap. */
     public int pvpMoneyOvercapLimit;
@@ -58,6 +60,10 @@ public class StageBasis extends BattleObj {
             if(!b.lu.map.containsKey(form.unit.id))throw new IllegalArgumentException("Missing synchronized production-pool level: "+form.unit.id);
         }
         NONC_pvpProductionPool=pool.clone();pvpSlotRandom=random;
+    }
+    public void swapPvpAutoSlotOrder(int from,int to){
+        if(!isPvp()||from<0||from>=10||to<0||to>=10||from==to)throw new IllegalArgumentException("Invalid PvP slot-order swap");
+        int value=pvpAutoSlotOrder[from];pvpAutoSlotOrder[from]=pvpAutoSlotOrder[to];pvpAutoSlotOrder[to]=value;
     }
     public Form pvpSlotForm(int row,int col){
         int choice=pvpSlotPoolChoice[row][col];

@@ -126,6 +126,8 @@ public final class PvpStageBasis extends StageBasis {
     }
     private static void input(StageBasis player, int mask) {
         PvpStageBasis world=(PvpStageBasis)player.world();
+        if(InputFrame.hasSlotSwap(mask))
+            player.swapPvpAutoSlotOrder(InputFrame.slotSwapFrom(mask),InputFrame.slotSwapTo(mask));
         if ((mask & InputFrame.WORKER) != 0) player.act_mon();
         if ((mask & InputFrame.DEBUG_ROULETTE_MAX) != 0
                 && world.debugMode() && world.specialMode()==RoomRules.SpecialMode.ROULETTE
@@ -140,11 +142,14 @@ public final class PvpStageBasis extends StageBasis {
             if(world.specialMode()==RoomRules.SpecialMode.CANNON) player.act_can();
             else if(world.specialMode()==RoomRules.SpecialMode.ROULETTE) player.pvpRoulette.press(world,player);
         }
-        for (int i=0;i<10;i++) {
+        for (int i=0;i<10;i++)
             if ((mask & (1<<(12+i))) != 0) player.act_lock(i/5,i%5);
-            // Calls without a pressed bit intentionally retain native auto-spawn locks.
-            player.act_spawn(i/5,i%5,(mask & (1<<i)) != 0);
-        }
+        // Direct presses are intentional actions and must not lose the tick to an earlier auto slot.
+        for (int i=0;i<10;i++)
+            if ((mask & (1<<i)) != 0) player.act_spawn(i/5,i%5,true);
+        // Auto-production priority follows the player's synchronized visible slot order.
+        for (int canonical:player.pvpAutoSlotOrder)
+            player.act_spawn(canonical/5,canonical%5,false);
     }
     /** Called by StageBasis at the SAME phase as the right-player economy. */
     protected void updateOtherEconomy(boolean active) {
