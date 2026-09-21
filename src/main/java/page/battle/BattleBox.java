@@ -5,6 +5,8 @@ import common.CommonStatic.BCAuxAssets;
 import common.CommonStatic.BattleConst;
 import common.battle.BattleField;
 import common.battle.StageBasis;
+import common.battle.PvpStageBasis;
+import common.battle.PvpRouletteState;
 import common.battle.attack.ContAb;
 import common.battle.attack.ContWaveAb;
 import common.battle.data.DataEnemy;
@@ -26,6 +28,8 @@ import common.util.pack.bgeffect.BackgroundEffect;
 import common.util.stage.CastleImg;
 import common.util.unit.Form;
 import main.MainBCU;
+import online.ui.OnlineBattleField;
+import online.ui.Pvp3dsAssets;
 import page.RetFunc;
 import utilpc.PP;
 import utilpc.awt.FG2D;
@@ -44,6 +48,11 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public interface BattleBox {
+
+	/** Optional local HUD context; the world remains in BattleField.sb. */
+	interface PlayerView {
+		StageBasis playerState();
+	}
 
 	class BBPainter implements BattleConst {
 
@@ -114,6 +123,38 @@ public interface BattleBox {
 
 		private final ArrayList<ContAb> efList = new ArrayList<>();
 
+		// Presentation-only tracking for the large on-field roulette/result animation.
+		private boolean rouletteWasSpinning;
+		private int rouletteResultTick = -1;
+		private int rouletteResult = -1;
+		private static final int ROULETTE_RESULT_TICKS = PvpRouletteState.RESULT_DISPLAY_TICKS;
+
+		private static final String[] ROULETTE_ICON = {
+				"アイコン：ふっとばし","アイコン：癒やし","アイコン：生産回復","アイコン：にゃんこ砲",
+				"アイコン：生産短縮","アイコン：働き増加","アイコン：コストダウン","アイコン：お金マックス",
+				"アイコン：スロウ","アイコン：ストップ","アイコン：攻撃力アップ","アイコン：体力アップ",
+				"アイコン：移動アップ","アイコン：プチベビーラッシュ"
+		};
+		private static final String[] ROULETTE_NAME = {
+				"効果名：ふっとばし","効果名：癒やし","効果名：生産回復","効果名：にゃんこ砲",
+				"効果名：生産短縮","効果名：働き増加","効果名：コストダウン","効果名：お金マックス",
+				"効果名：スロウ","効果名：ストップ","効果名：攻撃力アップ","効果名：体力アップ",
+				"効果名：移動アップ","効果名：プチベビーラッシュ"
+		};
+		private static final String[] ROULETTE_EFFECT = {
+				"発動エフェクト：ふっとばし","発動エフェクト：癒やし","発動エフェクト：生産回復","発動エフェクト：にゃんこ砲",
+				"発動エフェクト：生産短縮","発動エフェクト：働き増加","発動エフェクト：コストダウン","発動エフェクト：お金マックス",
+				"発動エフェクト：スロウ","発動エフェクト：ストップ","発動エフェクト：攻撃力アップ","発動エフェクト：体力アップ",
+				"発動エフェクト：移動アップ","発動エフェクト：プチベビーラッシュ"
+		};
+		private static final String[] ROULETTE_CUTIN = {
+				"ふっとばし発動!","にゃんこ回復ボーナス!","生産回復ボーナス!","にゃんこ砲発射!",
+				"生産短縮ボーナス!","働きネコ仕事効率UPボーナス!","コストダウンボーナス!","お金MAXボーナス!!",
+				"スロウ発動!","ストップ発動!","攻撃力UPボーナス!","体力UPボーナス!",
+				"移動スピードUPボーナス!","ぷちベビーラッシュ発動!"
+		};
+		private static final String[] ROULETTE_LEVEL = {"","レベル１","レベル２","レベル３","レベルマックス"};
+
 		private final SymCoord sym = new SymCoord(null, 0, 0, 0, 0);
 		private final P p = new P(0, 0);
 
@@ -129,7 +170,26 @@ public interface BattleBox {
 		public void click(Point p, int button) {
 		}
 
+		protected final StageBasis controlState() {
+			return bf instanceof PlayerView ? ((PlayerView) bf).playerState() : bf.sb;
+		}
+
 		public void draw(FakeGraphics g) {
+			boolean ref = CommonStatic.getConfig().ref;
+			boolean battle = CommonStatic.getConfig().battle;
+			try {
+				// PvP uses normal game sprites, not editor hitboxes. Do not persist a global setting.
+				if (bf instanceof PlayerView) CommonStatic.getConfig().ref = false;
+				drawScene(g);
+			} finally {
+				CommonStatic.getConfig().ref = ref;
+				CommonStatic.getConfig().battle = battle;
+				efList.clear();
+				sb = bf.sb;
+			}
+		}
+
+		private void drawScene(FakeGraphics g) {
 			sb = bf.sb;
 
 			int w = box.getWidth();
@@ -163,13 +223,16 @@ public interface BattleBox {
 			}
 
 			drawCastle(g);
-			if(sb.cannon == sb.maxCannon && sb.canon.id == 0) {
-				drawCannonRange(g);
+			StageBasis player = controlState();
+			boolean hideOnlineUi=bf instanceof OnlineBattleField&&((OnlineBattleField)bf).battleUiHidden();
+			boolean cannonRule=!player.isPvp()||((PvpStageBasis)player.world()).specialMode()==online.net.lobby.RoomRules.SpecialMode.CANNON;
+			if(!hideOnlineUi&&cannonRule && player.cannon == player.maxCannon && player.canon.id == 0) {
+				drawCannonRange(g, player);
 			}
 
 			drawEntity(g);
 
-			drawCastleHealthIndicator(g);
+			if(!hideOnlineUi)drawCastleHealthIndicator(g);
 
 			if(CommonStatic.getConfig().drawBGEffect && sb.bgEffect != null) {
 				sb.bgEffect.postDraw(g, setP(sb.pos, y), bf.sb.siz, midY);
@@ -179,12 +242,20 @@ public interface BattleBox {
 				drawBGOverlay(g, midY);
 			}
 
-			drawBtm(g);
-			drawTop(g);
+			// Native icons/prices/cooldowns/worker/cannon/money, for THIS participant on either side.
+			if(!hideOnlineUi){
+				sb = player;
+				try {
+					drawBtm(g);
+					drawTop(g);
+					drawPermanentRouletteEffects(g, player);
+					drawRoulettePresentation(g, player);
+				} finally { sb = bf.sb; }
+			}
 		}
 
 		public float getX(float x) {
-			return (x * ratio + off) * bf.sb.siz + sb.pos;
+			return (x * ratio + off) * bf.sb.siz + bf.sb.pos;
 		}
 
 		public void calculateSiz(int w, int h) {
@@ -238,6 +309,7 @@ public interface BattleBox {
 		}
 
 		private void adjust(int w, int s) {
+			sb = bf.sb; // Online rendering replaces the disposable snapshot between paints.
 			int h = box.getHeight();
 
 			sb.pos += w;
@@ -292,6 +364,9 @@ public interface BattleBox {
 			FakeImage left = aux.battle[0][mtype].getImg();
 			int ctype = sb.cannon == sb.maxCannon && time == 0 ? 1 : 0;
 			FakeImage right = aux.battle[1][ctype].getImg();
+			boolean rouletteRule = sb.isPvp()
+					&& ((PvpStageBasis) sb.world()).specialMode() == online.net.lobby.RoomRules.SpecialMode.ROULETTE
+					&& sb.pvpRoulette != null;
 			cw += left.getWidth();
 			cw += right.getWidth();
 			cw += aux.slot[0].getImg().getWidth() * 5;
@@ -304,12 +379,15 @@ public interface BattleBox {
 			g.drawImage(left, - BOTTOM_GAP * hr, h - ih, iw, ih);
 			iw = (int) (hr * right.getWidth());
 			ih = (int) (hr * right.getHeight());
-			g.drawImage(right, w - iw + BOTTOM_GAP * hr, h - ih, iw, ih);
+			if (rouletteRule)
+				drawRouletteGaugeControl(g, w, h, hr, iw, ih, sb.pvpRoulette);
+			else
+				g.drawImage(right, w - iw + BOTTOM_GAP * hr, h - ih, iw, ih);
 			Res.getCost(sb.getUpgradeCost(), mtype > 0, setSym(g, hr, hr * 5, h - hr * 5, 2));
 			Res.getWorkerLv(sb.work_lv, mtype > 0, setSym(g, hr, hr * 5, h - hr * 130, 0));
 			int hi = h;
 			float marg = 0;
-			if (ctype == 0)
+			if (!rouletteRule && ctype == 0)
 				for (int i = 0; i < 10 * sb.cannon / sb.maxCannon; i++) {
 					FakeImage img = aux.battle[1][2 + i].getImg();
 					iw = (int) (hr * img.getWidth());
@@ -322,7 +400,8 @@ public interface BattleBox {
 					hi -= ih;
 					g.drawImage(img, w - iw + BOTTOM_GAP * hr, hi, iw, ih);
 				}
-			if(sb.cannon == sb.maxCannon) {
+			boolean cannonFireLabel=!sb.isPvp()||((PvpStageBasis)sb.world()).specialMode()==online.net.lobby.RoomRules.SpecialMode.CANNON;
+			if(!rouletteRule && sb.cannon == sb.maxCannon && cannonFireLabel) {
 				FakeImage fire = aux.battle[1][getFireLang()+ctype].getImg();
 
 				int fw = (int) (hr * fire.getWidth());
@@ -353,6 +432,172 @@ public interface BattleBox {
 			unir = hr;
 		}
 
+		/**
+		 * Roulette mode owns the bottom-right special control. Keep the native cannon
+		 * hit box/spacing, but replace every cannon pixel with a visible continuous
+		 * roulette meter so 1% native charge steps are observable immediately.
+		 */
+		private void drawRouletteGaugeControl(FakeGraphics g, int w, int h, float hr,
+		                                      int iw, int ih, PvpRouletteState state) {
+			// Keep the native cannon hit box, but draw ONLY the roulette gauge.
+			// The surrounding area is transparent so no cannon/roulette remnants remain.
+			float controlX = w - iw + BOTTOM_GAP * hr;
+			float controlY = h - ih;
+			float gaugeW = Math.max(14f, Math.min(iw * 0.34f, 54f * hr));
+			float gaugeH = ih * 0.78f;
+			float gaugeX = controlX + (iw - gaugeW) / 2f;
+			float gaugeY = controlY + (ih - gaugeH) / 2f;
+			float border = Math.max(2f, 3f * hr);
+
+			g.colRect(gaugeX - border, gaugeY - border, gaugeW + border * 2, gaugeH + border * 2,
+					235, 235, 238, 255);
+			g.colRect(gaugeX, gaugeY, gaugeW, gaugeH, 15, 15, 18, 235);
+
+			float ratio = Math.max(0f, Math.min(1f, state.gauge / (float) PvpRouletteState.MAX_GAUGE));
+			float fill = gaugeH * ratio;
+			if (fill > 0f)
+				g.colRect(gaugeX, gaugeY + gaugeH - fill, gaugeW, fill, 241, 178, 27, 255);
+
+			for (int i = 1; i < 10; i++) {
+				float sy = gaugeY + gaugeH * i / 10f;
+				g.colRect(gaugeX, sy, gaugeW, Math.max(1f, hr * 0.65f), 0, 0, 0, 145);
+			}
+			boolean auto = bf instanceof OnlineBattleField && ((OnlineBattleField)bf).autoRoulette();
+			if(auto){
+				try{
+					FakeImage badge=Pvp3dsAssets.textBadge("AUTO");
+					float bh=Math.max(17f,22f*hr),bw=bh*badge.getWidth()/Math.max(1f,badge.getHeight());
+					g.drawImage(badge,gaugeX+(gaugeW-bw)/2f,gaugeY-bh-Math.max(3f,3f*hr),bw,bh);
+				}catch(RuntimeException ignored){}
+			}else if(state.gauge>=PvpRouletteState.MAX_GAUGE&&!state.spinning){
+				try{
+					FakeImage tap=Pvp3dsAssets.tapImage();
+					float tw=Math.max(gaugeW*1.8f,52f*hr),th=tw*tap.getHeight()/Math.max(1f,tap.getWidth());
+					g.drawImage(tap,gaugeX+(gaugeW-tw)/2f,gaugeY-th-Math.max(3f,3f*hr),tw,th);
+				}catch(RuntimeException ignored){}
+			}
+		}
+
+		private void drawPermanentRouletteEffects(FakeGraphics g,StageBasis player){
+			if(!player.isPvp()||((PvpStageBasis)player.world()).specialMode()!=online.net.lobby.RoomRules.SpecialMode.ROULETTE||player.pvpRoulette==null)return;
+			PvpRouletteState r=player.pvpRoulette;
+			int[] effects={PvpRouletteState.PRODUCTION_SHORTEN,PvpRouletteState.WORKER_UP,PvpRouletteState.COST_DOWN,
+					PvpRouletteState.ATTACK_UP,PvpRouletteState.HP_UP,PvpRouletteState.MOVE_UP};
+			int[] levels={r.productionLevel,r.workerLevel,r.costLevel,r.attackLevel,r.hpLevel,r.moveLevel};
+			int count=0;for(int level:levels)if(level>0)count++;
+			if(count==0)return;
+			float size=Math.max(28f,Math.min(42f,box.getHeight()*0.062f));
+			float gap=Math.max(3f,size*0.10f);
+			float x=box.getWidth()-10f-count*size-(count-1)*gap;
+			float y=Math.max(34f,box.getHeight()*0.070f);
+			for(int i=0;i<effects.length;i++){
+				int level=levels[i];if(level<=0)continue;
+				try{
+					FakeImage icon=Pvp3dsAssets.fakeImage("ui_battle_multi_icon",ROULETTE_ICON[effects[i]]);
+					g.drawImage(icon,x,y,size,size);
+					FakeImage lv=Pvp3dsAssets.fakeImage("ui_battle_multi_icon",ROULETTE_LEVEL[Math.min(4,level)]);
+					float lw=size*0.72f,lh=lw*lv.getHeight()/Math.max(1f,lv.getWidth());
+					g.drawImage(lv,x+size-lw,y+size-lh,lw,lh);
+				}catch(RuntimeException ignored){}
+				x+=size+gap;
+			}
+		}
+
+		private void drawRoulettePresentation(FakeGraphics g, StageBasis player) {
+			if (!player.isPvp()
+					|| ((PvpStageBasis) player.world()).specialMode() != online.net.lobby.RoomRules.SpecialMode.ROULETTE
+					|| player.pvpRoulette == null) {
+				rouletteWasSpinning = false;
+				rouletteResultTick = -1;
+				rouletteResult = -1;
+				return;
+			}
+
+			PvpRouletteState state = player.pvpRoulette;
+			try {
+				if (state.spinning) {
+					rouletteWasSpinning = true;
+					drawRouletteSpin(g, state);
+					return;
+				}
+				rouletteWasSpinning = false;
+				if (state.pendingResult >= 0 && state.resultDelayTicks > 0) {
+					int age=Math.max(0,ROULETTE_RESULT_TICKS-state.resultDelayTicks);
+					drawRouletteResult(g,state,state.pendingResult,age);
+				}
+			} catch (RuntimeException ignored) {
+				// The compact Swing HUD has its own text fallback; never break battle rendering
+				// if an optional 3DS presentation asset cannot be decoded.
+			}
+		}
+
+		private void drawRouletteSpin(FakeGraphics g, PvpRouletteState state) {
+			int w = box.getWidth(), h = box.getHeight();
+			float scale = Math.max(1.25f, Math.min(2.4f, Math.min(w / 460f, h / 180f)));
+			float iconW = 44f * scale, reelW = 178f * scale, gap = 4f * scale;
+			float totalW = iconW + gap + reelW;
+			float totalH = 46f * scale;
+			float x = (w - totalW) / 2f;
+			float y = Math.max(18f, (h - totalH) * 0.34f);
+
+			g.colRect(x - 12f * scale, y - 12f * scale, totalW + 24f * scale,
+					totalH + 34f * scale, 0, 0, 0, 205);
+
+			int result = state.currentResult();
+			FakeImage icon = Pvp3dsAssets.fakeImage("ui_battle_multi_reel", ROULETTE_ICON[result]);
+			FakeImage name = Pvp3dsAssets.fakeImage("ui_battle_multi_reel", ROULETTE_NAME[result]);
+			float reelX = x + iconW + gap;
+			g.drawImage(icon, x + 2f * scale, y + 3f * scale, 40f * scale, 40f * scale);
+			g.drawImage(name, reelX + 2.5f * scale, y + 3f * scale, 173f * scale, 40f * scale);
+
+            // The original lid/board cuts are opaque and cover the effect-name
+            // sprite at BCU scale. Draw the icon/name directly so the result text
+            // remains readable throughout the two-second spin.
+			FakeImage lamp = Pvp3dsAssets.fakeImage("ui_battle_multi", "ルーレット点灯中ランプ");
+			g.drawImage(lamp, x - 34f * scale, y + 10f * scale, 26f * scale, 25f * scale);
+
+			float progress = Math.min(1f, state.spinTicks / (float) Math.max(1, state.spinDurationTicks));
+			float barY = y + totalH + 8f * scale;
+			g.colRect(x, barY, totalW, 5f * scale, 40, 40, 40, 230);
+			g.colRect(x, barY, totalW * progress, 5f * scale, 255, 255, 255, 245);
+		}
+
+		private void drawRouletteResult(FakeGraphics g, PvpRouletteState state, int result, int age) {
+			int w = box.getWidth(), h = box.getHeight();
+			float base = Math.max(1.25f, Math.min(2.25f, w / 520f));
+			float pulse = age < 8 ? 1f + (8 - age) * 0.018f : 1f;
+			float cutScale = base * pulse;
+			float cutW = 336f * cutScale, cutH = 45f * cutScale;
+			float cutX = (w - cutW) / 2f;
+			float cutY = Math.max(18f, h * 0.22f);
+
+			FakeImage cutin = Pvp3dsAssets.fakeImage("ui_battle_multi_cutin", ROULETTE_CUTIN[result]);
+			g.drawImage(cutin, cutX, cutY, cutW, cutH);
+
+			float rowScale = Math.max(1.35f, Math.min(2.0f, base));
+			FakeImage effect = Pvp3dsAssets.fakeImage("ui_battle_multi_reel", ROULETTE_EFFECT[result]);
+			FakeImage name = Pvp3dsAssets.fakeImage("ui_battle_multi_reel", ROULETTE_NAME[result]);
+			float effectW = 47f * rowScale, effectH = 47f * rowScale;
+			float nameW = 173f * rowScale, nameH = 40f * rowScale;
+			float rowW = effectW + 10f * rowScale + nameW;
+			float rowX = (w - rowW) / 2f;
+			float rowY = cutY + cutH + 12f * rowScale;
+			g.colRect(rowX - 8f * rowScale, rowY - 6f * rowScale,
+					rowW + 16f * rowScale, Math.max(effectH, nameH) + 12f * rowScale,
+					0, 0, 0, 205);
+			g.drawImage(effect, rowX, rowY, effectW, effectH);
+			g.drawImage(name, rowX + effectW + 10f * rowScale,
+					rowY + (effectH - nameH) / 2f, nameW, nameH);
+
+			int level = state.lastLevel;
+			if (level > 0) {
+				level = Math.min(4, level);
+				FakeImage lv = Pvp3dsAssets.fakeImage("ui_battle_multi_reel", ROULETTE_LEVEL[level]);
+				float lw = 30f * rowScale, lh = 21f * rowScale;
+				g.drawImage(lv, rowX + rowW - lw, rowY + effectH + 5f * rowScale, lw, lh);
+			}
+		}
+
 		private int getFireLang() {
 			switch (CommonStatic.getConfig().lang) {
 				case ZH:
@@ -366,6 +611,27 @@ public interface BattleBox {
 			}
 		}
 
+        private Form lineupForm(int row,int col){
+            if(bf instanceof OnlineBattleField)return ((OnlineBattleField)bf).visibleForm(row*5+col);
+            return sb.b.lu.fs[row][col];
+        }
+
+        private FakeImage lineupImage(Form form){
+            FakeImage fallback=aux.slot[0].getImg();
+            if(form==null||form.anim==null)return fallback;
+            try{
+                VImg icon=form.anim.getUni();if(icon==null)return fallback;
+                FakeImage image=icon.getImg();
+                if(image==null||!image.isValid()||image.getWidth()<=1||image.getHeight()<=1)return fallback;
+                return image;
+            }catch(RuntimeException e){return fallback;}
+        }
+
+        private int canonicalLineupSlot(int row,int col){
+            int visible=row*5+col;
+            return bf instanceof OnlineBattleField?((OnlineBattleField)bf).canonicalSlotForVisible(visible):visible;
+        }
+
 		private void drawLineupWithTwoRows(FakeGraphics g, int w, int h, float hr, float term, float termh) {
 			int iw;
 			int ih;
@@ -374,8 +640,8 @@ public interface BattleBox {
 
 			for (int i = 0; i < 2; i++) {
 				for(int j = 0; j < 5; j++) {
-					Form f = sb.b.lu.fs[i][j];
-					FakeImage img = f == null ? aux.slot[0].getImg() : f.anim.getUni().getImg();
+					Form f = lineupForm(i,j);
+					FakeImage img = lineupImage(f);
 
 					iw = (int) (hr * img.getWidth());
 					ih = (int) (hr * img.getHeight());
@@ -421,7 +687,8 @@ public interface BattleBox {
 						g.colRect((int) (x - (imw - iw) / 2.0), (int) (y - (imh - ih) / 2.0), imw, imh, 0, 255, 0, 100);
 
 					if (sb.summonerSummoned[i][j]) {
-						List<Entity> summoners = sb.findEntitiesOf(i, j).stream().filter(e -> e.anim.dead >= 0).collect(Collectors.toList());
+						int canonical=canonicalLineupSlot(i,j);
+                        List<Entity> summoners = sb.findEntitiesOf(canonical/5, canonical%5).stream().filter(e -> e.anim.dead >= 0).collect(Collectors.toList());
 						if (sb.spiritSummoned[i][j] || !summoners.isEmpty()) {
 							g.colRect((int) (x - (imw - iw) / 2.0), (int) (y - (imh - ih) / 2.0), imw, imh, 64, 0, 0, 160);
 						} else {
@@ -537,8 +804,8 @@ public interface BattleBox {
 			int imh;
 
 			for (int i = 0; i < 5; i++) {
-				Form f = sb.b.lu.fs[index][i];
-				FakeImage img = f == null ? aux.slot[0].getImg() : f.anim.getUni().getImg();
+				Form f = lineupForm(index,i);
+				FakeImage img = lineupImage(f);
 				iw = (int) (hr * img.getWidth());
 				ih = (int) (hr * img.getHeight());
 
@@ -596,7 +863,8 @@ public interface BattleBox {
 					g.colRect((int) (x - (imw - iw) / 2.0), (int) (y - (imh - ih) / 2.0), imw, imh, 0, 255, 0, 100);
 
 				if (sb.summonerSummoned[index][i]) {
-					List<Entity> summoners = sb.findEntitiesOf(index, i).stream().filter(e -> e.anim.dead >= 0).collect(Collectors.toList());
+					int canonical=canonicalLineupSlot(index,i);
+                    List<Entity> summoners = sb.findEntitiesOf(canonical/5, canonical%5).stream().filter(e -> e.anim.dead >= 0).collect(Collectors.toList());
 					if (sb.spiritSummoned[index][i] || !summoners.isEmpty()) {
 						g.colRect((int) (x - (imw - iw) / 2.0), (int) (y - (imh - ih) / 2.0), imw, imh, 64, 0, 0, 160);
 					} else {
@@ -674,16 +942,19 @@ public interface BattleBox {
 			}
 		}
 
-		private void drawCannonRange(FakeGraphics g) {
+		private void drawCannonRange(FakeGraphics g, StageBasis player) {
 			FakeImage range = aux.battle[1][20].getImg();
 			FakeImage cann = aux.battle[1][21].getImg();
 
-			float rang = sb.ubase.pos + 100 + 56 * 4;
-			for(int i = 0; i < sb.b.t().tech[Data.LV_CRG]+2; i++)
+			boolean mirrored = player.isPvp() && player.ownDirection() == 1;
+			float ownPos = mirrored ? sb.st.len - player.ownBase().pos : sb.ubase.pos;
+			float otherPos = mirrored ? sb.st.len - sb.ubase.pos : sb.ebase.pos;
+			float rang = ownPos + 100 + 56 * 4;
+			for(int i = 0; i < player.b.t().tech[Data.LV_CRG]+2; i++)
 				rang -= 405;
 
-			rang = Math.max(rang, sb.ebase.pos * ratio - off / 2f);
-			rang = getX(rang);
+			rang = Math.max(rang, otherPos * ratio - off / 2f);
+			rang = getX(mirrored ? sb.st.len - rang : rang);
 
 			float rw = range.getWidth() * 0.75f * bf.sb.siz;
 			float rh = range.getHeight()  * 0.85f * bf.sb.siz;
@@ -700,6 +971,11 @@ public interface BattleBox {
 		}
 
 		private void drawCastle(FakeGraphics gra) {
+			if (sb.isPvp()) {
+				drawPlayerCastle(gra, sb.playerFor(1));
+				drawPlayerCastle(gra, sb.playerFor(-1));
+				return;
+			}
 			FakeTransform at = gra.getTransform();
 			boolean drawCast = sb.ebase instanceof Entity;
 			int posy = (int) (midh - road_h * bf.sb.siz);
@@ -741,7 +1017,52 @@ public interface BattleBox {
 			drawNyCast(gra, (int) (midh - road_h * bf.sb.siz), (int) (posx + shake), bf.sb.siz, sb.nyc);
 		}
 
+		private void drawPlayerCastle(FakeGraphics gra, StageBasis player) {
+			FakeTransform at = gra.getTransform();
+			try {
+				ECastle castle = (ECastle) player.ownBase();
+				float x = getX(castle.pos);
+				if (castle.health <= 0 || castle.hit > 0) x += (2 + (sb.time % 2 * -4)) * bf.sb.siz;
+				if (player.ownDirection() == 1) { gra.translate(2 * x, 0); gra.scale(-1, 1); }
+				drawNyCast(gra, (int) (midh - road_h * bf.sb.siz), (int) x, bf.sb.siz, player.nyc);
+			} finally { gra.setTransform(at); gra.delete(at); }
+		}
+
+		private void drawPlayerCannon(FakeGraphics gra, StageBasis player, float size) {
+			FakeTransform at = gra.getTransform();
+			try {
+				int dir = player.ownDirection(), id = player.canon.id;
+				float x = getX(player.ownBase().pos) - dir * canx[id] * bf.sb.siz;
+				if (dir == 1) { gra.translate(2 * x, 0); gra.scale(-1, 1); }
+				player.canon.drawBase(gra, setP(x, midh + (cany[id] - road_h) * bf.sb.siz), size);
+				gra.setTransform(at);
+				x = getX(player.canon.pos);
+				if (dir == 1) { gra.translate(2 * x, 0); gra.scale(-1, 1); }
+				player.canon.drawAtk(gra, setP(x, midh - road_h * bf.sb.siz), size);
+			} finally { gra.setTransform(at); gra.delete(at); }
+		}
+
+		private void drawUnitSprite(FakeGraphics gra, Entity entity, float x, float y, float size) {
+			FakeTransform at = gra.getTransform();
+			try {
+				if (sb.isPvp() && (entity instanceof EUnit ? entity.dire == 1 : entity.dire == -1)) {
+					gra.translate(2 * x, 0); gra.scale(-1, 1);
+				}
+				entity.anim.draw(gra, setP(x, y), size);
+			} finally { gra.setTransform(at); gra.delete(at); }
+		}
+
 		private void drawCastleHealthIndicator(FakeGraphics gra) {
+			if (sb.isPvp()) {
+				for (int dir : new int[] {1, -1}) {
+					AbEntity castle = sb.playerFor(dir).ownBase();
+					float x = getX(castle.pos);
+					float y = midh - (road_h + casth) * bf.sb.siz - aux.num[5][0].getImg().getHeight() * bf.sb.siz;
+					Res.getBase(castle, setSym(gra, bf.sb.siz * 0.8f, x, y, dir == 1 ? 1 : 0), false);
+					drawCastleTrait(gra,dir,x,y);
+				}
+				return;
+			}
 			int posy = (int) (midh - road_h * bf.sb.siz);
 			int posx = (int) ((sb.ebase.pos * ratio + off) * bf.sb.siz + sb.pos);
 
@@ -765,6 +1086,28 @@ public interface BattleBox {
 			posx = (int) (((sb.st.len - 800) * ratio + off) * bf.sb.siz + sb.pos);
 
 			Res.getBase(sb.ubase, setSym(gra, bf.sb.siz * 0.8f, posx, posy, 0), false);
+		}
+
+		private void drawCastleTrait(FakeGraphics gra,int dir,float x,float healthY) {
+			PvpStageBasis world=(PvpStageBasis)sb.world();
+			int trait=world.traitForDirection(dir);
+			try{
+				if(trait<0){
+					FakeImage none=Pvp3dsAssets.textBadge("属性なし");
+					float h=Math.max(18f,Math.min(25f,box.getHeight()*0.035f));
+					float w=h*none.getWidth()/Math.max(1f,none.getHeight());
+					gra.drawImage(none,x-w/2f,healthY-h-3f,w,h);
+					return;
+				}
+				FakeImage icon=null;
+				if(aux.icon!=null&&aux.icon.length>3&&aux.icon[3]!=null&&trait>=0&&trait<aux.icon[3].length&&aux.icon[3][trait]!=null)
+					icon=aux.icon[3][trait].getImg();
+				if(icon==null&&aux.dummyTrait!=null)icon=aux.dummyTrait.getImg();
+				if(icon==null)return;
+				float size=Math.max(22f,Math.min(36f,box.getHeight()*0.052f));
+				gra.colRect(x-size/2f-2f,healthY-size-5f,size+4f,size+4f,18,20,24,230);
+				gra.drawImage(icon,x-size/2f,healthY-size-3f,size,size);
+			}catch(RuntimeException ignored){}
 		}
 
 		@SuppressWarnings("UseBulkOperation")
@@ -805,7 +1148,7 @@ public interface BattleBox {
 				float p = getX(e.pos);
 				float y = midh - (road_h - dep) * bf.sb.siz;
 
-				e.anim.draw(gra, setP(p, y), psiz);
+				drawUnitSprite(gra, e, p, y, psiz);
 
 				gra.setTransform(at);
 
@@ -918,14 +1261,20 @@ public interface BattleBox {
 			}
 
 			gra.setTransform(at);
-			int can = cany[sb.canon.id];
-			int disp = canx[sb.canon.id];
-			setP(getX(sb.ubase.pos) + disp * bf.sb.siz, midh + (can - road_h) * bf.sb.siz);
-			sb.canon.drawBase(gra, p, psiz);
-			gra.setTransform(at);
-			setP(getX(sb.canon.pos), midh - road_h * bf.sb.siz);
-			sb.canon.drawAtk(gra, p, psiz);
-			gra.setTransform(at);
+			if (sb.isPvp()) {
+				drawPlayerCannon(gra, sb.playerFor(1), psiz);
+				drawPlayerCannon(gra, sb.playerFor(-1), psiz);
+			} else {
+				int can = cany[sb.canon.id];
+				int disp = canx[sb.canon.id];
+				setP(getX(sb.ubase.pos) + disp * bf.sb.siz, midh + (can - road_h) * bf.sb.siz);
+				sb.canon.drawBase(gra, p, psiz);
+				gra.setTransform(at);
+				setP(getX(sb.canon.pos), midh - road_h * bf.sb.siz);
+				sb.canon.drawAtk(gra, p, psiz);
+				gra.setTransform(at);
+			}
+
 			if (sb.sniper != null && sb.sniper.enabled) {
 				setP(getX(sb.sniper.getPos()), midh - road_h * bf.sb.siz);
 				sb.sniper.drawBase(gra, p, psiz);
@@ -972,7 +1321,7 @@ public interface BattleBox {
 						float p = getX(e.pos);
 						float y = midh - (road_h - dep) * bf.sb.siz;
 
-						e.anim.draw(gra, setP(p, y), psiz);
+						drawUnitSprite(gra, e, p, y, psiz);
 
 						if(e.anim.smoke != null && e.anim.smokeLayer != -1 && !e.anim.smoke.done()) {
 							gra.setTransform(at);
@@ -1068,7 +1417,7 @@ public interface BattleBox {
 
 		private void drawTime(FakeGraphics g, float nameheight) {
 			P p = P.newP(box.getHeight() * 0.01f, box.getHeight() * 0.01f + nameheight);
-			float ratio = box.getHeight() * 0.1f / aux.timer[0].getImg().getHeight();
+			float ratio = box.getHeight() * (bf.sb.isPvp() ? 0.07f : 0.1f) / aux.timer[0].getImg().getHeight();
 
 			float timeLeft = bf.sb.st.timeLimit * 60f - bf.sb.time / 30f;
 
@@ -1132,6 +1481,17 @@ public interface BattleBox {
 			}
 
 			P.delete(p);
+			if(bf.sb.isPvp()&&sb.pvpRoulette!=null&&sb.pvpRoulette.babyRushTicks>0){
+				int seconds=Math.max(1,(sb.pvpRoulette.babyRushTicks+PvpStageBasis.TPS-1)/PvpStageBasis.TPS);
+				try{
+					FakeImage badge=Pvp3dsAssets.textBadge("ぷちベビーラッシュ 残り "+seconds+"秒");
+					float bh=Math.max(22f,box.getHeight()*0.042f);
+					float bw=bh*badge.getWidth()/Math.max(1f,badge.getHeight());
+					float bx=box.getHeight()*0.01f;
+					float by=box.getHeight()*0.01f+nameheight+box.getHeight()*0.07f+4f;
+					g.drawImage(badge,bx,by,bw,bh);
+				}catch(RuntimeException ignored){}
+			}
 		}
 
 		protected synchronized void drawMaxSpawn(FakeGraphics gra) {
@@ -1182,6 +1542,7 @@ public interface BattleBox {
 		}
 
 		private synchronized void wheeled(Point p, int ind) {
+			sb = bf.sb;
 			int w = box.getWidth();
 			int h = box.getHeight();
 			float psiz = bf.sb.siz * (float) Math.pow(exp, ind);

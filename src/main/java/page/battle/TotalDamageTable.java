@@ -20,7 +20,9 @@ public class TotalDamageTable extends SortTable<Form> {
         title = Page.get(MainLocale.INFO, "ut", 3);
     }
 
-    private final StageBasis basis;
+    private StageBasis basis;
+
+    void setBasis(StageBasis basis) { this.basis = basis; }
 
     protected TotalDamageTable(StageBasis basis) {
         super(title);

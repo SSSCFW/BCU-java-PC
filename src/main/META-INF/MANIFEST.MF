@@ -1,3 +1,5 @@
 Manifest-Version: 1.0
 Main-Class: main.MainBCU
+Add-Opens: java.base/java.lang java.desktop/sun.java2d
+  java.desktop/sun.awt java.desktop/sun.awt.windows
 

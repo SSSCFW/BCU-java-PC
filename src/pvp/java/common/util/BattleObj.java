@@ -1,0 +1,338 @@
+package common.util;
+
+import common.CommonStatic;
+import common.battle.BattleField;
+import common.io.BCUException;
+import common.io.assets.Admin.StaticPermitted;
+import common.pack.Context.ErrType;
+import common.util.pack.bgeffect.BackgroundEffect;
+import common.util.unit.EneRand;
+import common.util.unit.Trait;
+
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * this class enables copy of an interconnected system. <br>
+ * <br>
+ * capable to copy: <br>
+ * 1. Primary field <br>
+ * 2. String field <br>
+ * 3. Copible field <br>
+ * 4. Array field of type 1~4 <br>
+ * 5. Cloneable Collection and Map field with generic type of 1~4<br>
+ * note: Collections are not Hashed <br>
+ * exclusion:<br>
+ * EAnimI (override)<br>
+ * EneRand (update map reference) <br>
+ */
+@StaticPermitted(StaticPermitted.Type.TEMP)
+public class BattleObj extends ImgCore implements Cloneable {
+
+	public static final String NONC = "NONC_";
+
+	private static final Class<?>[] EXCLUDE = { Number.class, String.class, Boolean.class, BattleStatic.class, Trait.class, Enum.class, BackgroundEffect.class, BattleField.class, EneRand.class };
+
+	private static final Set<Class<?>> OLD = new HashSet<>();
+	private static final Set<Class<?>> UNCHECKED = new HashSet<>();
+	private static final Map<Object, Object> ARRMAP = new IdentityHashMap<>();
+	private static final Map<Class<?>, List<Field>> FIELD_CACHE = new ConcurrentHashMap<>();
+	private static final Map<Class<?>, Boolean> FIELD_TYPE_CACHE = new ConcurrentHashMap<>();
+	private static final ThreadLocal<Boolean> FAST_COPY = ThreadLocal.withInitial(() -> false);
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	protected static Object hardCopy(Object obj) {
+		if (obj == null)
+			return null;
+		Class<?> c = obj.getClass();
+		if (c.isPrimitive())
+			return obj;
+		for (Class<?> cls : EXCLUDE)
+			if (cls.isAssignableFrom(c))
+				return obj;
+		if (obj instanceof BattleObj)
+			return ((BattleObj) obj).sysCopy();
+		if (ARRMAP.containsKey(obj))
+			return ARRMAP.get(obj);
+		if (obj.getClass().isArray()) {
+			Object ans = Array.newInstance(c.getComponentType(), Array.getLength(obj));
+            ARRMAP.put(obj, ans);
+			for (int i = 0; i < Array.getLength(ans); i++)
+				Array.set(ans, i, hardCopy(Array.get(obj, i)));
+			ARRMAP.put(obj, ans);
+			return ans;
+		}
+		if (Collection.class.isAssignableFrom(c)) {
+			Collection f2 = (Collection) obj;
+			Collection f3 = null;
+			try {
+				f3 = f2.getClass().getConstructor().newInstance();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			if (f3 != null) ARRMAP.put(obj, f3);
+            if (f3 != null)
+				for (Object o : f2)
+					f3.add(hardCopy(o));
+			return f3;
+		}
+		if (Map.class.isAssignableFrom(c)) {
+			Map f2 = (Map) obj;
+			Map f3 = null;
+			try {
+				f3 = f2.getClass().getConstructor().newInstance();
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			if (f3 != null) ARRMAP.put(obj, f3);
+            Map f4 = f3;
+			if (f4 != null)
+				f2.forEach((k, v) -> f4.put(hardCopy(k), hardCopy(v)));
+			return f3;
+		}
+		throw new BCUException("cannot copy class " + obj.getClass());
+	}
+
+	private static boolean checkField(Class<?> tc) {
+		Boolean cached=FIELD_TYPE_CACHE.get(tc);
+		if(cached!=null)return cached;
+		boolean result;
+		if (tc.isPrimitive()) result=true;
+		else {
+			boolean b0 = BattleObj.class.isAssignableFrom(tc);
+			boolean b1 = BattleStatic.class.isAssignableFrom(tc);
+			if (b0 && b1) result=false;
+			else if (b0 || b1) result=true;
+			else {
+				result=false;
+				for (Class<?> cls : EXCLUDE)
+					if (cls.isAssignableFrom(tc)) {result=true;break;}
+				if (!result && tc.isArray()) result=checkField(tc.getComponentType());
+			}
+		}
+		FIELD_TYPE_CACHE.put(tc,result);
+		return result;
+	}
+
+	@SuppressWarnings("unchecked")
+	private static List<Field> getField(Class<? extends BattleObj> cls) {
+		List<Field> cached=FIELD_CACHE.get(cls);
+		if(cached!=null)return cached;
+		List<Field> fl = new ArrayList<>();
+		for (Field f : cls.getDeclaredFields())
+			if (!Modifier.isStatic(f.getModifiers())) {
+				f.setAccessible(true);
+				fl.add(f);
+			}
+		Class<?> parent=cls.getSuperclass();
+		if (parent!=null && parent!=BattleObj.class && BattleObj.class.isAssignableFrom(parent))
+			fl.addAll(getField((Class<? extends BattleObj>)parent));
+		List<Field> built=Collections.unmodifiableList(fl);
+		List<Field> prior=FIELD_CACHE.putIfAbsent(cls,built);
+		return prior==null?built:prior;
+	}
+
+	protected BattleObj copy = null;
+
+	@Override
+	public final BattleObj clone() {
+		return cloneInternal(false);
+	}
+
+	/**
+	 * Fast copy for disposable presentation snapshots. hardCopy still rejects any
+	 * unsupported runtime value; this only skips the redundant preflight type walk.
+	 */
+	protected final BattleObj fastClone() {
+		return cloneInternal(true);
+	}
+
+	private BattleObj cloneInternal(boolean fast) {
+		// The copier uses shared identity maps/copy links to preserve graph identity.
+		// Online simulation publishes snapshots off the Swing EDT, so serialize the
+		// legacy copier while preserving its subclass-specific terminate semantics.
+		synchronized(BattleObj.class) {
+			boolean previous=FAST_COPY.get();
+			if(fast)FAST_COPY.set(true);
+			try {
+				BattleObj c = sysCopy();
+				terminate();
+				ARRMAP.clear();
+				if(!fast){
+					UNCHECKED.removeAll(OLD);
+					for (Class<?> cls : UNCHECKED)
+						CommonStatic.ctx.printErr(ErrType.WARN, "Unchecked Class in Battle: " + cls);
+					OLD.addAll(UNCHECKED);
+				}
+				UNCHECKED.clear();
+				return c;
+			} finally {
+				if(previous)FAST_COPY.set(true);else FAST_COPY.remove();
+			}
+		}
+	}
+
+	/**
+	 * BattleStatic also has this method but different return type
+	 */
+	public final int conflict() {
+		return 0;
+	}
+
+	/**
+	 * override this method to make your own copy mechanics if you don't want all
+	 * your fields copied <br>
+	 * <br>
+	 * this method is called to copy object's references to other objects
+	 */
+	protected void performDeepCopy() {
+		List<Field> lf = getField(getClass());
+		if(!FAST_COPY.get())check(lf);
+		for (Field f : lf) {
+			if (f.getName().startsWith(NONC))
+				continue;
+			try {
+				f.setAccessible(true);
+				f.set(copy, hardCopy(f.get(this)));
+			} catch (Exception e3) {
+				System.out.println("failed to copy class " + getClass() + " at field " + f);
+				e3.printStackTrace();
+			}
+		}
+	}
+
+	/**
+	 * override this method to flush all objects used<br>
+	 * <br>
+	 * this method is called recursively to flush all resources used
+	 */
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	protected void terminate() {
+		if (copy == null)
+			return;
+		BattleObj temp = copy;
+		copy = null;
+		if (temp != null)
+			temp.terminate();
+		List<Field> lf = getField(getClass());
+		for (Field f : lf) {
+			if (f.getName().startsWith(NONC))
+				continue;
+			f.setAccessible(true);
+			Class<?> tc = f.getType();
+
+			if (BattleObj.class.isAssignableFrom(tc)) {
+				BattleObj f2 = null;
+				try {
+					f2 = (BattleObj) f.get(this);
+				} catch (IllegalAccessException e) {
+					e.printStackTrace();
+				}
+				if (f2 != null)
+					f2.terminate();
+			}
+			if (tc.isArray() && BattleObj.class.isAssignableFrom(tc.getComponentType())) {
+				BattleObj[] f2 = null;
+				try {
+					f2 = (BattleObj[]) f.get(this);
+				} catch (IllegalAccessException e) {
+					e.printStackTrace();
+				}
+				if (f2 != null)
+					for (BattleObj c : f2)
+						if (c != null)
+							c.terminate();
+			}
+			if (Collection.class.isAssignableFrom(tc)) {
+				Collection f2 = null;
+				try {
+					f2 = (Collection) f.get(this);
+				} catch (IllegalAccessException e) {
+					e.printStackTrace();
+				}
+				if (f2 != null)
+					for (Object c : f2)
+						if (c != null && c instanceof BattleObj)
+							((BattleObj) c).terminate();
+			}
+			if (Map.class.isAssignableFrom(tc)) {
+				if (f.getName().equals(NONC))
+					continue;
+				Map f2 = null;
+				try {
+					f2 = (Map) f.get(this);
+				} catch (IllegalAccessException e) {
+					e.printStackTrace();
+				}
+				if (f2 != null)
+					f2.forEach((a, b) -> {
+						if (a instanceof BattleObj)
+							((BattleObj) a).terminate();
+						if (b instanceof BattleObj)
+							((BattleObj) b).terminate();
+					});
+			}
+		}
+	}
+
+	/**
+	 * this method is called to check that there isn't any unintended class
+	 */
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	private void check(List<Field> lf) {
+		for (Field f : lf) {
+			if (f.getName().startsWith(NONC))
+				continue;
+			Object obj = null;
+			try {
+				obj = f.get(this);
+			} catch (IllegalAccessException e1) {
+				e1.printStackTrace();
+			}
+			if (obj == null)
+				continue;
+			Class<?> tc = obj.getClass();
+			if (checkField(tc))
+				continue;
+			if (Collection.class.isAssignableFrom(tc)) {
+				Collection f2 = (Collection) obj;
+				for (Object o : f2)
+					if (!checkField(o.getClass()))
+						UNCHECKED.add(o.getClass());
+				continue;
+			}
+			if (Map.class.isAssignableFrom(tc)) {
+				Map f2 = (Map) obj;
+				f2.forEach((a, b) -> {
+					if (!checkField(a.getClass()))
+						UNCHECKED.add(a.getClass());
+					if (!checkField(b.getClass()))
+						UNCHECKED.add(b.getClass());
+				});
+				continue;
+			}
+			UNCHECKED.add(tc);
+		}
+	}
+
+	/**
+	 * make a copy of this object during systematic clone process
+	 */
+	private BattleObj sysCopy() {
+		if (copy != null)
+			return copy;
+		try {
+			// copy primary types
+			copy = (BattleObj) super.clone();
+		} catch (CloneNotSupportedException e) {
+			e.printStackTrace();
+		}
+		copy.copy = this;
+		performDeepCopy();
+		return copy;
+	}
+
+}

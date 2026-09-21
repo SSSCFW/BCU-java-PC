@@ -6,6 +6,7 @@ import jogl.GLStatic;
 import utilpc.awt.FIBI;
 
 import javax.imageio.ImageIO;
+import java.awt.GraphicsEnvironment;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.awt.image.WritableRaster;
@@ -64,13 +65,15 @@ public class AmbImage implements FakeImage {
 	@Override
 	public int getHeight() {
 		check();
-		return bimg != null ? bimg.getHeight() : gl.getHeight();
+		if(bimg!=null&&bimg.bimg()!=null)return bimg.getHeight();
+		if(gl!=null)return gl.getHeight();
+		return 1;
 	}
 
 	@Override
 	public int getRGB(int i, int j) {
 		checkBI();
-		return bimg.getRGB(i, j);
+		return bimg!=null&&bimg.bimg()!=null?bimg.getRGB(i,j):0;
 	}
 
 	@Override
@@ -81,7 +84,9 @@ public class AmbImage implements FakeImage {
 	@Override
 	public int getWidth() {
 		check();
-		return bimg != null ? bimg.getWidth() : gl.getWidth();
+		if(bimg!=null&&bimg.bimg()!=null)return bimg.getWidth();
+		if(gl!=null)return gl.getWidth();
+		return 1;
 	}
 
 	@Override
@@ -92,7 +97,9 @@ public class AmbImage implements FakeImage {
 
 	@Override
 	public boolean isValid() {
-		return true;
+		if (failed) return false;
+		check();
+		return (bimg != null && bimg.bimg() != null) || gl != null;
 	}
 
 	@Override
@@ -102,7 +109,7 @@ public class AmbImage implements FakeImage {
 			forceBI();
 		if (str == Marker.BG) {
 			checkBI();
-			if (bimg.bimg().getWidth() % 4 != 0)
+			if (bimg!=null&&bimg.bimg()!=null&&bimg.bimg().getWidth() % 4 != 0)
 				force = true;
 		}
 		if (str == Marker.EDI)
@@ -127,7 +134,7 @@ public class AmbImage implements FakeImage {
 	@Override
 	public void setRGB(int i, int j, int p) {
 		forceBI();
-		bimg.setRGB(i, j, p);
+		if(bimg!=null&&bimg.bimg()!=null)bimg.setRGB(i,j,p);
 	}
 
 	@Override
@@ -138,7 +145,7 @@ public class AmbImage implements FakeImage {
 	public FakeImage cloneImage() {
 		AmbImage copy;
 
-		if(bimg != null) {
+		if(bimg != null && bimg.bimg()!=null) {
 			BufferedImage ori = bimg.bimg();
 
 			ColorModel cm = ori.getColorModel();
@@ -172,50 +179,62 @@ public class AmbImage implements FakeImage {
 	private void check() {
 		if (gl != null || bimg != null)
 			return;
-		if (GLStatic.ALWAYS_GLIMG || GLGraphics.count > 0)
+		if (!GraphicsEnvironment.isHeadless() && (GLGraphics.count > 0 || GLStatic.ALWAYS_GLIMG))
 			checkGL();
 		if (gl == null)
 			checkBI();
 	}
 
 	private void checkBI() {
-		if (bimg != null || failed)
+		if ((bimg != null && bimg.bimg()!=null) || failed)
 			return;
 		try {
 			if (stream != null)
 				bimg = (FIBI) FIBI.builder.build(stream);
 			else if (file != null)
 				bimg = (FIBI) FIBI.builder.build(file);
-			else {
+			else if(par!=null&&cs!=null) {
 				par.checkBI();
-				bimg = par.bimg.getSubimage(cs[0], cs[1], cs[2], cs[3]);
+				if(par.bimg!=null&&par.bimg.bimg()!=null)
+					bimg = par.bimg.getSubimage(cs[0], cs[1], cs[2], cs[3]);
 			}
-			if (bimg == null)
+			if (bimg == null || bimg.bimg()==null) {
+				bimg=null;
 				failed = true;
-		} catch (IOException e) {
-			e.printStackTrace();
+			}
+		} catch (Exception e) {
+			bimg=null;failed=true;
+			System.err.println("BCU image load failed: "+e.getClass().getSimpleName()+": "+e.getMessage());
 		}
 	}
 
 	private void checkGL() {
-		if (gl != null)
+		if (gl != null || failed)
 			return;
-		if (force)
-			gl = GLImage.build(bimg.bimg());
-		else if (stream != null)
-			gl = GLImage.build(stream.get());
-		else if (file != null)
-			gl = GLImage.build(file);
-		else {
-			par.checkGL();
-			if (par.gl != null)
-				gl = par.gl.getSubimage(cs[0], cs[1], cs[2], cs[3]);
+		try {
+			if (force) {
+				checkBI();
+				if(bimg==null||bimg.bimg()==null)return;
+				gl = GLImage.build(bimg.bimg());
+			} else if (stream != null)
+				gl = GLImage.build(stream.get());
+			else if (file != null)
+				gl = GLImage.build(file);
+			else if(par!=null&&cs!=null) {
+				par.checkGL();
+				if (par.gl != null)
+					gl = par.gl.getSubimage(cs[0], cs[1], cs[2], cs[3]);
+			}
+			if(gl==null&&bimg==null)failed=true;
+		} catch(Exception e) {
+			gl=null;failed=true;
+			System.err.println("BCU GL image load failed: "+e.getClass().getSimpleName()+": "+e.getMessage());
 		}
 	}
 
 	private void forceBI() {
 		checkBI();
-		force = true;
+		force = bimg != null && bimg.bimg() != null;
 		gl = null;
 	}
 }

@@ -33,3 +33,6 @@
 /.gradle/
 /build/
 *.log
+__pycache__/
+*.py[cod]
+/diagnostics/

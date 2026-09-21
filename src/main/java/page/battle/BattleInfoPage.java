@@ -4,13 +4,26 @@ import common.CommonStatic;
 import common.battle.*;
 import common.battle.entity.AbEntity;
 import common.battle.entity.Entity;
+import common.pack.Identifier;
 import common.util.Data;
 import common.util.stage.Replay;
 import common.util.stage.Stage;
+import common.util.stage.Music;
 import common.util.unit.Form;
 import io.BCMusic;
 import main.MainBCU;
 import main.Opts;
+import online.ui.OnlineBattleField;
+import online.ui.AudioSettingsPanel;
+import online.ui.PvpRouletteHud;
+import online.ui.PvpSoundBank;
+import online.ui.PvpBattleOverlay;
+import online.ui.PvpPresentationDelta;
+import online.ui.PvpRouletteAudio;
+import online.ui.PvpUnitAbilityOverlay;
+import online.net.lobby.PvpTraitRules;
+import utilpc.UtilPC;
+import java.util.function.IntConsumer;
 import page.*;
 import page.awt.BBBuilder;
 import page.battle.BattleBox.OuterBox;
@@ -23,6 +36,8 @@ import java.awt.event.MouseWheelEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class BattleInfoPage extends KeyHandler implements OuterBox {
 
@@ -31,6 +46,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	public static boolean DEF_LARGE = false;
 
 	public static BattleInfoPage current = null;
+    private static final ExecutorService ONLINE_AUDIO_CLEANUP=Executors.newSingleThreadExecutor(r->{Thread t=new Thread(r,"pvp-native-audio-cleanup");t.setDaemon(true);return t;});
 
 	public static void redefine() {
 		ComingTable.redefine();
@@ -67,6 +83,37 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 	private final JSlider jsl = new JSlider();
 	private final BattleBox bb;
 	private final BattleField basis;
+
+	private OnlineBattleField online;
+    private final JButton audio=new JButton("音量"),rouletteDebugMax=new JButton("ルーレットMAX");
+    private final JLabel onlineTag=new JLabel("Online"),rouletteNotice=new JLabel();
+    private final PvpUnitAbilityOverlay unitAbilityOverlay=new PvpUnitAbilityOverlay();
+    private javax.swing.Timer unitHoldTimer;
+    private Form heldUnitForm;
+    private Point heldUnitPoint;
+    private boolean suppressHeldUnitClick;
+    private PvpRouletteHud onlineSpecial;
+    private JDialog audioDialog;
+    private final JPanel onlineResult=new JPanel(new BorderLayout(10,10));
+    private final JLabel onlineResultTitle=PvpBattleOverlay.label("",32f);
+    private final JTextArea onlineResultDetail=PvpBattleOverlay.detail();
+    private final JButton onlineResultOk=PvpBattleOverlay.okButton();
+    private final PvpBattleOverlay onlineBackdrop=new PvpBattleOverlay();
+    private final JPanel onlineBattleEnd=new JPanel(new BorderLayout());
+    private final JLabel onlineBattleEndLabel=PvpBattleOverlay.label("戦闘終了",40f);
+    private Runnable onlineResultAck,pendingOnlineResultAck;
+    private String pendingOnlineResultTitle,pendingOnlineResultDetail;
+    private boolean onlineResultAcked,opponentRouletteSpinning,onlineBattleEnding,onlineBattleEndSoundDone,onlineResultShown,onlineLayoutPending;
+    private volatile long onlineAudioGeneration;
+    private volatile boolean onlineNativeAudioCleanupDone=true;
+    private final PvpRouletteAudio rouletteAudio=new PvpRouletteAudio();
+    private int rouletteNoticeUntil=-1;
+    private int onlineStatsFrame=5;
+    private int onlineSlotDragSource=-1;
+    private Point onlineSlotDragPoint;
+	private Runnable onlineExit;
+	private boolean onlineClosed;
+	private String onlineLeftName, onlineRightName;
 
 	private boolean pause = false, changedBG = false;
 	private Replay recd;
@@ -137,8 +184,278 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		current = this;
 	}
 
+	/** Native battle page with a network-fed, display-only controller. */
+	public BattleInfoPage(Page parent, PvpStageBasis displayCopy, int direction,
+	                      IntConsumer commands, Runnable onExit, String leftName, String rightName) {
+		super(parent);
+		online = new OnlineBattleField(this, displayCopy, direction, commands);
+		onlineExit = onExit;
+		onlineLeftName = leftName;
+		onlineRightName = rightName;
+		basis = online;
+		bb = BBBuilder.def.getCtrl(this, online);
+		ct.setData(basis.sb.st);
+		et.useUnitIcons();
+		est.useUnitIcons();
+		utd = new TotalDamageTable(online.playerState());
+		utdsp = new JScrollPane(utd);
+		jtb.setSelected(DEF_LARGE);
+		ini();
+		// These native single-player operations cannot be performed independently online.
+		paus.setEnabled(false);paus.setVisible(false);
+        onlineSpecial=new PvpRouletteHud(online);add(audio);add(onlineSpecial);add(onlineTag);add(rouletteNotice);add(rouletteDebugMax);add(unitAbilityOverlay);
+        unitAbilityOverlay.setVisible(false);setComponentZOrder(unitAbilityOverlay,0);
+        unitHoldTimer=new javax.swing.Timer(450,e->{
+            if(heldUnitForm!=null&&!onlineClosed){
+                unitAbilityOverlay.show(heldUnitForm,online.playerState());
+                suppressHeldUnitClick=true;
+            }
+        });unitHoldTimer.setRepeats(false);
+        styleOnlineLabel(onlineTag,Color.WHITE,14f);
+        styleOnlineLabel(rouletteNotice,new Color(255,245,180),13f);rouletteNotice.setVisible(false);
+        styleOnlineLabel(stream,Color.WHITE,12f);
+        timer.setVisible(false);
+        rouletteDebugMax.setVisible(online.debugMode()&&online.rouletteMode());
+        rouletteDebugMax.addActionListener(e->{getPress().clear();online.debugRouletteMax();});
+        audio.addActionListener(e->{getPress().clear();if(audioDialog!=null&&audioDialog.isDisplayable()){audioDialog.toFront();return;}audioDialog=AudioSettingsPanel.open(this);});
+        onlineResult.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(Color.WHITE,2),BorderFactory.createEmptyBorder(18,24,18,24)));
+        onlineResult.setBackground(new Color(20,20,20));onlineResultTitle.setForeground(Color.WHITE);onlineResultDetail.setForeground(Color.WHITE);
+        onlineResultTitle.setFont(onlineResultTitle.getFont().deriveFont(Font.BOLD,30f));
+        JPanel resultCenter=new JPanel(new GridLayout(2,1,4,4));resultCenter.setOpaque(false);resultCenter.add(onlineResultTitle);resultCenter.add(onlineResultDetail);
+        onlineResult.add(resultCenter,BorderLayout.CENTER);onlineResult.add(onlineResultOk,BorderLayout.SOUTH);onlineResult.setVisible(false);add(onlineResult);
+        onlineResultOk.addActionListener(e->{if(onlineResultAcked||onlineResultAck==null)return;onlineResultAcked=true;onlineResultOk.setEnabled(false);onlineResultDetail.setText("相手のOKを待っています…");onlineResultAck.run();});
+        onlineBattleEnd.setBackground(new Color(18,20,26));onlineBattleEnd.setBorder(BorderFactory.createLineBorder(new Color(235,235,235),3));
+        onlineBattleEndLabel.setForeground(Color.WHITE);onlineBattleEndLabel.setFont(onlineBattleEndLabel.getFont().deriveFont(Font.BOLD,40f));
+        onlineBattleEnd.add(onlineBattleEndLabel,BorderLayout.CENTER);onlineBattleEnd.setVisible(false);add(onlineBattleEnd);
+        add(onlineBackdrop);
+        setComponentZOrder(onlineResult,0);setComponentZOrder(onlineBattleEnd,0);
+        if(MainBCU.loaded){BCMusic.stopAll();BCMusic.play(basis.sb.st.mus0);}
+		next.setEnabled(false);
+		rply.setEnabled(false);
+		rply.setVisible(false);
+		jsl.setEnabled(false);
+		paus.setToolTipText("オンライン対戦では単独で一時停止できません");
+		next.setToolTipText("オンライン対戦ではコマ送りできません");
+		add(stream);
+        orderOnlineLayers();queueOnlineLayout();PvpSoundBank.preload();
+        initializeOnlineAudio(displayCopy);
+		current = this;
+        // A maximized window need not emit another resize event after mounting.
+        SwingUtilities.invokeLater(()->{if(!onlineClosed)fireDimensionChanged();});
+	}
+
+    private static void styleOnlineLabel(JLabel label,Color foreground,float size){
+        label.setOpaque(true);label.setBackground(new Color(22,24,30));label.setForeground(foreground);
+        label.setFont(label.getFont().deriveFont(Font.BOLD,size));
+        label.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(220,220,220)),
+                BorderFactory.createEmptyBorder(2,6,2,6)));
+    }
+
+    public void force60Fps(boolean value){if(online!=null)online.force60Fps(value);}
+    public int onlineFps(){return online==null?30:online.renderFps();}
+
+    public void beginOnlineBattleEnd(){
+        if(online==null||onlineClosed||onlineBattleEnding)return;
+        onlineBattleEnding=true;online.interactive(false);online.setBattleUiHidden(true);getPress().clear();
+        if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;heldUnitPoint=null;
+        if(audioDialog!=null){audioDialog.dispose();audioDialog=null;}
+        // Stop playback immediately, but do not close every native Clip on the EDT.
+        // Clip.close() can block for seconds on some Java Sound backends.
+        PvpSoundBank.stopAll();BCMusic.stopBackground();
+        Canvas canvas=(Canvas)bb;
+        onlineBackdrop.capture(bb,canvas.getWidth(),canvas.getHeight());
+        hideOnlineBattleChrome();canvas.setVisible(false);
+        onlineBackdrop.setBounds(canvas.getBounds());onlineBackdrop.setVisible(true);
+        onlineBattleEnd.setVisible(true);orderOnlineLayers();validateOnlineLayout();
+        PvpSoundBank.play(PvpSoundBank.Sound.BATTLE_END,()->{
+            if(onlineClosed)return;
+            onlineBattleEndSoundDone=true;
+            showQueuedOnlineResult();
+        });
+        long audioGeneration=++onlineAudioGeneration;
+        onlineNativeAudioCleanupDone=false;
+        ONLINE_AUDIO_CLEANUP.execute(()->{
+            try{if(audioGeneration==onlineAudioGeneration)BCMusic.stopAll();}
+            finally{if(audioGeneration==onlineAudioGeneration)onlineNativeAudioCleanupDone=true;}
+        });
+    }
+
+    public void showOnlineResult(String title,String detail,Runnable acknowledge){
+        if(online==null||onlineClosed)return;
+        pendingOnlineResultTitle=title;pendingOnlineResultDetail=detail;pendingOnlineResultAck=acknowledge;
+        if(!onlineBattleEnding)beginOnlineBattleEnd();
+        showQueuedOnlineResult();
+    }
+
+    private void showQueuedOnlineResult(){
+        if(!onlineBattleEndSoundDone||pendingOnlineResultTitle==null||onlineClosed||onlineResultShown)return;
+        onlineResultShown=true;
+        onlineBattleEnd.setVisible(false);
+        onlineResultAck=pendingOnlineResultAck;onlineResultAcked=false;
+        onlineResultTitle.setText(pendingOnlineResultTitle);onlineResultDetail.setText(pendingOnlineResultDetail);
+        onlineResultOk.setText("OK");onlineResultOk.setEnabled(true);onlineResult.setVisible(true);setComponentZOrder(onlineResult,0);onlineResult.repaint();
+        long audioGeneration=onlineAudioGeneration;
+        if(onlineNativeAudioCleanupDone)BCMusic.play(new Identifier<>(Identifier.DEF,Music.class,30));
+        else ONLINE_AUDIO_CLEANUP.execute(()->{
+            if(audioGeneration==onlineAudioGeneration)BCMusic.play(new Identifier<>(Identifier.DEF,Music.class,30));
+        });
+        validateOnlineLayout();onlineResultOk.requestFocusInWindow();
+    }
+
+    private void hideOnlineBattleChrome(){
+        for(Component component:getComponents())
+            if(component!=onlineBackdrop&&component!=onlineBattleEnd&&component!=onlineResult)
+                component.setVisible(false);
+    }
+
+    private void orderOnlineLayers(){
+        if(online==null)return;
+        setComponentZOrder((Canvas)bb,getComponentCount()-1);
+        setComponentZOrder(onlineBackdrop,getComponentCount()-2);
+        setComponentZOrder(unitAbilityOverlay,0);
+        setComponentZOrder(onlineResult,0);setComponentZOrder(onlineBattleEnd,0);
+    }
+
+    private void validateOnlineLayout(){
+        if(onlineClosed)return;
+        revalidate();
+        Window window=SwingUtilities.getWindowAncestor(this);
+        if(window!=null)window.validate();else validate();
+        repaint();
+    }
+
+    private void queueOnlineLayout(){
+        if(onlineLayoutPending)return;onlineLayoutPending=true;
+        SwingUtilities.invokeLater(()->{onlineLayoutPending=false;validateOnlineLayout();});
+    }
+
+    public void onlineResultWaiting(String text){if(onlineResult.isVisible()&&onlineResultAcked)onlineResultDetail.setText(text);}
+
+    /** Establish the baseline before the first tick or render. */
+    public void initializeOnlineAudio(PvpStageBasis world){
+        if(online==null||onlineClosed||onlineBattleEnding)return;
+        rouletteAudio.initialize(world,online.playerDirection());
+    }
+    /** Called after each canonical tick, before the next snapshot can overwrite an audio edge. */
+    public void observeOnlineAudioTick(PvpStageBasis world){observeOnlineTick(world);}
+
+    public void observeOnlineTick(PvpStageBasis world){
+        if(online!=null&&!onlineClosed&&!onlineBattleEnding)rouletteAudio.observe(world,online.playerDirection());
+    }
+
+	public void publishOnline(PvpStageBasis displayCopy) {
+		if (online != null && !onlineClosed) {observeOnlineTick(displayCopy);online.publish(displayCopy);}
+	}
+
+    /** Simulation-thread audio was already observed for this authoritative tick. */
+    public void publishOnlineFromSimulation(PvpStageBasis displayCopy) {
+        if(online!=null&&!onlineClosed)online.publish(displayCopy);
+    }
+
+    public void applyOnlinePresentationDelta(PvpPresentationDelta delta){
+        if(online!=null&&!onlineClosed&&!onlineBattleEnding)online.applyDelta(delta);
+    }
+
+	public void onlineStatus(String text, boolean interactive) {
+		if (online == null || onlineClosed) return;
+		online.interactive(interactive&&!onlineBattleEnding);
+		stream.setText(text);
+		stream.setToolTipText(text);
+	}
+
+	/** Called on the EDT by the lobby's fixed-network-tick pump, at the configured render rate. */
+	public void renderOnlineFrame() {
+		if (online == null || onlineClosed) return;
+        if(onlineBattleEnding){repaint();return;}
+		online.update();
+		updateKey();
+		online.renderStep();
+		StageBasis sb = online.sb;
+        // Editor/stat tables are not part of the battlefield. Rebuilding four
+        // 500-entry Swing models at 60 FPS wastes more time than drawing sprites,
+        // so refresh diagnostics at 10 Hz while the actual battle stays at 60 FPS.
+        if(++onlineStatsFrame>=6){
+            onlineStatsFrame=0;
+            List<Entity> left = new ArrayList<>(), right = new ArrayList<>();
+            for (Entity e : sb.le) (e.dire == 1 ? left : right).add(e);
+            et.setList(left); est.setList(new ArrayList<>(left));
+            ut.setList(right); ust.setList(new ArrayList<>(right));
+            List<Form> lineup = new ArrayList<>();
+            for (Form[] row : online.playerState().b.lu.fs) for (Form f : row) if (f != null) lineup.add(f);
+            utd.setBasis(online.playerState()); utd.setList(lineup);
+            ebase.setText(onlineLeftName + "  HP: " + sb.ebase.health + "/" + sb.ebase.maxH);
+            ubase.setText(onlineRightName + "  HP: " + sb.ubase.health);
+            ecount.setText(sb.entityCount(1) + "/" + sb.playerFor(1).maxNum);
+            ucount.setText(sb.entityCount(-1) + "/" + sb.playerFor(-1).maxNum);
+        }
+		if (bb.getPainter().dragging) bb.getPainter().dragFrame++;
+		if (MainBCU.loaded && !onlineBattleEnding) BCMusic.flush(sb.ebase.health > 0 && sb.ubase.health > 0);
+        if(onlineSpecial!=null)onlineSpecial.refresh();
+        rouletteDebugMax.setVisible(!onlineBattleEnding&&online.debugMode()&&online.rouletteMode());
+        updateOpponentRouletteNotice();
+		if (((Canvas) bb).isDisplayable()) bb.paint();
+	}
+
+    private void updateOpponentRouletteNotice(){
+        if(onlineBattleEnding){rouletteNotice.setVisible(false);return;}
+        if(online==null||!online.rouletteMode()){
+            rouletteNotice.setVisible(false);opponentRouletteSpinning=false;return;
+        }
+        PvpRouletteState roulette=online.opponentState().pvpRoulette;
+        if(roulette==null)return;
+        int tick=online.sb.time;
+        if(roulette.spinning&&!opponentRouletteSpinning){
+            rouletteNotice.setText("相手がルーレットを開始しました！");
+            rouletteNoticeUntil=tick+3*PvpStageBasis.TPS;
+            rouletteNotice.setVisible(true);
+        }else if(!roulette.spinning&&opponentRouletteSpinning&&roulette.lastResult>=0){
+            int result=roulette.lastResult,lv=roulette.lastLevel;
+            String level=lv<=0?"":lv>=4?" MAX":" Lv"+lv;
+            rouletteNotice.setText("相手のルーレット結果: "+PvpRouletteState.NAMES[result]+level);
+            rouletteNoticeUntil=tick+3*PvpStageBasis.TPS;
+            rouletteNotice.setVisible(true);
+        }
+        opponentRouletteSpinning=roulette.spinning;
+        if(rouletteNoticeUntil>=0&&tick>=rouletteNoticeUntil)rouletteNotice.setVisible(false);
+    }
+
+	/** Invalidate references before lobby unmounts temporary character packs. Idempotent. */
+	public void detachOnline() {
+		if (online == null || onlineClosed) return;
+		onlineClosed = true;
+        if(audioDialog!=null){audioDialog.dispose();audioDialog=null;}
+        if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;heldUnitPoint=null;
+        clearOnlineSlotDrag();
+        onlineAudioGeneration++;
+        PvpSoundBank.stopAll();BCMusic.stopAll();BCMusic.music=null;onlineBackdrop.clear();
+		online.interactive(false);
+		getPress().clear();
+		if (current == this) current = null;
+	}
+
+	private void closeOnline() {
+		if (online == null || onlineClosed) return;
+		detachOnline();
+		BCMusic.stopAll();
+		onlineExit.run();
+	}
+
+	@Override protected void exit() { closeOnline(); }
+
+	@Override protected void windowDeactivated() {
+		if (online != null) {getPress().clear();clearOnlineSlotDrag();}
+		super.windowDeactivated();
+	}
+
+    private void clearOnlineSlotDrag(){
+        onlineSlotDragSource=-1;onlineSlotDragPoint=null;
+        if(bb instanceof Component)((Component)bb).setCursor(Cursor.getDefaultCursor());
+    }
+
 	@Override
 	public void callBack(Object o) {
+		if (online != null) return;
 		BCMusic.stopAll();
 		if(o instanceof Stage) {
 			changePanel(new BattleInfoPage(getFront(), (Stage) o, 0, basis.sb.b, new int[1]));
@@ -154,6 +471,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 
 	@Override
 	protected synchronized void keyTyped(KeyEvent e) {
+		if (online != null) return;
 		if (spe > -5 && e.getKeyChar() == ',') {
 			spe--;
 			bb.reset();
@@ -166,36 +484,81 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 
 	@Override
 	protected void mouseClicked(MouseEvent e) {
-		if (e.getSource() == bb)
+		if (e.getSource() == bb) {
+            if(online!=null&&e.getButton()==MouseEvent.BUTTON2)return;
+            if(suppressHeldUnitClick){suppressHeldUnitClick=false;return;}
 			bb.click(e.getPoint(), e.getButton());
+        }
 	}
 
 	@Override
 	protected void mouseDragged(MouseEvent e) {
-		if (e.getSource() == bb)
+		if (e.getSource() == bb) {
+            if(onlineSlotDragSource>=0){
+                if(onlineSlotDragPoint!=null&&onlineSlotDragPoint.distance(e.getPoint())>4)
+                    ((Canvas)bb).setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+                return;
+            }
+            if(heldUnitForm!=null&&heldUnitPoint!=null&&heldUnitPoint.distance(e.getPoint())>8){
+                if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;
+                bb.press(heldUnitPoint);bb.drag(e.getPoint(),e.getButton());return;
+            }
 			bb.drag(e.getPoint(), e.getButton());
+        }
 	}
 
 	@Override
 	protected void mousePressed(MouseEvent e) {
-		if (e.getSource() == bb)
+		if (e.getSource() == bb) {
+            if(online!=null&&e.getButton()==MouseEvent.BUTTON2&&bb.getPainter() instanceof BBCtrl){
+                int slot=((BBCtrl)bb.getPainter()).slotAt(e.getPoint());
+                if(slot>=0){
+                    onlineSlotDragSource=slot;onlineSlotDragPoint=e.getPoint();getPress().clear();
+                    ((Canvas)bb).setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));return;
+                }
+            }
+            if(online!=null&&e.getButton()==MouseEvent.BUTTON1&&bb.getPainter() instanceof BBCtrl){
+                Form form=((BBCtrl)bb.getPainter()).formAt(e.getPoint());
+                if(form!=null){
+                    heldUnitForm=form;heldUnitPoint=e.getPoint();suppressHeldUnitClick=false;
+                    if(unitHoldTimer!=null)unitHoldTimer.restart();return;
+                }
+            }
 			bb.press(e.getPoint());
+        }
 	}
 
 	@Override
 	protected void mouseReleased(MouseEvent e) {
-		if (e.getSource() == bb)
+		if (e.getSource() == bb) {
+            if(onlineSlotDragSource>=0&&e.getButton()==MouseEvent.BUTTON2){
+                int source=onlineSlotDragSource;
+                int target=bb.getPainter() instanceof BBCtrl?((BBCtrl)bb.getPainter()).slotAt(e.getPoint()):-1;
+                boolean changed=target>=0&&online!=null&&online.swapVisibleSlots(source,target);
+                clearOnlineSlotDrag();
+                if(changed){bb.reset();((Canvas)bb).repaint();}
+                return;
+            }
+            if(heldUnitForm!=null){
+                if(unitHoldTimer!=null)unitHoldTimer.stop();unitAbilityOverlay.close();heldUnitForm=null;heldUnitPoint=null;return;
+            }
 			bb.release();
+        }
 	}
 
 	@Override
 	protected void mouseWheel(MouseEvent e) {
+        if(online!=null&&unitAbilityOverlay.isVisible()){
+            unitAbilityOverlay.scrollByWheel(((MouseWheelEvent)e).getWheelRotation());
+            return;
+        }
 		if (e.getSource() == bb)
 			bb.wheeled(e.getPoint(), ((MouseWheelEvent) e).getWheelRotation());
 	}
 
 	@Override
 	protected void renew() {
+		if (online != null) return;
 		backClicked = false;
 
 		if (basis.sb.mus != null) {
@@ -227,12 +590,11 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		if (jtb.isSelected()) {
 			set(paus, x, y, 700, 0, 200, 50);
 			set(rply, x, y, 900, 0, 200, 50);
-			set(stream, x, y, 900, 0, 400, 50);
+			set(stream, x, y, 900, 0, online == null ? 400 : 200, 50);
 			set(next, x, y, 1100, 0, 200, 50);
 			set(row, x, y, 1300, 0, 200, 50);
-			set(ebase, x, y, 240, 0, 600, 50);
+			set(ebase, x, y, 240, 0, 600, 50);set(ubase, x, y, 1740, 0, 200, 50);
 			set(timer, x, y, 1500, 0, 200, 50);
-			set(ubase, x, y, 1740, 0, 200, 50);
 			set((Canvas) bb, x, y, 190, 50, 1920, 1200);
 			set(ctp, x, y, 0, 0, 0, 0);
 			set(eep, x, y, 50, 100, 0, 0);
@@ -254,14 +616,13 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 			set(row, x, y , 1300, 200, 200, 50);
 			set(paus, x, y, 700, 200, 200, 50);
 			set(rply, x, y, 900, 200, 200, 50);
-			set(stream, x, y, 900, 200, 400, 50);
+			set(stream, x, y, 900, 200, online == null ? 400 : 200, 50);
 			set(next, x, y, 1100, 200, 200, 50);
 			set(eup, x, y, 1650, 100, 600, 700);
 			set(eusp, x, y, 1650, 100, 600, 700);
 			set(utdsp, x, y, 1650, 850, 600, 400);
-			set(ebase, x, y, 700, 250, 400, 50);
+			set(ebase, x, y, 700, 250, 400, 50);set(ubase, x, y, 1300, 250, 200, 50);
 			set(timer, x, y, 1100, 250, 200, 50);
-			set(ubase, x, y, 1300, 250, 200, 50);
 			set(ecount, x, y, 50, 50, 450, 50);
 			set(estat, x, y, 500, 50, 150, 50);
 			set(ucount, x, y, 1650, 50, 450, 50);
@@ -269,6 +630,30 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 			set(respawn, x, y, 50, 800, 600, 50);
 			set(jsl, x, y, 700, 800, 800, 50);
 		}
+        if(online!=null){
+            onlineBackdrop.setBounds(((Canvas)bb).getBounds());
+            orderOnlineLayers();queueOnlineLayout();
+            audio.setBounds(paus.getBounds());
+            if(onlineSpecial!=null){
+                if(jtb.isSelected())set(onlineSpecial,x,y,1100,0,390,50);
+                else set(onlineSpecial,x,y,1100,200,390,50);
+            }
+            if(jtb.isSelected()){
+                set(onlineTag,x,y,1510,10,180,30);
+                set(rouletteNotice,x,y,760,98,720,34);
+                set(rouletteDebugMax,x,y,210,134,300,46);
+                set(unitAbilityOverlay,x,y,380,82,1540,430);
+                set(onlineBattleEnd,x,y,790,565,720,170);
+                set(onlineResult,x,y,740,520,820,260);
+            }else{
+                set(onlineTag,x,y,1510,255,130,30);
+                set(rouletteNotice,x,y,900,372,650,34);
+                set(rouletteDebugMax,x,y,710,372,300,46);
+                set(unitAbilityOverlay,x,y,620,285,960,390);
+                set(onlineBattleEnd,x,y,905,480,390,140);
+                set(onlineResult,x,y,865,445,470,210);
+            }
+        }
 		ct.setRowHeight(size(x, y, 50));
 		et.setRowHeight(size(x, y, 50));
 		est.setRowHeight(size(x, y, 50));
@@ -279,6 +664,8 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 
 	@Override
 	public synchronized void onTimer(int t) {
+		// Online simulation/render scheduling belongs to the EDT network pump, not Timer.p.
+		if (online != null) return;
 		super.onTimer(t);
 
 		StageBasis sb = basis.sb;
@@ -463,6 +850,7 @@ public class BattleInfoPage extends KeyHandler implements OuterBox {
 		});
 
 		back.setLnr(x -> {
+			if (online != null) { closeOnline(); return; }
 			backClicked = true;
 			BCMusic.stopAll();
 			if (bb instanceof BBRecd) {

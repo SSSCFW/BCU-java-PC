@@ -1,5 +1,7 @@
 Manifest-Version: 1.0
 Main-Class: main.MainBCU
+Add-Opens: java.base/java.lang java.desktop/sun.java2d
+  java.desktop/sun.awt java.desktop/sun.awt.windows
 Class-Path: ./BCU_lib/httpcore-4.4.16.jar ./BCU_lib/kotlin-stdlib-jdk7-2
  .2.0.jar ./BCU_lib/guava-33.0.0-jre.jar ./BCU_lib/j2objc-annotations-2.
  8.jar ./BCU_lib/jogl-all-2.5.0-natives-linux-armv6hf.jar ./BCU_lib/glue

@@ -51,12 +51,16 @@ public class FG2D implements FakeGraphics {
 
 	@Override
 	public void drawImage(FakeImage bimg, float i, float j) {
-		g.drawImage((Image) bimg.bimg(), (int) i, (int) j, null);
+        if(bimg==null)return;
+        Object raw=bimg.bimg();if(!(raw instanceof Image))return;
+		g.drawImage((Image)raw,(int)i,(int)j,null);
 	}
 
 	@Override
 	public void drawImage(FakeImage bimg, float ix, float iy, float iw, float ih) {
-		g.drawImage((Image) bimg.bimg(), (int) ix, (int) iy, (int) iw, (int) ih, null);
+        if(bimg==null)return;
+        Object raw=bimg.bimg();if(!(raw instanceof Image))return;
+		g.drawImage((Image)raw,(int)ix,(int)iy,(int)iw,(int)ih,null);
 	}
 
 	@Override

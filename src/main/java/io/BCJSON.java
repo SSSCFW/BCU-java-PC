@@ -31,16 +31,20 @@ public class BCJSON {
 		List<Downloader> assets = null, musics = null, libs = null, lang;
 		UpdateJson.JarJson[] jars = null;
 		try {
-			for (UpdateJson.AnnouncementJson announce : json.pc_announcement) {
+			for (UpdateJson.AnnouncementJson announce : announcements(json)) {
+				if (announce == null || announce.id == null)
+					continue;
 				if (cfg.receivedAnnouncements.contains(announce.id + "_PC") || MainBCU.ver < announce.min_ver || MainBCU.ver > announce.max_ver)
 					continue;
 
-                if (Opts.warningLong(announce.title + "\n" + String.join("\n\n", announce.text), "Announcement", 700, 350))
+				String title = announce.title == null ? "Announcement" : announce.title;
+				String[] text = announce.text == null ? new String[0] : announce.text;
+                if (Opts.warningLong(title + "\n" + String.join("\n\n", text), "Announcement", 700, 350))
 					cfg.receivedAnnouncements.add(announce.id + "_PC");
 			}
 			jars = getLatestJars(json);
-			libs = UpdateCheck.checkPCLibs(json);
-			assets = UpdateCheck.checkAsset(json, "pc");
+			libs = json == null || json.pc_libs == null ? new ArrayList<>() : UpdateCheck.checkPCLibs(json);
+			assets = json == null || json.assets == null ? new ArrayList<>() : UpdateCheck.checkAsset(json, "pc");
 		} catch (Exception e) {
 			Opts.pop(e.getMessage(), "FATAL ERROR");
 			e.printStackTrace();
@@ -146,9 +150,15 @@ public class BCJSON {
 		return load;
 	}
 
-	private static UpdateJson.JarJson[] getLatestJars(UpdateJson json) {
-		if (json == null)
-			return null;
+	static UpdateJson.AnnouncementJson[] announcements(UpdateJson json) {
+		if (json == null || json.pc_announcement == null)
+			return new UpdateJson.AnnouncementJson[0];
+		return json.pc_announcement;
+	}
+
+	static UpdateJson.JarJson[] getLatestJars(UpdateJson json) {
+		if (json == null || json.pc_update == null)
+			return new UpdateJson.JarJson[0];
 
 		List<UpdateJson.JarJson> jars = new ArrayList<>();
 		for (UpdateJson.JarJson jar : json.pc_update) {
@@ -162,7 +172,7 @@ public class BCJSON {
 	}
 
 	private static UpdateJson.JarJson getLatestJar(UpdateJson json) {
-		if (json == null)
+		if (json == null || json.pc_update == null)
 			return null;
 
 		for (UpdateJson.JarJson jar : json.pc_update) {

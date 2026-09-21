@@ -11,6 +11,7 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<java.version>1.8</java.version>
         <kotlin.version>2.2.0</kotlin.version>
+        <skipTests>false</skipTests>
     </properties>
 
 	<repositories>
@@ -21,7 +22,8 @@
 	</repositories>
 
 	<build>
-		<sourceDirectory>src/main/java</sourceDirectory>
+		<finalName>bcu-pvp</finalName>
+        <sourceDirectory>${project.build.directory}/generated-sources/pvp</sourceDirectory>
 		<resources>
 			<resource>
 				<directory>src/main/java</directory>
@@ -42,6 +44,58 @@
 			</resource>
 		</resources>
 		<plugins>
+            <!-- Overlay the pinned common submodule without modifying its checkout. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions><execution>
+                    <id>prepare-pvp-sources</id><phase>generate-sources</phase>
+                    <goals><goal>run</goal></goals>
+                    <configuration><target>
+                        <delete dir="${project.build.directory}/generated-sources/pvp"/>
+                        <mkdir dir="${project.build.directory}/generated-sources/pvp"/>
+                        <copy todir="${project.build.directory}/generated-sources/pvp">
+                            <fileset dir="src/main/java" excludes="**/.git"/>
+                        </copy>
+                        <copy todir="${project.build.directory}/generated-sources/pvp" overwrite="true">
+                            <fileset dir="src/pvp/java"/>
+                        </copy>
+                    </target></configuration>
+                </execution></executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions><execution>
+                    <id>pvp-integration-tests</id><phase>test</phase>
+                    <goals><goal>exec</goal></goals>
+                    <configuration>
+                        <skip>${skipTests}</skip>
+                        <executable>${java.home}/bin/java</executable>
+                        <classpathScope>test</classpathScope>
+                        <arguments>
+                            <argument>-ea</argument>
+                            <argument>-Djava.awt.headless=true</argument>
+                            <argument>-Dfile.encoding=UTF-8</argument>
+                            <argument>-classpath</argument><classpath/>
+                            <argument>online.tests.AllTests</argument>
+                        </arguments>
+                    </configuration>
+                </execution></executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
+                <configuration><archive><manifest>
+                    <mainClass>main.MainBCU</mainClass><addClasspath>true</addClasspath>
+                    <classpathPrefix>lib/</classpathPrefix>
+                </manifest><manifestEntries>
+                    <Add-Opens>java.base/java.lang java.desktop/sun.java2d java.desktop/sun.awt java.desktop/sun.awt.windows</Add-Opens>
+                </manifestEntries></archive></configuration>
+            </plugin>
             <plugin>
                 <groupId>org.jetbrains.kotlin</groupId>
                 <artifactId>kotlin-maven-plugin</artifactId>
@@ -55,9 +109,8 @@
                         </goals>
                         <configuration>
                             <sourceDirs>
-                                <source>src</source>
-                                <source>target/generated-sources/annotations</source>
-                                <source>src/main/java</source>
+                                <source>${project.build.directory}/generated-sources/pvp</source>
+                                <source>${project.build.directory}/generated-sources/annotations</source>
                             </sourceDirs>
                         </configuration>
                     </execution>
@@ -110,6 +163,12 @@
 	</build>
 
 	<dependencies>
+        <dependency>
+            <groupId>org.java-websocket</groupId><artifactId>Java-WebSocket</artifactId><version>1.6.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId><artifactId>slf4j-simple</artifactId><version>2.0.16</version><scope>runtime</scope>
+        </dependency>
 		<!-- https://mvnrepository.com/artifact/commons-codec/commons-codec -->
 		<dependency>
 			<groupId>commons-codec</groupId>
