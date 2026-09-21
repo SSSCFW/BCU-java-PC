@@ -45,6 +45,7 @@ public class PCIB extends ImageBuilder<BufferedImage> {
 	@Override
 	public FakeImage build(File f) throws IOException {
 		BufferedImage o = ImageIO.read(f);
+        if(o==null)return build((BufferedImage)null);
 
 		if(o.getType() != BufferedImage.TYPE_INT_ARGB_PRE) {
 			BufferedImage temp = new BufferedImage(o.getWidth(), o.getHeight(), BufferedImage.TYPE_INT_ARGB_PRE);
