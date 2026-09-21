@@ -97,7 +97,9 @@ public class AmbImage implements FakeImage {
 
 	@Override
 	public boolean isValid() {
-		return true;
+		if (failed) return false;
+		check();
+		return (bimg != null && bimg.bimg() != null) || gl != null;
 	}
 
 	@Override
@@ -232,7 +234,7 @@ public class AmbImage implements FakeImage {
 
 	private void forceBI() {
 		checkBI();
-		force = true;
+		force = bimg != null && bimg.bimg() != null;
 		gl = null;
 	}
 }
